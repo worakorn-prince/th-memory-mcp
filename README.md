@@ -1,81 +1,86 @@
 # memory-mcp
 
-MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons, ประวัติการใช้งาน ลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) เพื่อให้ AI "จำและปรับตัว" กับผู้ใช้ผ่าน context-based learning
+Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
-**สถานะ:** v1.1.0 — อิมพลีเมนต์ครบ 4 Phase, tests ผ่าน 70/70 assertions (smoke 53 + capture 8 + distill 9)
+**Status:** v1.1.0 — all 4 phases implemented, tests passing 70/70 assertions (smoke 53 + capture 8 + distill 9)
 
-## สถาปัตยกรรม
+> ไทย / Thai: [README.th.md](README.th.md)
+
+## Architecture
 
 ```
-OpenCode ──┬─ Plugin learning-capture (Bun)  ── จับ prompt/tool/error ลง DB อัตโนมัติ
-           │                                   └─ ฉีด profile กลับ context ตอน compaction
-           └─ MCP memory-mcp (Node.js stdio)  ── tools 9 ตัว อ่าน/เขียน SQLite เดียวกัน
-                                                     ▲
-                              Global instructions (memory-protocol.md) สอน AI ใช้ tools
+OpenCode ──┬─ Plugin learning-capture (Bun)  ── auto-captures prompts/tool/error into DB
+            │                                   └─ injects profile back into context on compaction
+            └─ MCP memory-mcp (Node.js stdio)  ── 9 tools read/write the same SQLite DB
+                                                      ▲
+                               Global instructions (memory-protocol.md) teach the AI to use the tools
 ```
 
-รายละเอียดเต็มอยู่ใน [design.md](design.md)
+See [design.md](design.md) for full details.
 
 ## Scripts
 
-| Command | คำอธิบาย |
-|---------|----------|
+| Command | Description |
+|---------|-------------|
 | `npm run build` | compile TypeScript → `dist/` |
-| `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
-| `npm run distill` | rule-based distill: interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | smoke test end-to-end ผ่าน JSON-RPC (`node test/smoke.mjs`) |
-| `node test/capture.test.mjs` | ทดสอบ capture-core (filter secrets, dedupe, truncate, insert SQL) |
-| `node test/distill.test.mjs` | ทดสอบ distill-core (tokenize ไทย, stats, profile sections, prune) |
+| `npm start` | run the MCP server (stdio) from `dist/index.js` |
+| `npm run distill` | rule-based distill: interactions → profile sections + prune old data (env `RETENTION_DAYS` default 30) |
+| `npm test` | end-to-end smoke test over JSON-RPC (`node test/smoke.mjs`) |
+| `node test/capture.test.mjs` | test capture-core (filter secrets, dedupe, truncate, insert SQL) |
+| `node test/distill.test.mjs` | test distill-core (Thai tokenize, stats, profile sections, prune) |
 
 ## Tools (9)
 
-| Tool | คำอธิบาย |
-|------|----------|
-| `remember` | upsert preference (category+key) — ยืนยันซ้ำ confidence +0.1 (cap 1.0) |
-| `recall` | ค้น preferences + lessons (FTS5) + interactions ล่าสุดที่ match ตาม topic |
-| `get_profile` | ภาพรวมผู้ใช้: profile sections + top preferences + lessons ล่าสุด 5 รายการ |
-| `save_lesson` | บันทึกบทเรียนจากการถูกแก้ (situation / mistake / correction) |
-| `search_history` | ค้น prompt เก่าด้วย keyword (snippet 200 chars/รายการ) |
-| `forget` | ลบ row เดียว (preference/lesson/interaction) ตาม id (+type กัน id ชนข้ามตาราง) |
-| `memory_stats` | สถิติความจำ: counts แยก kind, ขนาด DB, oldest/newest interaction, profile sections |
-| `get_recent_interactions` | ดึง interactions ล่าสุดแบบดิบ (กรองตาม kind ได้) — วัตถุดิบของ Smart Distill |
-| `export_memory` | export ความจำเป็น JSON ลง `data/exports/` เท่านั้น (sanitize filename ให้เอง) |
+| Tool | Description |
+|------|-------------|
+| `remember` | upsert preference (category+key) — re-saving the same key increases confidence by 0.1 (cap 1.0) |
+| `recall` | search preferences + lessons (FTS5) + recent matching interactions. Use before starting a new task |
+| `get_profile` | user profile overview: profile sections + top preferences + 5 most recent lessons |
+| `save_lesson` | record a lesson learned from a correction (situation / mistake / correction) |
+| `search_history` | search past user prompts by keyword (200-char snippets per row) |
+| `forget` | delete one memory row (preference/lesson/interaction) by id (+type prevents cross-table id clash) |
+| `memory_stats` | memory statistics: counts by kind, DB size, oldest/newest interaction, profile sections |
+| `get_recent_interactions` | list recent raw interactions (filter by kind) — feedstock for Smart Distill |
+| `export_memory` | export memory to JSON under `data/exports/` only (filename auto-sanitized) |
 
-## ติดตั้งกับ OpenCode
+## Install with OpenCode
 
-1. Merge `mcp` section จาก [`opencode.example.json`](opencode.example.json) เข้า `opencode.json` (global หรือ project-level)
-   - **สำคัญ:** ตั้ง `MEMORY_DB_PATH` ให้ชี้ที่ไฟล์ DB เดียวกันทั้ง server และ plugin (ในตัวอย่างคือ `<ABSOLUTE_PATH>/memory-mcp/data/memory.db`) มิฉะนั้น auto-capture plugin จะเขียนลง DB คนละไฟล์กับที่ AI อ่าน
-   - วิธีตั้ง (เลือกหนึ่ง):
-     - กำหนดใน `environment` ของ mcp (ดูตัวอย่าง) — ครอบคลุมเฉพาะ MCP server
-     - **หรือ** กำหนดเป็น environment variable ระดับระบบ/ผู้ใช้ (เช่น `setx MEMORY_DB_PATH "D:/path/to/memory.db"` บน Windows) — ครอบคลุมทั้ง server และ plugin เพราะ plugin รันใน process เดียวกับ OpenCode
-2. ผูกกฎความจำระดับ global — เพิ่มใน `opencode.json`:
+1. Merge the `mcp` section from [`opencode.example.json`](opencode.example.json) into your `opencode.json` (global or project-level)
+   - **Important:** set `MEMORY_DB_PATH` to the SAME database file for both the server and the plugin (the example uses `<ABSOLUTE_PATH>/memory-mcp/data/memory.db`), otherwise the auto-capture plugin writes to a different DB than the one the AI reads
+   - How to set it (pick one):
+     - define it in the mcp `environment` (see example) — covers the MCP server only
+     - **or** set it as a system/user-level environment variable (e.g. `setx MEMORY_DB_PATH "D:/path/to/memory.db"` on Windows) — covers both server and plugin, since the plugin runs in the same process as OpenCode
+2. Attach the global memory rules — add to `opencode.json`:
    ```json
    "instructions": ["C:/Users/<user>/.config/opencode/memory-protocol.md"]
    ```
-   (ตัวอย่างเนื้อหากฎอยู่ใน [`AGENTS.memory.example.md`](AGENTS.memory.example.md) — ใช้แนบระดับโปรเจกต์แทนได้)
-3. (Optional) Deploy plugin auto-capture: copy `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/learning-capture.ts`
-4. **Restart OpenCode** (config โหลดตอน start เท่านั้น)
-5. ทดสอบ: *"จำไว้ว่าฉันชอบใช้ pnpm"* → เปิด session ใหม่ถามกลับ
+   (example rule content is in [`AGENTS.memory.example.md`](AGENTS.memory.example.md) — can be attached at project level instead)
+3. (Optional) Deploy the auto-capture plugin: copy `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/learning-capture.ts`
+4. **Restart OpenCode** (config loads at startup only)
+5. Test: *"Remember that I prefer pnpm"* → open a new session and ask back
 
-## การใช้งานประจำวัน
+## Daily usage
 
-| สั่ง AI ว่า | สิ่งที่เกิด |
-|------------|-----------|
-| "จำไว้ว่า..." | `remember` — บันทึกความชอบ |
-| "สรุปความจำ" / "distill memory" | **Smart Distill** — AI อ่าน `get_recent_interactions` วิเคราะห์ pattern แล้วบันทึก insight เอง |
-| "ระบบความจำเป็นไงบ้าง" | `memory_stats` |
-| "สำรองความจำ" | `export_memory` |
-| ใช้งานไปเรื่อย ๆ | plugin จับพฤติกรรมเอง + ฉีด profile ตอน session ยาว |
+The AI accepts both Thai and English interchangeably — you can switch languages at any time without warning.
 
-ดูแลระยะยาว: รัน `npm run distill` เป็นครั้งคราวเพื่อสรุปสถิติ + ลบ interactions เก่าเกิน 30 วัน
+| Thai | English | Effect |
+|------|---------|--------|
+| "จำไว้ว่า..." | "Remember that..." | `remember` — save a preference |
+| "สรุปความจำ" / "distill memory" | "Summarize memory" / "distill memory" | **Smart Distill** — AI reads `get_recent_interactions`, finds patterns, and saves insights itself |
+| "ระบบความจำเป็นไงบ้าง" | "How is my memory?" / "memory status" | `memory_stats` |
+| "สำรองความจำ" | "Export memory" / "backup memory" | `export_memory` |
+| "ค้นประวัติ..." | "Search history..." | `search_history` |
+| "ลืม..." | "Forget..." | `forget` |
 
-## โครงสร้าง data/
+Long-term care: run `npm run distill` occasionally to summarize stats and prune interactions older than 30 days.
+
+## data/ structure
 
 ```
 data/
-├── memory.db          # SQLite (WAL mode) — DB หลัก (+ .db-wal, .db-shm)
-└── exports/           # ไฟล์ JSON จาก tool export_memory (เขียนได้เฉพาะ dir นี้)
+├── memory.db          # SQLite (WAL mode) — main DB (+ .db-wal, .db-shm)
+└── exports/           # JSON files from export_memory (writeable only in this dir)
 ```
 
-- path ของ DB override ได้ผ่าน env `MEMORY_DB_PATH`
-- ทุกอย่างใน `data/` ถูก git ignore
+- DB path can be overridden via the `MEMORY_DB_PATH` env var
+- everything in `data/` is git-ignored
