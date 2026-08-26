@@ -2,6 +2,11 @@
   "name": "memory-mcp",
   "version": "1.1.0",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
+  "author": "worakorn-prince",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/worakorn-prince/memory-mcp.git"
+  },
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
