@@ -4,10 +4,12 @@ import {
   buildFtsMatch,
   escapeLike,
   truncate,
+  getAllEmbeddings,
   ok,
   err,
   type ToolResult,
 } from "../db.js";
+import { embed, cosine, deserialize } from "../lib/embed.js";
 
 export const recallInput = {
   topic: z.string().min(1).max(500).describe("Topic to recall from memory"),
@@ -22,12 +24,34 @@ export const recallInput = {
 
 const RECALL_BUDGET = 2000;
 const RECENT_INTERACTIONS_LIMIT = 20;
+const SEMANTIC_FLOOR = 0.15;
 const searchIndexed = db.prepare(
   "SELECT ref_table, ref_id, title, body FROM search_index WHERE search_index MATCH ? AND ref_table IN ('preferences','lessons') LIMIT ?"
 );
 const recentInteractions = db.prepare(
   `SELECT ts, kind, content FROM interactions WHERE content LIKE ? ESCAPE '\\' ORDER BY ts DESC LIMIT ${RECENT_INTERACTIONS_LIMIT}`
 );
+const prefById = db.prepare(
+  "SELECT category, key, value FROM preferences WHERE id = ?"
+);
+const lessonById = db.prepare(
+  "SELECT situation, mistake, correction FROM lessons WHERE id = ?"
+);
+
+function prefLine(id: number): string | null {
+  const r = prefById.get(id) as
+    | { category: string; key: string; value: string }
+    | undefined;
+  if (!r) return null;
+  return `- ${truncate(`${r.category}/${r.key}`, 120)} | ${truncate(`${r.key}: ${r.value}`, 200)}`;
+}
+function lessonLine(id: number): string | null {
+  const r = lessonById.get(id) as
+    | { situation: string; mistake: string; correction: string }
+    | undefined;
+  if (!r) return null;
+  return `- ${truncate(r.situation, 120)} | ${truncate(`mistake: ${r.mistake} -> correction: ${r.correction}`, 300)}`;
+}
 
 export async function recallHandler(args: {
   topic: string;
@@ -37,6 +61,7 @@ export async function recallHandler(args: {
     const limit = args.limit;
     const parts: string[] = [];
 
+    const seen = new Set<string>();
     let prefLines = "";
     let lessonLines = "";
     try {
@@ -48,9 +73,17 @@ export async function recallHandler(args: {
       }[];
       for (const r of rows) {
         if (r.ref_table === "preferences") {
-          prefLines += `- ${truncate(r.title, 120)} | ${truncate(r.body, 200)}\n`;
+          const line = prefLine(r.ref_id);
+          if (line) {
+            prefLines += line + "\n";
+            seen.add(`p:${r.ref_id}`);
+          }
         } else if (r.ref_table === "lessons") {
-          lessonLines += `- ${truncate(r.title, 120)} | ${truncate(r.body, 300)}\n`;
+          const line = lessonLine(r.ref_id);
+          if (line) {
+            lessonLines += line + "\n";
+            seen.add(`l:${r.ref_id}`);
+          }
         }
       }
     } catch (e) {
@@ -58,6 +91,41 @@ export async function recallHandler(args: {
       console.error("[recall] preference/lesson search failed:", msg);
       prefLines = "";
       lessonLines = "";
+    }
+
+    // Semantic blend: surface vector neighbors missed by keyword search.
+    try {
+      const topicVec = embed(args.topic);
+      const all = getAllEmbeddings();
+      const scored = all
+        .map((row) => ({
+          table: row.ref_table,
+          id: row.ref_id,
+          score: cosine(topicVec, deserialize(row.vec)),
+        }))
+        .filter((x) => x.score >= SEMANTIC_FLOOR)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+      for (const x of scored) {
+        const key = `${x.table[0]}:${x.id}`;
+        if (seen.has(key)) continue;
+        if (x.table === "preferences") {
+          const line = prefLine(x.id);
+          if (line) {
+            prefLines += line + "\n";
+            seen.add(key);
+          }
+        } else if (x.table === "lessons") {
+          const line = lessonLine(x.id);
+          if (line) {
+            lessonLines += line + "\n";
+            seen.add(key);
+          }
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[recall] semantic search failed:", msg);
     }
 
     let interactionLines = "";

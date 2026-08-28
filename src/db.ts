@@ -3,6 +3,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { truncate } from "./lib/capture-core.js";
+import { serialize } from "./lib/embed.js";
 import { DEFAULT_DB_PATH } from "./lib/config.js";
 
 type DbInstance = BetterSqlite3.Database;
@@ -64,6 +65,13 @@ CREATE TABLE IF NOT EXISTS profile (
 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
   ref_table, ref_id, title, body
 );
+
+CREATE TABLE IF NOT EXISTS embeddings (
+  ref_table TEXT NOT NULL,
+  ref_id INTEGER NOT NULL,
+  vec BLOB NOT NULL,
+  PRIMARY KEY (ref_table, ref_id)
+);
 `);
 
 export function nowISO(): string {
@@ -101,6 +109,38 @@ export function syncSearchIndex(
 
 export function removeSearchIndex(refTable: string, refId: number): void {
   deleteSearchIndex.run(refTable, refId);
+}
+
+// --- vector embeddings (lightweight local semantic search) ---
+const upsertEmbed = db.prepare(
+  `INSERT INTO embeddings (ref_table, ref_id, vec) VALUES (?, ?, ?)
+   ON CONFLICT(ref_table, ref_id) DO UPDATE SET vec = excluded.vec`
+);
+const deleteEmbed = db.prepare(
+  "DELETE FROM embeddings WHERE ref_table = ? AND ref_id = ?"
+);
+const allEmbeds = db.prepare(
+  "SELECT ref_table, ref_id, vec FROM embeddings"
+);
+
+export function upsertEmbedding(
+  refTable: string,
+  refId: number,
+  vec: Float32Array
+): void {
+  upsertEmbed.run(refTable, refId, serialize(vec));
+}
+
+export function removeEmbedding(refTable: string, refId: number): void {
+  deleteEmbed.run(refTable, refId);
+}
+
+export function getAllEmbeddings(): {
+  ref_table: string;
+  ref_id: number;
+  vec: Buffer;
+}[] {
+  return allEmbeds.all() as { ref_table: string; ref_id: number; vec: Buffer }[];
 }
 
 export interface ToolResult {

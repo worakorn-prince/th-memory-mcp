@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { db, removeSearchIndex, ok, err, type ToolResult } from "../db.js";
+import {
+  db,
+  removeSearchIndex,
+  removeEmbedding,
+  ok,
+  err,
+  type ToolResult,
+} from "../db.js";
 
 export const forgetInput = {
   target_id: z
@@ -78,10 +85,12 @@ export async function forgetHandler(args: {
         if (kind === "preferences") {
           delPreference.run(id);
           removeSearchIndex("preferences", id);
+          removeEmbedding("preferences", id);
           removed.push(`preference #${id}`);
         } else if (kind === "lessons") {
           delLesson.run(id);
           removeSearchIndex("lessons", id);
+          removeEmbedding("lessons", id);
           removed.push(`lesson #${id}`);
         } else {
           delInteraction.run(id);

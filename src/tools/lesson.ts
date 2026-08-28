@@ -3,10 +3,12 @@ import {
   db,
   nowISO,
   syncSearchIndex,
+  upsertEmbedding,
   ok,
   err,
   type ToolResult,
 } from "../db.js";
+import { embed } from "../lib/embed.js";
 
 export const saveLessonInput = {
   situation: z.string().min(1).max(1000).describe("The original situation/context"),
@@ -38,6 +40,11 @@ export async function saveLessonHandler(args: {
       id,
       args.situation.slice(0, LESSON_TITLE_MAX),
       `${args.situation} | mistake: ${args.mistake} -> correction: ${args.correction}`
+    );
+    upsertEmbedding(
+      "lessons",
+      id,
+      embed(`${args.situation} ${args.mistake} ${args.correction}`)
     );
     return ok(`lesson saved (lesson id=${id})`);
   } catch (e) {

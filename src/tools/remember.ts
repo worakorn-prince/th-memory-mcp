@@ -3,10 +3,12 @@ import {
   db,
   nowISO,
   syncSearchIndex,
+  upsertEmbedding,
   ok,
   err,
   type ToolResult,
 } from "../db.js";
+import { embed } from "../lib/embed.js";
 
 export const rememberInput = {
   category: z
@@ -62,6 +64,7 @@ export async function rememberHandler(args: {
       `${args.category}/${args.key}`,
       `${args.key}: ${args.value}`
     );
+    upsertEmbedding("preferences", id, embed(`${args.category} ${args.key} ${args.value}`));
     return ok(
       `remembered [${args.category}] ${args.key} = ${args.value} (preference id=${id}, confidence=${confidence.toFixed(2)})`
     );
