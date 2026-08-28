@@ -5,7 +5,7 @@
   "author": "worakorn-prince",
   "repository": {
     "type": "git",
-    "url": "https://github.com/worakorn-prince/memory-mcp.git"
+    "url": "https://github.com/worakorn-prince/th-memory-mcp.git"
   },
   "type": "module",
   "main": "dist/index.js",
