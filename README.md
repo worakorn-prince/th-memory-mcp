@@ -17,6 +17,8 @@ No external services, accounts, or API keys are required — everything lives in
 
 **Fastest path:** after cloning, run `npm run quickstart` — it builds, wires `opencode.json`, deploys the plugin, and sets `MEMORY_DB_PATH` for you in one command. The steps below show exactly what it does (use them if you prefer manual control).
 
+**Install via npm (alternative):** install the server globally with `npm install -g th-memory-mcp` (or run it on demand with `npx th-memory-mcp`), then point the `mcp` `command` in `opencode.json` to `th-memory-mcp` instead of the built `dist/index.js`. The auto-capture plugin still comes from this repo (copy `src/plugin/learning-capture.ts` as described in step 4 below).
+
 ```bash
 # 1. Clone and build
 git clone https://github.com/worakorn-prince/th-memory-mcp.git
