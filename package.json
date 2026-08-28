@@ -9,6 +9,18 @@
   },
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "memory-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.th.md",
+    "LICENSE",
+    "design.md",
+    "opencode.example.json",
+    "AGENTS.memory.example.md"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
