@@ -8,6 +8,8 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 
 ## Quick Start (เริ่มใช้งานไว)
 
+**ทางที่เร็วที่สุด:** หลัง clone ให้รัน `npm run quickstart` — มันจะ build, ต่อไฟล์ `opencode.json`, วาง plugin และตั้ง `MEMORY_DB_PATH` ให้ในคำสั่งเดียว ขั้นตอนด้านล่างคือสิ่งที่สคริปต์ทำ (ใช้ได้หากอยากควบคุมเองทีละขั้น)
+
 ```bash
 # 1. Clone และ build
 git clone https://github.com/worakorn-prince/memory-mcp.git
