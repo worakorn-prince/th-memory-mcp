@@ -87,14 +87,15 @@ is supported. Full **auto-capture** (background prompt/tool/error capture + prof
 injection) needs a hook runtime — OpenCode has it built in; Claude Code gets it via
 our hooks bridge; Codex and Cursor use the tools manually (no hook runtime yet).
 
-| Feature | OpenCode | Claude Code | Codex | Cursor |
-|---|---|---|---|---|
-| 9 MCP tools | ✅ | ✅ | ✅ | ✅ |
-| Auto-capture (background) | ✅ plugin | ✅ [hooks](CLAUDE_CODE_HOOKS.md) | ❌ manual | ❌ Rules |
-| Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ `get_profile` | ❌ `get_profile` |
-| Local semantic search | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) |
+| Feature | OpenCode | Claude Code | Qwen Code | Codex | Cursor |
+|---|---|---|---|---|---|
+| 9 MCP tools | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Auto-capture (background) | ✅ plugin | ✅ [hooks](CLAUDE_CODE_HOOKS.md) | ⚠️ adapter | ❌ manual | ❌ Rules |
+| Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ `get_profile` | ❌ `get_profile` | ❌ `get_profile` |
+| Local semantic search | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) |
 
 - **Claude Code:** see [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md) — drop-in hooks replicate the OpenCode plugin (capture + profile injection on `UserPromptSubmit`/`PreCompact`, rule-based distill on `SessionEnd`).
+- **Qwen Code:** see [QWEN_SETUP.md](QWEN_SETUP.md) — MCP works fully; hooks use the Gemini-CLI schema so auto-capture needs a small adapter.
 - **Codex:** see [CODEX_SETUP.md](CODEX_SETUP.md)
 - **Cursor:** see [CURSOR_SETUP.md](CURSOR_SETUP.md)
 

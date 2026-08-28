@@ -10,8 +10,6 @@ import { createHash } from "node:crypto";
 
 export const EMBED_DIM = 512;
 
-const THAI = /[ก-์]/;
-
 function fnv1a(str: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
@@ -75,8 +73,4 @@ export function deserialize(buf: Buffer): Float32Array {
   const ab = Buffer.from(buf).buffer.slice(0, EMBED_DIM * 4);
   out.set(new Float32Array(ab));
   return out;
-}
-
-export function hasThai(text: string): boolean {
-  return THAI.test(text);
 }
