@@ -6,6 +6,42 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 
 > English: [README.md](README.md)
 
+## Quick Start (เริ่มใช้งานไว)
+
+```bash
+# 1. Clone และ build
+git clone https://github.com/worakorn-prince/memory-mcp.git
+cd memory-mcp
+npm install
+npm run build
+
+# 2. ให้ server และ plugin ใช้ DB เดียวกัน
+#    Windows (PowerShell):
+setx MEMORY_DB_PATH "$PWD/data/memory.db"
+#    macOS / Linux (เพิ่มใน shell profile เช่น ~/.zshrc):
+# export MEMORY_DB_PATH="$PWD/data/memory.db"
+```
+
+3. นำไป merge ใน `~/.config/opencode/opencode.json` (แทน `<REPO>` ด้วย path เต็มของโฟลเดอร์ที่ clone):
+
+```json
+{
+  "instructions": ["<REPO>/AGENTS.memory.example.md"],
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": ["node", "<REPO>/dist/index.js"],
+      "enabled": true,
+      "environment": { "MEMORY_DB_PATH": "<REPO>/data/memory.db" }
+    }
+  }
+}
+```
+
+4. (Optional) เปิด auto-capture: คัดลอก `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/`
+5. **Restart OpenCode**
+6. ลองใช้: *"จำไว้ว่าฉันชอบใช้ pnpm"* → เปิด session ใหม่ → *"ฉันชอบ package manager อะไร?"*
+
 ## สถาปัตยกรรม
 
 ```

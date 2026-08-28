@@ -6,6 +6,42 @@ Long-term memory MCP server for OpenCode — stores preferences, lessons, and us
 
 > ไทย / Thai: [README.th.md](README.th.md)
 
+## Quick Start
+
+```bash
+# 1. Clone and build
+git clone https://github.com/worakorn-prince/memory-mcp.git
+cd memory-mcp
+npm install
+npm run build
+
+# 2. Share one DB between the server and the plugin
+#    Windows (PowerShell):
+setx MEMORY_DB_PATH "$PWD/data/memory.db"
+#    macOS / Linux (add to your shell profile, e.g. ~/.zshrc):
+# export MEMORY_DB_PATH="$PWD/data/memory.db"
+```
+
+3. Merge this into your `~/.config/opencode/opencode.json` (replace `<REPO>` with the absolute clone path):
+
+```json
+{
+  "instructions": ["<REPO>/AGENTS.memory.example.md"],
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": ["node", "<REPO>/dist/index.js"],
+      "enabled": true,
+      "environment": { "MEMORY_DB_PATH": "<REPO>/data/memory.db" }
+    }
+  }
+}
+```
+
+4. (Optional) Auto-capture: copy `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/`
+5. **Restart OpenCode**
+6. Try it: *"Remember that I prefer pnpm"* → new session → *"What package manager do I prefer?"*
+
 ## Architecture
 
 ```
