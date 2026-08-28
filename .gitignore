@@ -12,3 +12,7 @@ PUBLISH.th.md
 
 # Exception: Thai README is published to GitHub alongside the English one
 !README.th.md
+
+# mcp-publisher binary (downloaded tool, not source)
+mcp-publisher.exe
+mcp-publisher
