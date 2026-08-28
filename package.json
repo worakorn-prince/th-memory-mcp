@@ -14,7 +14,8 @@
     "start": "node dist/index.js",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
     "test": "npm run build && node test/capture.test.mjs && node test/distill.test.mjs && node test/smoke.mjs",
-    "distill": "node dist/distill.js"
+    "distill": "node dist/distill.js",
+    "quickstart": "npm run build && node scripts/quickstart.mjs"
   },
   "engines": {
     "node": ">=20"
