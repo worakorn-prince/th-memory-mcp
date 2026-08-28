@@ -101,26 +101,22 @@ our hooks bridge; Codex and Cursor use the tools manually (no hook runtime yet).
 All harnesses share one SQLite file via `MEMORY_DB_PATH`, so memory captured
 anywhere is readable everywhere.
 
-## Comparison with rekal
+## Highlights
 
-[rekal](https://github.com/janbjorge/rekal) is the closest alternative (Python,
-single SQLite file, hybrid search). How th-memory-mcp differs:
-
-| | th-memory-mcp | rekal |
-|---|---|---|
-| Runtime | Node ≥20 (`better-sqlite3`) | Python 3.11+ |
-| Search | FTS5 keyword + **local vector blend** (v1.2, no model download) | BM25 + vector (384-dim local) + recency |
-| Memory model | `preference` (confidence) / `lesson` (situation→mistake→correction) / `profile` / `interactions` | flat `fact` |
-| Auto-capture | OpenCode plugin + Claude hooks (capture + `PreCompact` + `SessionEnd` distill) | Claude plugin (SessionStart/UserPromptSubmit/`PreCompact`/`SessionEnd`) |
-| Harness coverage | OpenCode, Claude Code, Codex, Cursor | Claude Code, Codex, OpenCode, Cursor |
-| Thai / i18n | ✅ Thai tokenization in distill | English-centric |
-| Secret filter | ✅ built-in | not specified |
-| Weight | lightweight, zero native extras | needs embedding model (local) |
-
-th-memory-mcp's edge: structured **lessons** for corrections, confidence scoring,
-first-class **Thai** support, secret filtering, and a dependency-free local vector
-search that stays 100% offline. rekal's edge: transformer-grade semantic embeddings
-and a one-command plugin marketplace install.
+- **Structured memory** — preferences with confidence scoring plus dedicated
+  `lesson` records (situation → mistake → correction) for capturing corrections,
+  not just flat facts.
+- **Local semantic search** — `recall` blends FTS5 keyword search with a
+  dependency-free local vector embedding (no model download, 100% offline).
+- **First-class Thai / i18n** — Thai-aware tokenization in distill; the AI
+  accepts Thai and English interchangeably.
+- **Private by default** — a single local SQLite file, no cloud, no API keys,
+  with secret lines (`api_key=`, `password:`, `token`) filtered before storage.
+- **Cross-harness** — runs on OpenCode, Claude Code, Codex, and Cursor sharing
+  one DB; auto-capture + profile injection via OpenCode plugin or Claude hooks.
+- **Lightweight & resilient** — Node + `better-sqlite3`, no extra native
+  extensions; every tool degrades gracefully so the AI keeps working if the DB
+  is unavailable.
 
 ## Scripts
 
