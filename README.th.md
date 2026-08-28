@@ -6,6 +6,15 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 
 > English: [README.md](README.md)
 
+## Requirements (ความต้องการระบบ)
+
+- **Node.js >= 20** — server ใช้ API ของ Node โดยเฉพาะ (better-sqlite3 แบบ native build และการหา path ด้วย `import.meta.url`) และ MCP SDK ต้องการ runtime สมัยใหม่ CI ของเราทดสอบบน Node 20.x และ 22.x
+- **npm** — สำหรับติดตั้ง dependencies และรัน build/test (`npm install`, `npm run build`, `npm test`)
+- **OpenCode** — โปรแกรมหลักที่โหลด MCP server นี้และ plugin auto-capture ใช้ OpenCode รุ่นที่รองรับ MCP (stdio) + plugins (plugin รันบน Bun ที่มากับ OpenCode)
+- **OS: Windows / macOS / Linux** — server ข้ามแพลตฟอร์มได้ (Node) plugin auto-capture รันได้ทุกที่ที่มี Bun ของ OpenCode หมายเหตุสำหรับ Windows: ตั้ง `MEMORY_DB_PATH` ง่ายสุดด้วย `setx` ส่วน macOS/Linux ใช้ `export` ใน shell profile
+
+ไม่ต้องมีบริการภายนอก บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite ภายในเครื่อง
+
 ## Quick Start (เริ่มใช้งานไว)
 
 **ทางที่เร็วที่สุด:** หลัง clone ให้รัน `npm run quickstart` — มันจะ build, ต่อไฟล์ `opencode.json`, วาง plugin และตั้ง `MEMORY_DB_PATH` ให้ในคำสั่งเดียว ขั้นตอนด้านล่างคือสิ่งที่สคริปต์ทำ (ใช้ได้หากอยากควบคุมเองทีละขั้น)
@@ -55,6 +64,16 @@ OpenCode ──┬─ Plugin learning-capture (Bun)  ── จับ prompt/too
 ```
 
 รายละเอียดเต็มอยู่ใน [design.md](design.md)
+
+## ทำไมต้องใช้ memory-mcp?
+
+LLM ไม่ได้จำคุณข้าม session — แชทใหม่ทุกครั้งเริ่มจากศูนย์ memory-mcp มอบความจำระยะยาวแบบส่วนตัว ภายในเครื่อง ให้ AI ของคุณ:
+
+- **เรียนรู้แบบ context-based ไม่ใช่ fine-tuning** — จับความชอบ/การถูกแก้/พฤติกรรม ของคุณ แล้วเรียกกลับเข้า context ครั้งหน้า กลไกเดียวกับฟีเจอร์ความจำของ AI ชั้นนำ โดยไม่ส่งข้อมูลออกนอกเครื่อง
+- **local 100% และเป็นส่วนตัว** — ไฟล์ SQLite เดียว ไม่มีคลาวด์ ไม่มี external API มีการกรอง secret ก่อนบันทึกเสมอ
+- **โอเวอร์เฮดต่ำ** — ทุก tool call มีเพดาน (latency < 10 ms, ขนาด output จำกัด) และ AI ค้นความจำเฉพาะตอนจำเป็น จึงไม่บวม context
+- **ทนทาน** — ทุก tool ทำ graceful degradation ถ้า DB ไม่ได้เปิด AI ก็ทำงานต่อได้แทนที่จะพัง
+- **เปิดกว้างและต่อยอดได้** — MIT license, 9 tools ที่อธิบายครบ, มี rule-based distill และ plugin auto-capture ที่คุณปรับแต่งได้
 
 ## Scripts
 

@@ -6,6 +6,15 @@ Long-term memory MCP server for OpenCode — stores preferences, lessons, and us
 
 > ไทย / Thai: [README.th.md](README.th.md)
 
+## Requirements
+
+- **Node.js >= 20** — the server uses Node-only APIs (the `better-sqlite3` native build and `import.meta.url` resolution) and the MCP SDK requires a modern runtime. CI tests on Node 20.x and 22.x.
+- **npm** — to install dependencies and run the build/test scripts (`npm install`, `npm run build`, `npm test`).
+- **OpenCode** — the host that loads this MCP server and the auto-capture plugin. Any build supporting MCP over stdio + plugins works; the plugin runs on OpenCode's bundled Bun runtime.
+- **OS: Windows / macOS / Linux** — the server is cross-platform (Node). The auto-capture plugin runs wherever OpenCode's Bun runtime runs. Windows note: `MEMORY_DB_PATH` is easiest to set with `setx`; on macOS/Linux use `export` in your shell profile.
+
+No external services, accounts, or API keys are required — everything lives in a single local SQLite file.
+
 ## Quick Start
 
 **Fastest path:** after cloning, run `npm run quickstart` — it builds, wires `opencode.json`, deploys the plugin, and sets `MEMORY_DB_PATH` for you in one command. The steps below show exactly what it does (use them if you prefer manual control).
@@ -55,6 +64,16 @@ OpenCode ──┬─ Plugin learning-capture (Bun)  ── auto-captures prompt
 ```
 
 See [design.md](design.md) for full details.
+
+## Why memory-mcp?
+
+LLMs don't remember you between sessions — every new chat starts blank. memory-mcp gives your AI a private, local long-term memory:
+
+- **Context-based learning, not fine-tuning** — it captures your preferences, corrections, and habits, then recalls them into context next time. Same mechanism as the memory features of leading AI products, without sending any data off your machine.
+- **100% local & private** — a single SQLite file, no cloud, no external API. Secrets are filtered before anything is stored.
+- **Low overhead** — each tool call is capped (latency < 10 ms, bounded output size) and the AI only queries memory when it's actually useful, so it never bloats your context.
+- **Resilient** — every tool degrades gracefully; if the DB is unavailable the AI keeps working instead of crashing.
+- **Open & extensible** — MIT licensed, 9 documented tools, a rule-based distill, and an auto-capture plugin you can adapt.
 
 ## Scripts
 
