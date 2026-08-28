@@ -7,7 +7,7 @@
 
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
-**Status:** v1.2.0 — all 4 phases implemented, tests passing 70/70 assertions (smoke 53 + capture 8 + distill 9). New: local semantic/vector search blended into `recall`, and full auto-capture on Claude Code (hooks) plus ready configs for Codex & Cursor.
+**Status:** v1.2.2 — all 4 phases implemented, tests passing 70/70 assertions (smoke 53 + capture 8 + distill 9). New: local semantic/vector search blended into `recall`, and full auto-capture on Claude Code (hooks) plus ready configs for Codex & Cursor.
 
 ## Requirements
 
