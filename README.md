@@ -7,7 +7,7 @@
 
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
-**Status:** v1.1.0 — all 4 phases implemented, tests passing 70/70 assertions (smoke 53 + capture 8 + distill 9)
+**Status:** v1.2.0 — all 4 phases implemented, tests passing 70/70 assertions (smoke 53 + capture 8 + distill 9). New: local semantic/vector search blended into `recall`, and full auto-capture on Claude Code (hooks) plus ready configs for Codex & Cursor.
 
 ## Requirements
 
@@ -79,6 +79,48 @@ LLMs don't remember you between sessions — every new chat starts blank. th-mem
 - **Low overhead** — each tool call is capped (latency < 10 ms, bounded output size) and the AI only queries memory when it's actually useful, so it never bloats your context.
 - **Resilient** — every tool degrades gracefully; if the DB is unavailable the AI keeps working instead of crashing.
 - **Open & extensible** — MIT licensed, 9 documented tools, a rule-based distill, and an auto-capture plugin you can adapt.
+
+## Works with other harnesses
+
+th-memory-mcp is a standard MCP server, so the 9 tools run anywhere MCP-over-stdio
+is supported. Full **auto-capture** (background prompt/tool/error capture + profile
+injection) needs a hook runtime — OpenCode has it built in; Claude Code gets it via
+our hooks bridge; Codex and Cursor use the tools manually (no hook runtime yet).
+
+| Feature | OpenCode | Claude Code | Codex | Cursor |
+|---|---|---|---|---|
+| 9 MCP tools | ✅ | ✅ | ✅ | ✅ |
+| Auto-capture (background) | ✅ plugin | ✅ [hooks](CLAUDE_CODE_HOOKS.md) | ❌ manual | ❌ Rules |
+| Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ `get_profile` | ❌ `get_profile` |
+| Local semantic search | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) |
+
+- **Claude Code:** see [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md) — drop-in hooks replicate the OpenCode plugin (capture + profile injection on `UserPromptSubmit`/`PreCompact`, rule-based distill on `SessionEnd`).
+- **Codex:** see [CODEX_SETUP.md](CODEX_SETUP.md)
+- **Cursor:** see [CURSOR_SETUP.md](CURSOR_SETUP.md)
+
+All harnesses share one SQLite file via `MEMORY_DB_PATH`, so memory captured
+anywhere is readable everywhere.
+
+## Comparison with rekal
+
+[rekal](https://github.com/janbjorge/rekal) is the closest alternative (Python,
+single SQLite file, hybrid search). How th-memory-mcp differs:
+
+| | th-memory-mcp | rekal |
+|---|---|---|
+| Runtime | Node ≥20 (`better-sqlite3`) | Python 3.11+ |
+| Search | FTS5 keyword + **local vector blend** (v1.2, no model download) | BM25 + vector (384-dim local) + recency |
+| Memory model | `preference` (confidence) / `lesson` (situation→mistake→correction) / `profile` / `interactions` | flat `fact` |
+| Auto-capture | OpenCode plugin + Claude hooks (capture + `PreCompact` + `SessionEnd` distill) | Claude plugin (SessionStart/UserPromptSubmit/`PreCompact`/`SessionEnd`) |
+| Harness coverage | OpenCode, Claude Code, Codex, Cursor | Claude Code, Codex, OpenCode, Cursor |
+| Thai / i18n | ✅ Thai tokenization in distill | English-centric |
+| Secret filter | ✅ built-in | not specified |
+| Weight | lightweight, zero native extras | needs embedding model (local) |
+
+th-memory-mcp's edge: structured **lessons** for corrections, confidence scoring,
+first-class **Thai** support, secret filtering, and a dependency-free local vector
+search that stays 100% offline. rekal's edge: transformer-grade semantic embeddings
+and a one-command plugin marketplace install.
 
 ## Scripts
 
