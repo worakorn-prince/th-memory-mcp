@@ -1,24 +1,24 @@
-# Design: Adaptive Memory MCP — ระบบความจำเรียนรู้พฤติกรรมผู้ใช้สำหรับ OpenCode
+# Design: Adaptive Memory MCP — behavior-learning memory system for OpenCode
 
-> โปรเจกต์: D:\Coding_Project\mcp
-> วันที่: 2026-08-26 (rev.3 — อัปเดต as-built หลังอิมพลีเมนต์ครบทุก Phase)
-> สถานะ: **อิมพลีเมนต์เสร็จสมบูรณ์** — server v1.1.0, tools 9 ตัว, tests ผ่าน 70/70 assertions
+> Project: D:\Coding_Project\mcp
+> Date: 2026-08-26 (rev.3 — as-built updated after all phases implemented)
+> Status: **implementation complete** — server v1.1.0, 9 tools, tests passing 70/70 assertions
 
-## 1. ภาพรวม
+## 1. Overview
 
-สร้างระบบให้ OpenCode "จำและปรับตัว" กับผู้ใช้ได้ ประกอบด้วย 3 องค์ประกอบ:
+A system that lets OpenCode "remember and adapt" to the user, composed of 3 parts:
 
-1. **MCP Server (th-memory-mcp v1.1.0)** — เก็บ/ค้น preferences, lessons, ประวัติการใช้งาน ลง SQLite พร้อม tools 9 ตัวให้ AI เรียกใช้
-2. **OpenCode Plugin (learning-capture)** — hook events จับ prompt/tool usage อัตโนมัติ และฉีด profile กลับเข้า context ตอน compaction
-3. **Global Instructions (memory-protocol.md)** — กฎ Memory Protocol ผูกเข้าทุก agent/session ผ่าน `"instructions"` ใน global opencode.json
+1. **MCP Server (th-memory-mcp v1.1.0)** — stores/retrieves preferences, lessons, and usage history in SQLite, exposing 9 tools the AI can call
+2. **OpenCode Plugin (learning-capture)** — hooks events to auto-capture prompts/tool usage and injects the profile back into context on compaction
+3. **Global Instructions (memory-protocol.md)** — the Memory Protocol rules, attached to every agent/session via `"instructions"` in the global opencode.json
 
-### ข้อจำกัดที่ต้องเข้าใจ (สำคัญ)
-LLM API **ไม่ได้เทรนต่อจากข้อมูลเรา** — การ "เรียนรู้" ที่ทำได้จริงคือ **context-based learning**:
-- เก็บพฤติกรรม → distill เป็น preferences/lessons
-- ดึงกลับเข้า context ตอน session ใหม่ (AI เรียก tool recall / plugin inject)
-วิธีนี้คือกลไกเดียวกับฟีเจอร์ memory ของผลิตภัณฑ์ AI ชั้นนำ
+### Important constraints
+LLM APIs are **not trained on our data** — the only real "learning" possible is **context-based learning**:
+- capture behavior → distill into preferences/lessons
+- recall into context at the start of a new session (AI calls `recall` / plugin injects)
+This is the same mechanism behind the memory features of leading AI products.
 
-## 2. สถาปัตยกรรม
+## 2. Architecture
 
 ```
 ┌────────────────────────────────────────────┐
@@ -27,205 +27,205 @@ LLM API **ไม่ได้เทรนต่อจากข้อมูลเ�
 │  ┌──────────────────┐   ┌───────────────┐  │
 │  │ learning-capture │   │   AI Agent    │  │
 │  │ Plugin (Bun)     │   │               │  │
-│  │ - message.updated│   │  เรียก MCP    │  │
+│  │ - message.updated│   │  calls MCP    │  │
 │  │ - tool.execute.* │   │  tools        │  │
 │  │ - compacting*    │   │               │  │
 │  └────────┬─────────┘   └──────┬────────┘  │
 └───────────┼─────────────────────┼──────────┘
-            │ write (bun:sqlite)  │ read/write (stdio JSON-RPC)
-            ▼                     ▼
-   ┌─────────────────────────────────────┐
-   │      th-memory-mcp v1.1.0 (Node+SDK)   │
-   │  better-sqlite3 (WAL) ◀── shared ── │
-   │  Tools (9): remember, recall,       │
-   │  get_profile, save_lesson,          │
-   │  search_history, forget,            │
-   │  memory_stats,                      │
-   │  get_recent_interactions,           │
-   │  export_memory                      │
-   └─────────────────────────────────────┘
-              │
-              ▼
-   D:/Coding_Project/mcp/data/memory.db
+             │ write (bun:sqlite)  │ read/write (stdio JSON-RPC)
+             ▼                     ▼
+    ┌─────────────────────────────────────┐
+    │   th-memory-mcp v1.1.0 (Node+SDK)   │
+    │  better-sqlite3 (WAL) ◀── shared ── │
+    │  Tools (9): remember, recall,       │
+    │  get_profile, save_lesson,          │
+    │  search_history, forget,            │
+    │  memory_stats,                      │
+    │  get_recent_interactions,           │
+    │  export_memory                      │
+    └─────────────────────────────────────┘
+               │
+               ▼
+    D:/Coding_Project/mcp/data/memory.db
 ```
 
-(*) compaction hook = `experimental.session.compacting` ใช้ใน Phase 3
+(*) compaction hook = `experimental.session.compacting` used in Phase 3
 
-### วงจรการเรียนรู้ (Learning Loop)
-1. **Capture** — plugin จับ prompt/tool usage ลงตาราง `interactions` อัตโนมัติ + AI บันทึก preferences/lessons ผ่าน tools
-2. **Distill** — สรุป raw log เป็น preference/profile: rule-based ผ่าน `npm run distill` (tokenize ไทยด้วย Intl.Segmenter + prune เกิน 30 วัน) และ AI-assisted ผ่าน Smart Distill workflow ใน protocol
-3. **Recall** — session ใหม่: AI เรียก `get_profile` + `recall(topic)` ตาม Memory Protocol (global instructions)
-4. **Inject** — plugin ฉีด profile อัตโนมัติตอน session compaction (`experimental.session.compacting`)
+### Learning loop
+1. **Capture** — plugin auto-writes prompts/tool usage to `interactions`; AI also saves preferences/lessons via tools
+2. **Distill** — summarize raw logs into profile: rule-based via `npm run distill` (Thai tokenization with Intl.Segmenter + prune older than 30 days) and AI-assisted via the Smart Distill workflow in the protocol
+3. **Recall** — new session: AI calls `get_profile` + `recall(topic)` per the Memory Protocol (global instructions)
+4. **Inject** — plugin auto-injects the profile on session compaction (`experimental.session.compacting`)
 
 ## 3. Data Model (SQLite)
 
-ไฟล์ DB: `data/memory.db` (path override ได้ผ่าน env `MEMORY_DB_PATH`)
-เปิด WAL mode + busy_timeout=5000 ทุก connection
+DB file: `data/memory.db` (path overridable via `MEMORY_DB_PATH`)
+WAL mode + busy_timeout=5000 on every connection
 
 ```sql
--- บันทึกพฤติกรรมดิบ (plugin เขียน)
+-- raw behavior (plugin writes)
 CREATE TABLE interactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ts TEXT NOT NULL,                -- ISO datetime
   session_id TEXT,
   kind TEXT NOT NULL,              -- 'prompt' | 'tool_call' | 'error'
-  content TEXT NOT NULL,           -- ข้อความ (truncate ตามกฎ)
-  meta TEXT                        -- JSON เสริม เช่น tool name, project dir
+  content TEXT NOT NULL,           -- text (truncated per rules)
+  meta TEXT                        -- JSON extra, e.g. tool name, project dir
 );
 
--- ความชอบ/ข้อกำหนดของผู้ใช้ (AI/plugin เขียน)
+-- user preferences/requirements (AI/plugin writes)
 CREATE TABLE preferences (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   category TEXT NOT NULL,          -- work_style | coding_pref | language | domain | other
   key TEXT NOT NULL,
   value TEXT NOT NULL,
-  confidence REAL DEFAULT 0.5,     -- 0..1 เพิ่มทุกครั้งที่ยืนยันซ้ำ
+  confidence REAL DEFAULT 0.5,     -- 0..1, +0.1 per repeated confirmation
   source TEXT DEFAULT 'explicit',  -- explicit | corrected | inferred
   updated_at TEXT NOT NULL,
   UNIQUE(category, key)
 );
 
--- บทเรียนจากการถูกแก้
+-- lessons from corrections
 CREATE TABLE lessons (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  situation TEXT NOT NULL,         -- สถานการณ์เดิม
-  mistake TEXT NOT NULL,           -- สิ่งที่ทำผิด
-  correction TEXT NOT NULL,        -- วิธีที่ถูกต้อง
+  situation TEXT NOT NULL,         -- original situation
+  mistake TEXT NOT NULL,           -- what was done wrong
+  correction TEXT NOT NULL,        -- correct approach
   created_at TEXT NOT NULL
 );
 
--- โปรไฟล์สรุป (distilled)
+-- distilled profile
 CREATE TABLE profile (
   section TEXT PRIMARY KEY,        -- identity | goals | style | notes
   content TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 
--- Virtual table สำหรับค้นหา
+-- virtual table for search
 CREATE VIRTUAL TABLE search_index USING fts5(
   ref_table, ref_id, title, body
 );
 ```
 
-## 4. สเปค MCP Tools
+## 4. MCP Tools spec
 
 Server name: `th-memory-mcp`, version **1.1.0**, transport stdio
-ทุก tool return `{ content: [{ type: "text", text }] }`, error ต้อง catch แล้วคืนข้อความ error (ห้าม crash)
+Every tool returns `{ content: [{ type: "text", text }] }`; errors must be caught and returned as a message (never crash)
 
-| Tool | Args (zod) | พฤติกรรม |
+| Tool | Args (zod) | Behavior |
 |------|-----------|----------|
-| `remember` | `category` enum, `key`: string, `value`: string | upsert preferences; ถ้า key เดิม → confidence += 0.1 (cap 1.0), update value+updated_at |
-| `recall` | `topic`: string, `limit`?: number (default 8) | FTS5 ค้น search_index (preferences+lessons) + interactions ล่าสุด 20 รายการที่ match; คืนข้อความจัดกลุ่ม ไม่เกิน ~2000 chars |
-| `get_profile` | (ไม่มี) | รวม profile sections + top preferences (sort confidence desc, limit 15) + lessons ล่าสุด 5 รายการ |
+| `remember` | `category` enum, `key`: string, `value`: string | upsert preferences; same key → confidence += 0.1 (cap 1.0), update value+updated_at |
+| `recall` | `topic`: string, `limit`?: number (default 8) | FTS5 search search_index (preferences+lessons) + latest 20 matching interactions; grouped text, ≤ ~2000 chars |
+| `get_profile` | (none) | profile sections + top preferences (confidence desc, limit 15) + latest 5 lessons |
 | `save_lesson` | `situation`, `mistake`, `correction`: string | insert lessons + update search_index |
-| `search_history` | `query`: string, `limit`?: number (default 10) | FTS5 ใน interactions (kind='prompt') คืน ts + content ตัด 200 chars/รายการ |
-| `forget` | `target_id`: number, `type`? enum("preference","lesson","interaction") | ลบจากตารางตาม id (+type กัน id ชนข้ามตาราง — autoincrement แยกกัน) + sync search_index |
-| `memory_stats` | (ไม่มี) | counts interactions แยก kind + ขนาดไฟล์ DB + oldest/newest interaction + profile sections; ≤1500 chars |
-| `get_recent_interactions` | `limit`? (default 20, max 100), `kind`? enum("prompt","tool_call","error") | rows ล่าสุด format `[id] ts [kind] content(300)`; ≤4000 chars |
-| `export_memory` | `includeInteractions`? bool (default false), `filename`? string | เขียน JSON ลง `data/exports/` เท่านั้น (sanitize filename `[A-Za-z0-9._-]`, ห้าม `..`); return path+size+preview ≤500 chars |
+| `search_history` | `query`: string, `limit`?: number (default 10) | FTS5 in interactions (kind='prompt'), 200-char snippets per row |
+| `forget` | `target_id`: number, `type`? enum("preference","lesson","interaction") | delete from table by id (+type prevents cross-table id clash) + sync search_index |
+| `memory_stats` | (none) | counts by kind + DB size + oldest/newest interaction + profile sections; ≤1500 chars |
+| `get_recent_interactions` | `limit`? (default 20, max 100), `kind`? enum("prompt","tool_call","error") | latest rows formatted `[id] ts [kind] content(300)`; ≤4000 chars |
+| `export_memory` | `includeInteractions`? bool (default false), `filename`? string | write JSON only under `data/exports/` (sanitize filename `[A-Za-z0-9._-]`, no `..`); return path+size+preview ≤500 chars |
 
-## 5. สเปค Plugin (learning-capture)
+## 5. Plugin spec (learning-capture)
 
-ไฟล์: `src/plugin/learning-capture.ts` → deploy ไปที่ `~/.config/opencode/plugins/learning-capture.ts`
-Runtime: Bun (plugin ของ OpenCode รันด้วย Bun) → ใช้ `bun:sqlite` เปิด DB เดียวกัน (WAL รองรับ multi-process)
+File: `src/plugin/learning-capture.ts` → deploy to `~/.config/opencode/plugins/learning-capture.ts`
+Runtime: Bun (OpenCode plugins run on Bun) → uses `bun:sqlite` on the same DB (WAL supports multi-process)
 
 ```ts
-// as-built: self-contained 1 ไฟล์ — logic inline sync กับ src/lib/capture-core.ts
-// (ประกาศ minimal type เอง ไม่ import @opencode-ai/plugin กันปัญหา module resolution)
+// as-built: self-contained single file — logic inline, synced with src/lib/capture-core.ts
+// (declares minimal types itself; does not import @opencode-ai/plugin to avoid module resolution issues)
 import { Database } from "bun:sqlite"
 
 export const LearningCapture = async (ctx) => {
   const db = new Database(process.env.MEMORY_DB_PATH ?? "D:/Coding_Project/mcp/data/memory.db")
   db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")
-  // CREATE TABLE IF NOT EXISTS interactions (...) กัน DB ยังไม่เคยถูกสร้าง
+  // CREATE TABLE IF NOT EXISTS interactions (...) in case DB was never created
   const dedupe = createDedupe()
   return {
     event: async ({ event }) => {
-      // message.updated (role=user) → insert kind='prompt' (truncate 4000, dedupe ด้วย message id)
+      // message.updated (role=user) → insert kind='prompt' (truncate 4000, dedupe by message id)
       // session.error → insert kind='error'
     },
     "tool.execute.after": async (input, output) => {
-      // insert kind='tool_call' (dedupe ด้วย callID, truncate 500)
+      // insert kind='tool_call' (dedupe by callID, truncate 500)
     },
     "experimental.session.compacting": async (input, output) => {
       // buildProfileText(db): profile sections + top preferences (confidence desc, 15)
-      //   + lessons ล่าสุด 5 → ≤3000 chars → output.context.push(txt)
-      // ห่อ try/catch เงียบทั้งหมด — injection ล้ม = ไม่มีอะไรเสียหาย
+      //   + latest 5 lessons → ≤3000 chars → output.context.push(txt)
+      // wrap everything in try/catch silently — failed injection does no harm
     },
   }
 }
 ```
 
-กฎการ capture:
-- Dedupe ด้วย message id (กัน event ยิงซ้ำ) — เก็บ Set ของ id ที่บันทึกแล้วใน memory ของ process
-- ห้ามเก็บ secret: กรองบรรทัดที่ match `/(api[_-]?key|secret|token|password)\s*[=:]/i` ออกก่อนบันทึก
-- ทุก write ต้อง try/catch — plugin ห้ามทำให้ OpenCode ล้ม
+Capture rules:
+- Dedupe by message id (prevent duplicate events) — keep a Set of recorded ids in process memory
+- Never store secrets: filter lines matching `/(api[_-]?key|secret|token|password)\s*[=:]/i` before saving
+- Every write must try/catch — the plugin must never crash OpenCode
 
-## 6. การทำให้ AI ใช้ความจำ (Memory Protocol)
+## 6. Making the AI use memory (Memory Protocol)
 
-ติดตั้งแล้ว 2 ระดับ:
+Installed at 2 levels:
 
-1. **Global (ใช้งานจริง)** — ไฟล์ `~/.config/opencode/memory-protocol.md` ผูกผ่าน `"instructions"` ใน global opencode.json → ครอบคลุม**ทุก agent ทุก session** โดยไม่ต้องสลับ agent
-2. **Project-level (ทางเลือก)** — copy จาก `AGENTS.memory.example.md` ไปแนบ AGENTS.md ของโปรเจกต์เฉพาะที่
+1. **Global (in use)** — `~/.config/opencode/memory-protocol.md` attached via `"instructions"` in global opencode.json → covers **every agent, every session** without switching agents
+2. **Project-level (alternative)** — copy from `AGENTS.memory.example.md` into a project's AGENTS.md
 
-สาระสำคัญของ protocol:
-- เรียก `get_profile` + `recall` ก่อน task ใหม่ที่ซับซ้อน
-- `save_lesson` ทันทีเมื่อถูกผู้ใช้แก้ / `remember` ทันทีเมื่อผู้ใช้บอกความชอบ / ห้ามเดา — recall ไม่เจอต้องถาม
-- `search_history` เมื่อสงสัยว่าเคยคุย / `forget` เมื่อยืนยันกับผู้ใช้แล้ว
-- เรียก memory tools เฉพาะจุดจำเป็น (ไม่ใช่ทุก message) / ห้ามเก็บ secret / memory offline → ทำงานต่อแบบ graceful
+Protocol essentials:
+- call `get_profile` + `recall` before a new/complex task
+- `save_lesson` immediately when the user corrects you / `remember` immediately when the user states a preference / never guess — if recall finds nothing, ask
+- `search_history` when suspecting a prior conversation / `forget` after confirming with the user
+- call memory tools only when necessary (not every message) / never store secrets / if memory is offline, continue gracefully
 
-**Smart Distill**: เมื่อผู้ใช้ขอ "สรุปความจำ" → `get_recent_interactions(limit=50)` → วิเคราะห์ pattern จริง → บันทึก insight ด้วย `remember`/`save_lesson` → สรุปให้ผู้ใช้ฟังพร้อมรายการสิ่งที่บันทึกใหม่
+**Smart Distill**: when the user asks "summarize memory" → `get_recent_interactions(limit=50)` → analyze real patterns → save insights via `remember`/`save_lesson` → summarize to the user with the list of new items
 
-## 7. โครงสร้างไฟล์
+## 7. File structure
 
 ```
 D:\Coding_Project\mcp\
-├── design.md                   # เอกสารนี้ (rev.3 as-built)
-├── README.md                   # คู่มือใช้งาน + scripts + tools
+├── design.md                   # this document (rev.3 as-built)
+├── README.md                   # usage guide + scripts + tools
 ├── package.json                # type: module, scripts: build/start/distill/test
 ├── tsconfig.json               # NodeNext, ES2022, strict; exclude src/plugin + test
 ├── .gitignore                  # node_modules, dist, data/
-├── data\                       # memory.db (+wal/shm) และ exports\ (git ignore)
+├── data\                       # memory.db (+wal/shm) and exports\ (git ignored)
 ├── src\
 │   ├── index.ts                # McpServer v1.1.0 + registerTool ×9 + StdioServerTransport
 │   ├── db.ts                   # schema init, WAL, helper query, FTS sync
 │   ├── lib\
 │   │   ├── capture-core.ts     # pure logic: filterSecrets/truncate/dedupe/buildRow/INSERT_SQL
-│   │   └── distill-core.ts     # pure logic: tokenize(ไทย)/computeStats/formatProfileSections
+│   │   └── distill-core.ts     # pure logic: tokenize(Thai)/computeStats/formatProfileSections
 │   ├── distill.ts              # CLI: runDistill(db) + prune (RETENTION_DAYS default 30)
 │   ├── tools\
 │   │   ├── remember.ts recall.ts profile.ts lesson.ts history.ts forget.ts
 │   │   ├── memory_stats.ts recent_interactions.ts export_memory.ts
 │   └── plugin\
-│       └── learning-capture.ts # self-contained Bun plugin → deploy copy ไป ~/.config/opencode/plugins/
+│       └── learning-capture.ts # self-contained Bun plugin → deploy copy to ~/.config/opencode/plugins/
 ├── test\
-│   ├── smoke.mjs               # 53 checks end-to-end JSON-RPC (spawn server จริง)
+│   ├── smoke.mjs               # 53 checks end-to-end JSON-RPC (spawns real server)
 │   ├── capture.test.mjs        # 8 checks (capture-core + SQL insert)
 │   └── distill.test.mjs        # 9 checks (tokenize/stats/runDistill/prune/idempotent)
-├── AGENTS.memory.example.md    # Memory Protocol + Smart Distill (ฉบับ project-level)
-└── opencode.example.json       # config mcp ตัวอย่าง
+├── AGENTS.memory.example.md    # Memory Protocol + Smart Distill (project-level)
+└── opencode.example.json       # example mcp config
 ```
 
-## 8. เทคโนโลยี
+## 8. Technology
 
-| ส่วน | เลือกใช้ | เหตุผล |
+| Part | Choice | Reason |
 |------|---------|--------|
-| MCP Server | Node.js ≥ 20 + TypeScript + `@modelcontextprotocol/sdk@1.30.0` + zod | มาตรฐาน official |
-| DB (server) | `better-sqlite3@12.x` + FTS5 | sync API เร็ว ใช้ง่าย, prebuilt binary ไม่ต้อง compile |
-| DB (plugin) | `bun:sqlite` (built-in) | plugin รันบน Bun ไม่ต้องติดตั้ง native module |
-| Tokenize ภาษาไทย | `Intl.Segmenter("th", { granularity: "word" })` + fallback split whitespace | segment คำไทยไร้ช่องว่าง (built-in Node) |
+| MCP Server | Node.js ≥ 20 + TypeScript + `@modelcontextprotocol/sdk@1.30.0` + zod | official standard |
+| DB (server) | `better-sqlite3@12.x` + FTS5 | fast sync API, easy, prebuilt binary (no compile) |
+| DB (plugin) | `bun:sqlite` (built-in) | plugin runs on Bun, no native module install |
+| Thai tokenization | `Intl.Segmenter("th", { granularity: "word" })` + whitespace fallback | segment Thai (no spaces) built into Node |
 
-> หมายเหตุ as-built: plugin เขียนแบบ **self-contained** (ประกาศ minimal type ในไฟล์เอง) จึงไม่ต้องติดตั้ง `@opencode-ai/plugin`
+> as-built note: the plugin is **self-contained** (declares minimal types in-file), so `@opencode-ai/plugin` is not required
 
-## 9. รายการงานย่อย
+## 9. Sub-tasks
 
-### Phase 1 — MVP: MCP Server ✅ เสร็จ 2026-08-25
+### Phase 1 — MVP: MCP Server ✅ 2026-08-25
 1. Init project: `"type": "module"`, deps: `@modelcontextprotocol/sdk`, `zod`, `better-sqlite3`; devDeps: `typescript`, `@types/node`, `@types/better-sqlite3`, `@opencode-ai/plugin`
-2. `src/db.ts`: สร้าง schema ตามข้อ 3, เปิด WAL, busy_timeout, ฟังก์ชัน helper + FTS sync
-3. Tools 6 ตัวแรกตามสเปคข้อ 4 (แยกไฟล์ใน `src/tools/` — ภายหลังขยายเป็น 9 ตัวใน Phase 4)
-4. `src/index.ts`: McpServer("th-memory-mcp") + register + StdioServerTransport (**ห้าม console.log — ใช้ stderr เท่านั้น**)
-5. Build + smoke test ด้วย MCP Inspector (`npx @modelcontextprotocol/inspector node dist/index.js`) ทดสอบ remember → recall → forget ครบ
-6. สร้าง `opencode.example.json`:
+2. `src/db.ts`: schema per §3, WAL, busy_timeout, helper + FTS sync
+3. First 6 tools per §4 spec (separate files in `src/tools/` — later expanded to 9 in Phase 4)
+4. `src/index.ts`: McpServer("th-memory-mcp") + register + StdioServerTransport (**no console.log — stderr only**)
+5. Build + smoke test with MCP Inspector (`npx @modelcontextprotocol/inspector node dist/index.js`) — remember → recall → forget
+6. Create `opencode.example.json`:
 
 ```json
 {
@@ -241,68 +241,68 @@ D:\Coding_Project\mcp\
 }
 ```
 
-7. สร้าง `AGENTS.memory.example.md` ตามข้อ 6 ของสถาปัตยกรรม
-8. แนะนำผู้ใช้: merge config → restart OpenCode → ทดสอบ "จำไว้ว่าฉันชอบใช้ pnpm" แล้วถามกลับ session ใหม่
+7. Create `AGENTS.memory.example.md` per §6
+8. Guide user: merge config → restart OpenCode → test "remember I prefer pnpm" then ask back in a new session
 
-### Phase 2 — Plugin auto-capture ✅ เสร็จ 2026-08-26
-9. `src/plugin/learning-capture.ts` ตามสเปคข้อ 5 (dedupe + กรอง secret + try/catch ทุกจุด)
-10. Copy ไป `~/.config/opencode/plugins/learning-capture.ts` → restart OpenCode → ใช้งานสักพัก → เช็คว่าตาราง interactions มีข้อมูลไหลเข้า (`search_history` ต้องค้นเจอ prompt เก่า)
+### Phase 2 — Plugin auto-capture ✅ 2026-08-26
+9. `src/plugin/learning-capture.ts` per §5 (dedupe + secret filter + try/catch everywhere)
+10. Copy to `~/.config/opencode/plugins/learning-capture.ts` → restart OpenCode → use a while → verify `interactions` has data (`search_history` finds old prompts)
 
-### Phase 3 — Inject + Distill ✅ เสร็จ 2026-08-26
-11. เพิ่ม hook `"experimental.session.compacting"` ใน plugin: `output.context.push(profile text)` จาก get_profile logic
-12. Script distill: rule-based สรุป interactions → profile sections (`npm run distill`, tokenize ไทยด้วย Intl.Segmenter) + prune เกิน RETENTION_DAYS
+### Phase 3 — Inject + Distill ✅ 2026-08-26
+11. Add hook `"experimental.session.compacting"` to plugin: `output.context.push(profile text)` from get_profile logic
+12. Distill script: rule-based summarize interactions → profile sections (`npm run distill`, Thai tokenize via Intl.Segmenter) + prune older than RETENTION_DAYS
 
-### Phase 4 — Insight & Safety ✅ เสร็จ 2026-08-26
-13. Tools ใหม่ 3 ตัว: `memory_stats` / `get_recent_interactions` / `export_memory` (sanitize filename + เขียนได้เฉพาะ data/exports/) — server bump v1.1.0
-14. Smart Distill workflow เพิ่มใน memory-protocol.md (global) + AGENTS.memory.example.md + README.md
+### Phase 4 — Insight & Safety ✅ 2026-08-26
+13. 3 new tools: `memory_stats` / `get_recent_interactions` / `export_memory` (sanitize filename + write only under data/exports/) — server bump v1.1.0
+14. Smart Distill workflow added to memory-protocol.md (global) + AGENTS.memory.example.md + README.md
 
-> หมายเหตุ as-built เพิ่มเติม: global instructions (`memory-protocol.md` ผ่าน `"instructions"` ใน opencode.json) แทนการใช้ dedicated agent — ครอบคลุมทุก agent โดยไม่ต้องสลับ; smoke test ขยายเป็น 53 checks รวม security case (filename ไม่ปลอดภัยถูก reject)
+> as-built note: global instructions (`memory-protocol.md` via `"instructions"` in opencode.json) replace a dedicated agent — covers every agent without switching; smoke test expanded to 53 checks including security cases (unsafe filename rejected)
 
-## 10. ความเสี่ยงและการรับมือ
+## 10. Risks and mitigation
 
-| ความเสี่ยง | ผลกระทบ | รับมือ |
-|-----------|---------|--------|
-| Context bloat จาก recall ยาว | เปลือง token | cap 2000 chars/tool call, limit default |
-| ความจำผิด/ค้างสมัย | AI ทำงานผิดไปทาง | confidence + updated_at + tool forget + user review |
-| SQLite access พร้อมกัน 2 process (Bun+Node) | lock error | WAL mode + busy_timeout=5000 |
-| Event `message.updated` ยิงถี่ | DB บวม/duplicate | dedupe ด้วย message id + truncate |
-| Secret หลุดลง DB | ความปลอดภัย | regex filter ก่อนเขียนทุก record |
-| stdout ปน log | protocol พัง | stderr เท่านั้นใน server code |
-| Config invalid | OpenCode ไม่ start | ใส่ `$schema` ตรวจกับ https://opencode.ai/config.json |
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+| Context bloat from long recall | token waste | cap 2000 chars/tool call, default limit |
+| Wrong/stale memory | AI goes wrong | confidence + updated_at + tool forget + user review |
+| SQLite accessed by 2 processes (Bun+Node) | lock error | WAL mode + busy_timeout=5000 |
+| `message.updated` fires often | DB bloat/duplicate | dedupe by message id + truncate |
+| Secret leaks to DB | security | regex filter before every write |
+| stdout mixed with logs | protocol breaks | stderr only in server code |
+| Invalid config | OpenCode won't start | add `$schema` validated against https://opencode.ai/config.json |
 
-## 11. การพึ่งพา
+## 11. Dependencies
 
 - Node.js ≥ 20, npm
-- OpenCode ที่รองรับ plugin + MCP (เวอร์ชันปัจจุบัน)
-- ไม่มี external service/API — ข้อมูลอยู่ local 100% (privacy by design)
+- OpenCode supporting plugins + MCP (current version)
+- No external service/API — 100% local (privacy by design)
 
-## 12. Performance Budget (ข้อกำหนดตรวจสอบ)
+## 12. Performance Budget (acceptance criteria)
 
-Building Agent ต้องอิมพลีเมนต์ให้ตรงงบนี้:
+Building Agent must implement within this budget:
 
-| รายการ | งบประมาณ | วิธีตรวจ |
-|--------|----------|----------|
-| Query latency ต่อ tool call | < 100 ms (SQLite local) | จับเวลาใน smoke test |
-| ขนาด output สูงสุดต่อ tool | `recall` ≤ 2000 chars, `search_history` ≤ 200 chars/รายการ, `get_profile` ≤ 3000 chars | assert ในโค้ด (truncate เสมอ) |
-| Default limit | recall=8, search_history=10 รายการ | ค่า default ใน zod schema |
-| Plugin write ต่อ event | < 5 ms, fire-and-forget (ไม่ block event loop) | code review |
-| Startup server | < 2 s ถึงพร้อมรับ initialize | จับเวลา |
+| Item | Budget | Check |
+|------|--------|-------|
+| Query latency per tool call | < 100 ms (local SQLite) | time in smoke test |
+| Max output per tool | `recall` ≤ 2000 chars, `search_history` ≤ 200 chars/row, `get_profile` ≤ 3000 chars | assert in code (always truncate) |
+| Default limit | recall=8, search_history=10 rows | default in zod schema |
+| Plugin write per event | < 5 ms, fire-and-forget (no event-loop block) | code review |
+| Server startup | < 2 s to ready for initialize | time it |
 
-**ผลวัดจริง (2026-08-26):** latency ต่อ tool call **1–9 ms**, startup **792–997 ms**, output ทุก tool อยู่ในงบ, tests ผ่าน **70/70** (smoke 53 + capture 8 + distill 9)
+**Measured (2026-08-26):** latency per tool call **1–9 ms**, startup **792–997 ms**, every tool within budget, tests **70/70** (smoke 53 + capture 8 + distill 9)
 
-### แนวปฏิบัติป้องกัน overhead
-- Memory Protocol กำหนดให้เรียก memory **เฉพาะ task ใหม่/ซับซ้อน** ห้ามเรียกทุก message
-- Graceful degradation: หาก DB/server error ต้อง return error message สั้น ๆ แล้วให้ AI ทำงานต่อได้ทันที ห้าม retry ถี่จน timeout
-- ห้าม auto-inject profile ทุก turn — inject เฉพาะตอน compaction (Phase 3)
+### Overhead prevention
+- Memory Protocol calls memory **only on new/complex tasks**, never every message
+- Graceful degradation: if DB/server errors, return a short error message and let the AI continue immediately; no tight retry until timeout
+- Never auto-inject profile every turn — inject only on compaction (Phase 3)
 
-### ความเสี่ยงระยะยาวที่ต้อง monitor
-- คุณภาพความจำเสื่อม (ความจำขัดกันเอง) → ใช้ confidence + updated_at + forget + distill (Phase 3)
-- DB โต → FTS5 index รองรับ, วางแผน VACUUM/optimize เป็นระยะ
+### Long-term risks to monitor
+- Memory quality decay (self-contradiction) → use confidence + updated_at + forget + distill (Phase 3)
+- DB growth → FTS5 index supports it; plan periodic VACUUM/optimize
 
-## 13. Phase ถัดไป (Optional / Future)
+## 13. Next phases (Optional / Future)
 
-- Semantic search ด้วย embedding (local model หรือ API) แทน FTS5
-- Dashboard สถิติการใช้งาน (เว็บเล็ก ๆ อ่าน DB)
-- Multi-project memory scoping (แยกตาม directory/worktree)
-- Import memory จากไฟล์ export (ฝั่ง export เสร็จแล้วใน Phase 4)
-- LLM-assisted distill อัตโนมัติผ่าน OpenCode SDK (แทน trigger ด้วยคำสั่งผู้ใช้)
+- Semantic search with embeddings (local model or API) instead of FTS5
+- Usage statistics dashboard (small web app reading the DB)
+- Multi-project memory scoping (by directory/worktree)
+- Import memory from export file (export side done in Phase 4)
+- Automatic LLM-assisted distill via OpenCode SDK (instead of user-triggered command)

@@ -1,55 +1,52 @@
-# Publishing th-memory-mcp / วิธีเผยแพร่ (ตัวอย่าง)
+# Publishing th-memory-mcp
 
-นี่คือตัวอย่างการเตรียมและเผยแพร่ th-memory-mcp ลง npm และการลงทะเบียนเป็น OpenCode plugin
-This is an example of how to prepare and publish th-memory-mcp to npm and register it as an OpenCode plugin.
+Example of how to prepare and publish th-memory-mcp to npm and register it as an OpenCode plugin.
 
-> หมายเหตุ: ยังไม่ได้เผยแพร่จริง — ไฟล์นี้เพื่อแสดงวิธีเท่านั้น
 > Note: not actually published yet — this file only demonstrates the steps.
 
-## 1. เตรียม package.json (ตัวอย่าง)
-Add these fields to `package.json` (example):
+## 1. Prepare package.json
+These fields are already set in `package.json`:
 ```json
 {
   "bin": { "th-memory-mcp": "dist/index.js" },
-  "files": ["dist", "README.md", "README.th.md", "LICENSE", "design.md"],
+  "files": ["dist", "README.md", "LICENSE", "design.md", "opencode.example.json", "AGENTS.memory.example.md"],
   "engines": { "node": ">=20" }
 }
 ```
-- `bin` ให้ผู้ใช้รัน `npx th-memory-mcp` ได้โดยไม่ต้อง clone
-- `files` จำกัดไฟล์ที่เผยแพร่ (ไม่เอา `test/`, `node_modules/`)
-- `engines` บังคับ Node >= 20
+- `bin` lets users run `npx th-memory-mcp` without cloning
+- `files` limits what is published (excludes `test/`, `node_modules/`, and the local-only Thai docs)
+- `engines` requires Node >= 20
 
-## 2. เผยแพร่ลง npm
+## 2. Publish to npm
 ```bash
 npm login
-npm version patch      # หรือ minor / major ตามความเหมาะสม
+npm version patch      # or minor / major as appropriate
 npm publish --access public
 ```
-หลังเผยแพร่ ผู้ใช้ติดตั้งได้ด้วย:
+After publishing, users can install with:
 ```bash
 npm install -g th-memory-mcp
-# หรือรันทันที
+# or run immediately
 npx th-memory-mcp
 ```
 
-## 3. ลงทะเบียนเป็น OpenCode plugin
-OpenCode โหลด plugin จาก path หรือ git repo — ไม่มี central registry กลาง:
+## 3. Register as an OpenCode plugin
 OpenCode loads plugins from a path or git repo — there is no central plugin registry:
 
-- **วิธี A (local):** ชี้ `plugins` ใน `opencode.json` ไปที่ไฟล์ `plugins/learning-capture.ts`
-- **วิธี B (git):** fork/clone repo แล้วชี้ path ไปที่โฟลเดอร์
-- **วิธี C (url):** อ้างอิงผ่าน git URL ใน `opencode.json`
+- **Method A (local):** point `plugins` in `opencode.json` to the file `plugins/learning-capture.ts`
+- **Method B (git):** fork/clone the repo and point to the folder
+- **Method C (url):** reference via a git URL in `opencode.json`
 
-ตัวอย่าง `opencode.json`:
+Example `opencode.json`:
 ```json
 {
   "plugins": ["/absolute/path/to/th-memory-mcp/plugins/learning-capture.ts"]
 }
 ```
 
-## Checklist ก่อนเผยแพร่จริง / Pre-publish checklist
-- [ ] `npm test` ผ่าน (70/70)
-- [ ] `npm run build` สำเร็จ
-- [ ] LICENSE ถูกต้อง (MIT, copyright `worakorn-prince`)
-- [ ] `README.md` / `README.th.md` อัปเดตเวอร์ชันและวิธีติดตั้ง
-- [ ] สร้าง Git tag ตรงกับเวอร์ชัน (เช่น `v1.2.0`) และสร้าง GitHub Release
+## Pre-publish checklist
+- [ ] `npm test` passes (70/70)
+- [ ] `npm run build` succeeds
+- [ ] LICENSE is correct (MIT, copyright `worakorn-prince`)
+- [ ] `README.md` version and install instructions are updated
+- [ ] Create a Git tag matching the version (e.g. `v1.2.0`) and a GitHub Release

@@ -15,7 +15,6 @@
   "files": [
     "dist",
     "README.md",
-    "README.th.md",
     "LICENSE",
     "design.md",
     "opencode.example.json",

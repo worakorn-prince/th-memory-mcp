@@ -2,3 +2,10 @@ node_modules/
 dist/
 data/
 *.log
+
+# Thai-language documentation — kept local only, not pushed to GitHub
+README.th.md
+design.th.md
+AGENTS.memory.example.th.md
+CONTRIBUTING.th.md
+PUBLISH.th.md

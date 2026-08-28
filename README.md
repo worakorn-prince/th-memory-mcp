@@ -4,8 +4,6 @@ Long-term memory MCP server for OpenCode — stores preferences, lessons, and us
 
 **Status:** v1.1.0 — all 4 phases implemented, tests passing 70/70 assertions (smoke 53 + capture 8 + distill 9)
 
-> ไทย / Thai: [README.th.md](README.th.md)
-
 ## Requirements
 
 - **Node.js >= 20** — the server uses Node-only APIs (the `better-sqlite3` native build and `import.meta.url` resolution) and the MCP SDK requires a modern runtime. CI tests on Node 20.x and 22.x.
@@ -120,14 +118,14 @@ LLMs don't remember you between sessions — every new chat starts blank. th-mem
 
 The AI accepts both Thai and English interchangeably — you can switch languages at any time without warning.
 
-| Thai | English | Effect |
-|------|---------|--------|
-| "จำไว้ว่า..." | "Remember that..." | `remember` — save a preference |
-| "สรุปความจำ" / "distill memory" | "Summarize memory" / "distill memory" | **Smart Distill** — AI reads `get_recent_interactions`, finds patterns, and saves insights itself |
-| "ระบบความจำเป็นไงบ้าง" | "How is my memory?" / "memory status" | `memory_stats` |
-| "สำรองความจำ" | "Export memory" / "backup memory" | `export_memory` |
-| "ค้นประวัติ..." | "Search history..." | `search_history` |
-| "ลืม..." | "Forget..." | `forget` |
+| Example command | Tool / effect |
+|-----------------|---------------|
+| "Remember that..." | `remember` — save a preference |
+| "Summarize memory" / "distill memory" | **Smart Distill** — AI reads `get_recent_interactions`, finds patterns, and saves insights itself |
+| "How is my memory?" / "memory status" | `memory_stats` |
+| "Export memory" / "backup memory" | `export_memory` |
+| "Search history..." | `search_history` |
+| "Forget..." | `forget` |
 
 Long-term care: run `npm run distill` occasionally to summarize stats and prune interactions older than 30 days.
 
