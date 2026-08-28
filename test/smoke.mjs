@@ -10,7 +10,7 @@ const serverPath = resolve(root, "dist", "index.js");
 // Test DB lives in an OS temp dir so the project's data/ stays untouched.
 // export_memory derives its exports dir from dirname(DB_PATH), so exported
 // JSON also lands inside this same temp dir and is cleaned up with it.
-const tmpDir = mkdtempSync(join(tmpdir(), "memory-mcp-smoke-"));
+const tmpDir = mkdtempSync(join(tmpdir(), "th-memory-mcp-smoke-"));
 const testDb = join(tmpDir, "memory.db");
 const expectedExportsDir = resolve(join(tmpDir, "exports"));
 const MAX_TOOL_MS = Number(process.env.SMOKE_MAX_TOOL_MS ?? 100);
@@ -153,7 +153,7 @@ try {
   });
   const startupMs = performance.now() - t0;
 
-  report(initResult?.serverInfo?.name === "memory-mcp", "1. initialize → serverInfo",
+  report(initResult?.serverInfo?.name === "th-memory-mcp", "1. initialize → serverInfo",
     `name=${initResult?.serverInfo?.name} v=${initResult?.serverInfo?.version}`);
   report(startupMs < MAX_STARTUP_MS, "startup < 2s to initialize-ready", `${startupMs.toFixed(0)} ms`);
 

@@ -1,4 +1,4 @@
-# Contributing to memory-mcp / ข้อควรรู้สำหรับผู้ร่วมพัฒนา
+# Contributing to th-memory-mcp / ข้อควรรู้สำหรับผู้ร่วมพัฒนา
 
 ขอบคุณที่สนใจร่วมพัฒนา! — Thanks for your interest in contributing!
 

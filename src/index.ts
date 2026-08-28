@@ -20,7 +20,7 @@ import {
 import { VERSION } from "./lib/config.js";
 
 const server = new McpServer({
-  name: "memory-mcp",
+  name: "th-memory-mcp",
   version: VERSION,
 });
 
@@ -126,10 +126,10 @@ server.registerTool(
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[memory-mcp] ready on stdio`);
+  console.error(`[th-memory-mcp] ready on stdio`);
 }
 
 main().catch((e) => {
-  console.error("[memory-mcp] fatal:", e instanceof Error ? e.message : e);
+  console.error("[th-memory-mcp] fatal:", e instanceof Error ? e.message : e);
   process.exit(1);
 });

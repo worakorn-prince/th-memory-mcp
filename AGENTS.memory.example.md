@@ -1,6 +1,6 @@
 # AGENTS.md — Memory Protocol
 
-โปรเจกต์นี้มี MCP server `memory-mcp` ให้ความจำระยะยาว (SQLite local) ใช้ protocol นี้ทุก session:
+โปรเจกต์นี้มี MCP server `th-memory-mcp` ให้ความจำระยะยาว (SQLite local) ใช้ protocol นี้ทุก session:
 
 ```markdown
 ## Memory Protocol

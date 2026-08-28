@@ -1,4 +1,4 @@
-# memory-mcp
+# th-memory-mcp
 
 MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons, ประวัติการใช้งาน ลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) เพื่อให้ AI "จำและปรับตัว" กับผู้ใช้ผ่าน context-based learning
 
@@ -22,7 +22,7 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 ```bash
 # 1. Clone และ build
 git clone https://github.com/worakorn-prince/th-memory-mcp.git
-cd memory-mcp
+cd th-memory-mcp
 npm install
 npm run build
 
@@ -58,16 +58,16 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"
 ```
 OpenCode ──┬─ Plugin learning-capture (Bun)  ── จับ prompt/tool/error ลง DB อัตโนมัติ
             │                                   └─ ฉีด profile กลับ context ตอน compaction
-            └─ MCP memory-mcp (Node.js stdio)  ── tools 9 ตัว อ่าน/เขียน SQLite เดียวกัน
+            └─ MCP th-memory-mcp (Node.js stdio)  ── tools 9 ตัว อ่าน/เขียน SQLite เดียวกัน
                                                       ▲
                                Global instructions (memory-protocol.md) สอน AI ใช้ tools
 ```
 
 รายละเอียดเต็มอยู่ใน [design.md](design.md)
 
-## ทำไมต้องใช้ memory-mcp?
+## ทำไมต้องใช้ th-memory-mcp?
 
-LLM ไม่ได้จำคุณข้าม session — แชทใหม่ทุกครั้งเริ่มจากศูนย์ memory-mcp มอบความจำระยะยาวแบบส่วนตัว ภายในเครื่อง ให้ AI ของคุณ:
+LLM ไม่ได้จำคุณข้าม session — แชทใหม่ทุกครั้งเริ่มจากศูนย์ th-memory-mcp มอบความจำระยะยาวแบบส่วนตัว ภายในเครื่อง ให้ AI ของคุณ:
 
 - **เรียนรู้แบบ context-based ไม่ใช่ fine-tuning** — จับความชอบ/การถูกแก้/พฤติกรรม ของคุณ แล้วเรียกกลับเข้า context ครั้งหน้า กลไกเดียวกับฟีเจอร์ความจำของ AI ชั้นนำ โดยไม่ส่งข้อมูลออกนอกเครื่อง
 - **local 100% และเป็นส่วนตัว** — ไฟล์ SQLite เดียว ไม่มีคลาวด์ ไม่มี external API มีการกรอง secret ก่อนบันทึกเสมอ
@@ -103,7 +103,7 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 ## ติดตั้งกับ OpenCode
 
 1. Merge `mcp` section จาก [`opencode.example.json`](opencode.example.json) เข้า `opencode.json` (global หรือ project-level)
-   - **สำคัญ:** ตั้ง `MEMORY_DB_PATH` ให้ชี้ที่ไฟล์ DB เดียวกันทั้ง server และ plugin (ในตัวอย่างคือ `<ABSOLUTE_PATH>/memory-mcp/data/memory.db`) มิฉะนั้น auto-capture plugin จะเขียนลง DB คนละไฟล์กับที่ AI อ่าน
+   - **สำคัญ:** ตั้ง `MEMORY_DB_PATH` ให้ชี้ที่ไฟล์ DB เดียวกันทั้ง server และ plugin (ในตัวอย่างคือ `<ABSOLUTE_PATH>/th-memory-mcp/data/memory.db`) มิฉะนั้น auto-capture plugin จะเขียนลง DB คนละไฟล์กับที่ AI อ่าน
    - วิธีตั้ง (เลือกหนึ่ง):
      - กำหนดใน `environment` ของ mcp (ดูตัวอย่าง) — ครอบคลุมเฉพาะ MCP server
      - **หรือ** กำหนดเป็น environment variable ระดับระบบ/ผู้ใช้ (เช่น `setx MEMORY_DB_PATH "D:/path/to/memory.db"` บน Windows) — ครอบคลุมทั้ง server และ plugin เพราะ plugin รันใน process เดียวกับ OpenCode

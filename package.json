@@ -1,5 +1,5 @@
 {
-  "name": "memory-mcp",
+  "name": "th-memory-mcp",
   "version": "1.1.0",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
   "author": "worakorn-prince",
@@ -10,7 +10,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "memory-mcp": "dist/index.js"
+    "th-memory-mcp": "dist/index.js"
   },
   "files": [
     "dist",

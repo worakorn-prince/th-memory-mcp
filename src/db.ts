@@ -16,7 +16,7 @@ function initDb(): DbInstance {
     return new Database(DB_PATH);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[memory-mcp] cannot open DB at ${DB_PATH}: ${msg}`);
+    console.error(`[th-memory-mcp] cannot open DB at ${DB_PATH}: ${msg}`);
     process.exit(1);
   }
 }
