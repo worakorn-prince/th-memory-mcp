@@ -12,7 +12,7 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 
 ```bash
 # 1. Clone และ build
-git clone https://github.com/worakorn-prince/memory-mcp.git
+git clone https://github.com/worakorn-prince/th-memory-mcp.git
 cd memory-mcp
 npm install
 npm run build
