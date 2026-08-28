@@ -1,5 +1,10 @@
 # th-memory-mcp
 
+[![npm version](https://img.shields.io/npm/v/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
+
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
 **Status:** v1.1.0 — all 4 phases implemented, tests passing 70/70 assertions (smoke 53 + capture 8 + distill 9)
