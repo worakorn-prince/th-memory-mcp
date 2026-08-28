@@ -1,5 +1,5 @@
 // scripts/quickstart.mjs
-// One-command installer for memory-mcp.
+// One-command installer for th-memory-mcp.
 // Chained from `npm run quickstart` (which runs `npm run build` first).
 // Wires opencode.json, deploys the auto-capture plugin, and sets MEMORY_DB_PATH.
 //

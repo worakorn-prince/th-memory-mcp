@@ -8,7 +8,7 @@
 
 สร้างระบบให้ OpenCode "จำและปรับตัว" กับผู้ใช้ได้ ประกอบด้วย 3 องค์ประกอบ:
 
-1. **MCP Server (memory-mcp v1.1.0)** — เก็บ/ค้น preferences, lessons, ประวัติการใช้งาน ลง SQLite พร้อม tools 9 ตัวให้ AI เรียกใช้
+1. **MCP Server (th-memory-mcp v1.1.0)** — เก็บ/ค้น preferences, lessons, ประวัติการใช้งาน ลง SQLite พร้อม tools 9 ตัวให้ AI เรียกใช้
 2. **OpenCode Plugin (learning-capture)** — hook events จับ prompt/tool usage อัตโนมัติ และฉีด profile กลับเข้า context ตอน compaction
 3. **Global Instructions (memory-protocol.md)** — กฎ Memory Protocol ผูกเข้าทุก agent/session ผ่าน `"instructions"` ใน global opencode.json
 
@@ -35,7 +35,7 @@ LLM API **ไม่ได้เทรนต่อจากข้อมูลเ�
             │ write (bun:sqlite)  │ read/write (stdio JSON-RPC)
             ▼                     ▼
    ┌─────────────────────────────────────┐
-   │      memory-mcp v1.1.0 (Node+SDK)   │
+   │      th-memory-mcp v1.1.0 (Node+SDK)   │
    │  better-sqlite3 (WAL) ◀── shared ── │
    │  Tools (9): remember, recall,       │
    │  get_profile, save_lesson,          │
@@ -109,7 +109,7 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 
 ## 4. สเปค MCP Tools
 
-Server name: `memory-mcp`, version **1.1.0**, transport stdio
+Server name: `th-memory-mcp`, version **1.1.0**, transport stdio
 ทุก tool return `{ content: [{ type: "text", text }] }`, error ต้อง catch แล้วคืนข้อความ error (ห้าม crash)
 
 | Tool | Args (zod) | พฤติกรรม |
@@ -223,7 +223,7 @@ D:\Coding_Project\mcp\
 1. Init project: `"type": "module"`, deps: `@modelcontextprotocol/sdk`, `zod`, `better-sqlite3`; devDeps: `typescript`, `@types/node`, `@types/better-sqlite3`, `@opencode-ai/plugin`
 2. `src/db.ts`: สร้าง schema ตามข้อ 3, เปิด WAL, busy_timeout, ฟังก์ชัน helper + FTS sync
 3. Tools 6 ตัวแรกตามสเปคข้อ 4 (แยกไฟล์ใน `src/tools/` — ภายหลังขยายเป็น 9 ตัวใน Phase 4)
-4. `src/index.ts`: McpServer("memory-mcp") + register + StdioServerTransport (**ห้าม console.log — ใช้ stderr เท่านั้น**)
+4. `src/index.ts`: McpServer("th-memory-mcp") + register + StdioServerTransport (**ห้าม console.log — ใช้ stderr เท่านั้น**)
 5. Build + smoke test ด้วย MCP Inspector (`npx @modelcontextprotocol/inspector node dist/index.js`) ทดสอบ remember → recall → forget ครบ
 6. สร้าง `opencode.example.json`:
 

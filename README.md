@@ -1,4 +1,4 @@
-# memory-mcp
+# th-memory-mcp
 
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
@@ -22,7 +22,7 @@ No external services, accounts, or API keys are required — everything lives in
 ```bash
 # 1. Clone and build
 git clone https://github.com/worakorn-prince/th-memory-mcp.git
-cd memory-mcp
+cd th-memory-mcp
 npm install
 npm run build
 
@@ -58,16 +58,16 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"
 ```
 OpenCode ──┬─ Plugin learning-capture (Bun)  ── auto-captures prompts/tool/error into DB
             │                                   └─ injects profile back into context on compaction
-            └─ MCP memory-mcp (Node.js stdio)  ── 9 tools read/write the same SQLite DB
+            └─ MCP th-memory-mcp (Node.js stdio)  ── 9 tools read/write the same SQLite DB
                                                       ▲
                                Global instructions (memory-protocol.md) teach the AI to use the tools
 ```
 
 See [design.md](design.md) for full details.
 
-## Why memory-mcp?
+## Why th-memory-mcp?
 
-LLMs don't remember you between sessions — every new chat starts blank. memory-mcp gives your AI a private, local long-term memory:
+LLMs don't remember you between sessions — every new chat starts blank. th-memory-mcp gives your AI a private, local long-term memory:
 
 - **Context-based learning, not fine-tuning** — it captures your preferences, corrections, and habits, then recalls them into context next time. Same mechanism as the memory features of leading AI products, without sending any data off your machine.
 - **100% local & private** — a single SQLite file, no cloud, no external API. Secrets are filtered before anything is stored.
@@ -103,7 +103,7 @@ LLMs don't remember you between sessions — every new chat starts blank. memory
 ## Install with OpenCode
 
 1. Merge the `mcp` section from [`opencode.example.json`](opencode.example.json) into your `opencode.json` (global or project-level)
-   - **Important:** set `MEMORY_DB_PATH` to the SAME database file for both the server and the plugin (the example uses `<ABSOLUTE_PATH>/memory-mcp/data/memory.db`), otherwise the auto-capture plugin writes to a different DB than the one the AI reads
+   - **Important:** set `MEMORY_DB_PATH` to the SAME database file for both the server and the plugin (the example uses `<ABSOLUTE_PATH>/th-memory-mcp/data/memory.db`), otherwise the auto-capture plugin writes to a different DB than the one the AI reads
    - How to set it (pick one):
      - define it in the mcp `environment` (see example) — covers the MCP server only
      - **or** set it as a system/user-level environment variable (e.g. `setx MEMORY_DB_PATH "D:/path/to/memory.db"` on Windows) — covers both server and plugin, since the plugin runs in the same process as OpenCode

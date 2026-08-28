@@ -1,7 +1,7 @@
-# Publishing memory-mcp / วิธีเผยแพร่ (ตัวอย่าง)
+# Publishing th-memory-mcp / วิธีเผยแพร่ (ตัวอย่าง)
 
-นี่คือตัวอย่างการเตรียมและเผยแพร่ memory-mcp ลง npm และการลงทะเบียนเป็น OpenCode plugin
-This is an example of how to prepare and publish memory-mcp to npm and register it as an OpenCode plugin.
+นี่คือตัวอย่างการเตรียมและเผยแพร่ th-memory-mcp ลง npm และการลงทะเบียนเป็น OpenCode plugin
+This is an example of how to prepare and publish th-memory-mcp to npm and register it as an OpenCode plugin.
 
 > หมายเหตุ: ยังไม่ได้เผยแพร่จริง — ไฟล์นี้เพื่อแสดงวิธีเท่านั้น
 > Note: not actually published yet — this file only demonstrates the steps.
@@ -10,12 +10,12 @@ This is an example of how to prepare and publish memory-mcp to npm and register 
 Add these fields to `package.json` (example):
 ```json
 {
-  "bin": { "memory-mcp": "dist/index.js" },
+  "bin": { "th-memory-mcp": "dist/index.js" },
   "files": ["dist", "README.md", "README.th.md", "LICENSE", "design.md"],
   "engines": { "node": ">=20" }
 }
 ```
-- `bin` ให้ผู้ใช้รัน `npx memory-mcp` ได้โดยไม่ต้อง clone
+- `bin` ให้ผู้ใช้รัน `npx th-memory-mcp` ได้โดยไม่ต้อง clone
 - `files` จำกัดไฟล์ที่เผยแพร่ (ไม่เอา `test/`, `node_modules/`)
 - `engines` บังคับ Node >= 20
 
@@ -27,9 +27,9 @@ npm publish --access public
 ```
 หลังเผยแพร่ ผู้ใช้ติดตั้งได้ด้วย:
 ```bash
-npm install -g memory-mcp
+npm install -g th-memory-mcp
 # หรือรันทันที
-npx memory-mcp
+npx th-memory-mcp
 ```
 
 ## 3. ลงทะเบียนเป็น OpenCode plugin
