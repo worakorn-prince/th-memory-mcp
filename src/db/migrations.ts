@@ -205,6 +205,23 @@ const M006_scope: Migration = {
   },
 };
 
+const M007_user: Migration = {
+  id: "007_user",
+  up(db) {
+    db.exec(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      external_id TEXT NOT NULL UNIQUE,
+      name TEXT,
+      created_at TEXT NOT NULL
+    );`);
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_users_external ON users(external_id);`
+    );
+    db.exec(`ALTER TABLE memories ADD COLUMN user_id INTEGER REFERENCES users(id);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id);`);
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -212,6 +229,7 @@ export const MIGRATIONS: Migration[] = [
   M004_memory_links,
   M005_backfill_v1,
   M006_scope,
+  M007_user,
 ];
 
 export function runMigrations(db: DB): void {

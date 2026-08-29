@@ -23,22 +23,34 @@ export function finalScore(input: FinalScoreInput): number {
 
 export function scopeFactorFor(
   mem: MemoryRecord,
-  opts: { projectId?: string | null; sessionId?: string | null } = {}
+  opts: {
+    projectId?: string | null;
+    sessionId?: string | null;
+    userId?: number | null;
+  } = {}
 ): number {
-  const { projectId, sessionId } = opts;
+  const { projectId, sessionId, userId } = opts;
   const memScope = mem.scope ?? "GLOBAL";
   if (sessionId) {
     if (memScope === "SESSION" && mem.session_id === sessionId) return 1.0;
     if (memScope === "PROJECT" && mem.project_id === projectId) return 0.8;
+    if (memScope === "USER" && mem.user_id === userId) return 0.8;
     if (memScope === "GLOBAL") return 0.6;
     return 0.2;
   }
   if (projectId) {
     if (memScope === "PROJECT" && mem.project_id === projectId) return 1.0;
+    if (memScope === "USER" && mem.user_id === userId) return 0.8;
+    if (memScope === "GLOBAL") return 0.7;
+    return 0.3;
+  }
+  if (userId) {
+    if (memScope === "USER" && mem.user_id === userId) return 1.0;
     if (memScope === "GLOBAL") return 0.7;
     return 0.3;
   }
   if (memScope === "GLOBAL") return 0.8;
   if (memScope === "PROJECT") return 0.7;
+  if (memScope === "USER") return 0.6;
   return 0.4;
 }

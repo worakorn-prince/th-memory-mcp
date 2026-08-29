@@ -8,6 +8,7 @@ import {
 } from "../../db/index.js";
 import { embed } from "../../lib/embed.js";
 import { retrieve } from "../../core/retrieval-engine.js";
+import { ensureUser } from "./users.js";
 import type {
   MemoryType,
   SourceType,
@@ -27,6 +28,7 @@ export interface CreateMemoryInput {
   salience?: number;
   projectId?: string | null;
   sessionId?: string | null;
+  userId?: string | null;
   validFrom?: string | null;
   validUntil?: string | null;
   metadata?: unknown;
@@ -34,19 +36,22 @@ export interface CreateMemoryInput {
 
 export function createMemory(input: CreateMemoryInput): number {
   const ts = nowISO();
+  const uid = input.userId ? ensureUser(input.userId) : null;
   const scope: Scope = input.sessionId
     ? "SESSION"
     : input.projectId
       ? "PROJECT"
-      : "GLOBAL";
+      : uid
+        ? "USER"
+        : "GLOBAL";
   const info = db
     .prepare(
         `INSERT INTO memories
          (type, content, summary, status, source, confidence, importance, salience,
-          project_id, session_id, scope, created_at, updated_at, last_accessed_at, access_count,
+          project_id, session_id, user_id, scope, created_at, updated_at, last_accessed_at, access_count,
           valid_from, valid_until, metadata)
          VALUES (@type, @content, @summary, @status, @source, @confidence, @importance, @salience,
-          @projectId, @sessionId, @scope, @ts, @ts, NULL, 0, @validFrom, @validUntil, @metadata)`
+          @projectId, @sessionId, @userId, @scope, @ts, @ts, NULL, 0, @validFrom, @validUntil, @metadata)`
     )
     .run({
       type: input.type,
@@ -59,6 +64,7 @@ export function createMemory(input: CreateMemoryInput): number {
       salience: input.salience ?? 0.5,
         projectId: input.projectId ?? null,
         sessionId: input.sessionId ?? null,
+        userId: uid,
         scope,
         ts,
       validFrom: input.validFrom ?? null,
