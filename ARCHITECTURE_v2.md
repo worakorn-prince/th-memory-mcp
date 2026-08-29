@@ -919,8 +919,9 @@ src/
 scripts/
 └── claude-capture.mjs            # Claude Code hook capture
 test/
-└── *.test.mjs                     # 12 suites (capture, distill, lifecycle, temporal, conflict,
-                                   #   retrieval, graph, context, consolidation, benchmark, security, smoke)
+└── *.test.mjs                     # 14 suites (capture, distill, lifecycle, temporal, conflict,
+                                   #   retrieval, graph, context, consolidation, benchmark, security,
+                                   #   tools_v21, smoke, e2e_transport)
 ```
 
 Compatibility wrappers keep the old `remember`/`recall`/etc. tool names; v2 internals live under `core/`, `memory/`, `retrieval/`.
@@ -1564,12 +1565,12 @@ This section folds in the former `design.md` build log. All v2 engine phases are
 - [x] Phase 6 — Graph engine
 - [x] Phase 7 — Context engine (`get_context`)
 - [x] Phase 8 — Consolidation (`consolidate`)
-- [x] Phase 9 — Benchmark + security suites (13 test suites total)
+- [x] Phase 9 — Benchmark + security suites (14 test suites total)
 - [x] Phase 10 — Docs + v2.0.0 release (npm, GitHub Release, Official MCP Registry, Glama)
-- [x] v2.1.0 — `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` (16 tools, 13 suites)
+- [x] v2.1.0 — `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` (16 tools, 14 suites)
 
 ## Test status
-All 13 test suites pass (capture, distill, lifecycle 17, temporal 7, conflict 14, retrieval 7, graph 7, context 7, consolidation 5, benchmark 2, security 5, tools_v21 21, smoke 16-tool).
+All 14 test suites pass (capture, distill, lifecycle 17, temporal 7, conflict 14, retrieval 7, graph 7, context 7, consolidation 5, benchmark 2, security 5, tools_v21 21, smoke 16-tool, e2e_transport).
 
 ## Known gaps vs original spec (deferred, not regressions)
 - Retrieval/conflict benchmark quality targets (Recall@5 ≥ 0.90 etc., §26/§27) are **not yet measured** in-repo; only a performance benchmark (retrieve < 2000 ms over 300 memories) exists.
