@@ -1,6 +1,6 @@
 {
   "name": "th-memory-mcp",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "mcpName": "io.github.worakorn-prince/th-memory-mcp",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
   "author": "worakorn-prince",
@@ -36,8 +36,19 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "better-sqlite3": "^12.0.0",
+    "better-sqlite3": "^12.9.0",
     "zod": "^3.25.0"
+  },
+  "overrides": {
+    "ip-address": "^10.2.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ],
+    "overrides": {
+      "ip-address": "^10.2.0"
+    }
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
