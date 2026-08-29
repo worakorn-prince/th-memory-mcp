@@ -7,7 +7,7 @@
 
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
-**Status:** v2.0.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 11 MCP tools, 12 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2: lifecycle states, temporal validity, conflict/dedup resolution, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, and periodic consolidation.
+**Status:** v2.1.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 13 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2: lifecycle states, temporal validity, conflict/dedup resolution, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`.
 
 ## Requirements
 
@@ -63,12 +63,12 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"
 ```
 OpenCode ──┬─ Plugin learning-capture (Bun)  ── auto-captures prompts/tool/error into DB
             │                                   └─ injects profile back into context on compaction
-             └─ MCP th-memory-mcp (Node.js stdio)  ── 11 tools read/write the same SQLite DB
+             └─ MCP th-memory-mcp (Node.js stdio)  ── 16 tools read/write the same SQLite DB
                                                       ▲
                                Global instructions (memory-protocol.md) teach the AI to use the tools
 ```
 
-See [design.md](design.md) for full details.
+See [ARCHITECTURE_v2.md](ARCHITECTURE_v2.md) for the full architecture spec.
 
 ## Why th-memory-mcp?
 
@@ -78,7 +78,7 @@ LLMs don't remember you between sessions — every new chat starts blank. th-mem
 - **100% local & private** — a single SQLite file, no cloud, no external API. Secrets are filtered before anything is stored.
 - **Low overhead** — each tool call is capped (latency < 10 ms, bounded output size) and the AI only queries memory when it's actually useful, so it never bloats your context.
 - **Resilient** — every tool degrades gracefully; if the DB is unavailable the AI keeps working instead of crashing.
-- **Open & extensible** — MIT licensed, 11 documented tools, a rule-based distill, and an auto-capture plugin you can adapt.
+- **Open & extensible** — MIT licensed, 16 documented tools, a rule-based distill, and an auto-capture plugin you can adapt.
 
 ## Works with other harnesses
 
@@ -89,7 +89,7 @@ our hooks bridge; Codex and Cursor use the tools manually (no hook runtime yet).
 
 | Feature | OpenCode | Claude Code | Qwen Code | Codex | Cursor |
 |---|---|---|---|---|---|
-| 11 MCP tools | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 16 MCP tools | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Auto-capture (background) | ✅ plugin | ✅ [hooks](CLAUDE_CODE_HOOKS.md) | ⚠️ adapter | ❌ manual | ❌ Rules |
 | Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ `get_profile` | ❌ `get_profile` | ❌ `get_profile` |
 | Local semantic search | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) |
@@ -148,9 +148,9 @@ anywhere is readable everywhere.
 | `node test/consolidation.test.mjs` | test clustering + derived memories |
 | `node test/benchmark.test.mjs` | latency benchmark over 300 memories |
 | `node test/security.test.mjs` | injection / safety checks |
-| `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (11 tools) |
+| `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (16 tools) |
 
-## Tools (11)
+## Tools (16)
 
 | Tool | Description |
 |------|-------------|
@@ -165,6 +165,11 @@ anywhere is readable everywhere.
 | `export_memory` | export memory to JSON under `data/exports/` only (filename auto-sanitized) |
 | `get_context` | assemble relevant memories for the current task via hybrid retrieval (+ optional graph expansion) with token budgeting |
 | `consolidate` | cluster similar memories via embedding similarity; optionally create derived/consolidated memories linked via `derived_from` |
+| `link_memory` | create a typed relationship between two memories in the graph (supports/contradicts/supersedes/derived_from/related_to/caused_by/depends_on) |
+| `merge_memory` | merge a duplicate/near-duplicate into a canonical memory (source becomes superseded, provenance in `metadata.merged_from`) |
+| `update_memory` | update mutable fields in place, or create a superseding memory when `content` changes (set `supersede=false` to edit in place) |
+| `import_memory` | import memories from JSON (validates type, dedupes against existing, never overwrites blindly); dry-run by default, `apply=true` to insert |
+| `extract_memories` | scan recent captured interactions for memory-intent phrases and propose memory candidates (deterministic, no LLM); dry-run by default, `apply=true` to create (source=captured) |
 
 ## Install with OpenCode
 

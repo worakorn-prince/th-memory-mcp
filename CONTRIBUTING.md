@@ -24,7 +24,7 @@ npm test
 ## Adding a new tool
 1. Register in `src/index.ts` (register tool + handler)
 2. Add tests under `test/` (aim for `npm test` to pass 70+ assertions)
-3. Update README (Tools section) and `design.md` if needed
+3. Update README (Tools section) and `ARCHITECTURE_v2.md` if needed
 4. Add it to the Smart Distill rule if relevant
 
 ## Pull request workflow

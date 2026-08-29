@@ -165,19 +165,24 @@ try {
   const expected = [
     "consolidate",
     "export_memory",
+    "extract_memories",
     "forget",
     "get_context",
     "get_profile",
     "get_recent_interactions",
+    "import_memory",
+    "link_memory",
     "memory_stats",
+    "merge_memory",
     "recall",
     "remember",
     "save_lesson",
     "search_history",
+    "update_memory",
   ];
   report(
     JSON.stringify(toolNames) === JSON.stringify(expected),
-    "3. tools/list has 11 tools",
+    "3. tools/list has 16 tools",
     toolNames.join(", ")
   );
 

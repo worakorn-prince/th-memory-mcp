@@ -1,9 +1,10 @@
 # th-memory-mcp v2 — Architecture & Implementation Specification
 
-**Status:** Proposed / implementation specification  
-**Target:** `th-memory-mcp v2.0.0`  
-**Baseline:** v1.2.2  
+**Status:** ✅ Released — `th-memory-mcp v2.0.0` is published (npm + Official MCP Registry + Glama).  
+**Baseline:** v1.2.2 → **Current:** v2.0.0  
 **Primary goal:** evolve th-memory-mcp from a structured local memory MCP into a durable, temporal, conflict-aware, hybrid-retrieval memory engine for AI agents.
+
+> **Audience guide:** End users should read [README.md](README.md) (install, tools, usage). This document is the **canonical architecture & agent-rules spec** for developers and AI coding agents — the single source of truth for structure and behavior. The former `design.md` build log has been folded into §40 Implementation Status.
 
 ---
 
@@ -700,41 +701,31 @@ Tier A is a projection/cache; Tier B remains the source of truth.
 
 # 17. MCP Tool Surface
 
-Do not expand to dozens of tools. Target **14 tools**.
+Do not expand to dozens of tools. v2.1.0 ships **16 tools** (the original spec targeted 14; the extra 2 are `consolidate` and `extract_memories`, which extend the v2 engine).
 
-## Core
+## Shipped (16 tools)
 
-1. `remember`
-2. `recall`
-3. `forget`
+### Core / compatibility (carried from v1)
+1. `remember` — store a memory using the unified model (type + metadata)
+2. `recall` — hybrid FTS + semantic search (v1 behavior preserved)
+3. `forget` — soft delete by default
+4. `get_profile` — compact profile projection/cache
+5. `search_history` — search raw interactions
+6. `get_recent_interactions` — recent raw events
+7. `memory_stats` — lifecycle/retrieval/storage metrics
+8. `export_memory` — safe export confined to the allowed directory
+9. `save_lesson` — compatibility alias/wrapper over `remember(type=LESSON)`
 
-## Mutation/relationships
+### v2 engine tools
+10. `get_context` — token-budgeted context assembly (preferred agent-facing retrieval)
+11. `consolidate` — cluster related memories + optional derived memory
+12. `link_memory` — typed relationship between two memories in the graph
+13. `merge_memory` — merge a duplicate into a canonical memory (source superseded, provenance in `metadata.merged_from`)
+14. `update_memory` — update mutable fields in place, or create a superseding memory when `content` changes
+15. `import_memory` — import memories from JSON (validates type, dedupes, dry-run by default)
+16. `extract_memories` — scan recent interactions for memory-intent and propose/create memories (deterministic, no LLM; dry-run by default)
 
-4. `update_memory`
-5. `merge_memory`
-6. `link_memory`
-
-## Context/profile
-
-7. `get_context`
-8. `get_profile`
-
-## History
-
-9. `search_history`
-10. `get_recent_interactions`
-
-## Maintenance
-
-11. `consolidate_memory`
-12. `memory_stats`
-
-## Portability
-
-13. `export_memory`
-14. `import_memory`
-
-`save_lesson` from v1 should remain supported as a compatibility alias or specialized wrapper over `remember(type=LESSON)` during the v2 transition.
+All 16 are documented in README.md. The four tools originally marked "deferred" in this spec (`update_memory`, `merge_memory`, `link_memory`, `import_memory`) plus `extract_memories` were implemented in v2.1.0.
 
 ---
 
@@ -791,15 +782,19 @@ This should be the preferred agent-facing retrieval operation for complex tasks.
 
 Updates mutable fields without silently changing identity/history.
 
-Changes to factual content that represent a new truth should create a superseding memory where appropriate.
+Changes to factual content that represent a new truth should create a superseding memory where appropriate. (Implemented in v2.1.0 — see `src/tools/update_memory.ts`.)
 
 ## `merge_memory`
 
-Combines duplicate/near-duplicate memories while preserving provenance and source IDs.
+Combines duplicate/near-duplicate memories while preserving provenance and source IDs. (Implemented in v2.1.0 — see `src/tools/merge_memory.ts`.)
 
 ## `link_memory`
 
-Creates a typed relationship between memories.
+Creates a typed relationship between memories. (Implemented in v2.1.0 — see `src/tools/link_memory.ts`.)
+
+## `extract_memories`
+
+Scans recent captured interactions for memory-intent phrases and proposes memory candidates. Deterministic (no LLM); dry-run by default, `apply=true` creates them (source=`captured`). Implemented in v2.1.0 — see `src/tools/extract_memories.ts`.
 
 ## `forget`
 
@@ -885,68 +880,50 @@ No optional subsystem should become a single point of failure for the MCP server
 
 ---
 
-# 22. Source Tree
-
-Target structure:
+# 22. Source Tree (as-built in v2.0.0)
 
 ```text
 src/
-├── index.ts
-├── core/
-│   ├── memory-engine.ts
-│   ├── retrieval-engine.ts
-│   ├── lifecycle-engine.ts
-│   ├── context-engine.ts
-│   └── graph-engine.ts
-├── memory/
-│   ├── types.ts
-│   ├── classifier.ts
-│   ├── extractor.ts
-│   ├── deduplicator.ts
-│   ├── conflict-resolver.ts
-│   ├── consolidator.ts
-│   └── decay.ts
-├── retrieval/
-│   ├── fts.ts
-│   ├── vector.ts
-│   ├── graph.ts
-│   ├── fusion.ts
-│   ├── reranker.ts
-│   └── scorer.ts
-├── context/
-│   ├── assembler.ts
-│   ├── compressor.ts
-│   └── budget.ts
+├── index.ts                     # MCP server: registers 11 tools
 ├── db/
-│   ├── connection.ts
-│   ├── schema.ts
-│   ├── migrations.ts
+│   ├── index.ts                 # db singleton (better-sqlite3, WAL) + runMigrations
+│   ├── migrations.ts            # ordered MIGRATIONS array (TS modules, idempotent)
 │   └── repositories/
+│       └── memories.ts          # CRUD + searchMemories (delegates to hybrid retrieval)
+├── memory/
+│   ├── types.ts                 # MemoryType, SourceType, LifecycleState, Scope, MemoryRecord
+│   ├── decay.ts                 # recencyFactor + per-type DECAY_LAMBDA policy classes
+│   ├── source-weights.ts        # SOURCE_WEIGHTS
+│   ├── scorer.ts                # computeSalience / computeConfidence
+│   ├── deduplicator.ts          # normalize / exact / similar / deduplicate
+│   └── conflict-resolver.ts     # isContradiction / classifyRelationship / resolveConflict
+├── retrieval/
+│   ├── fts.ts                    # FTS5 search
+│   ├── vector.ts                 # cosine over embeddings
+│   ├── fusion.ts                 # rrfFuse (k=60)
+│   └── scorer.ts                # finalScore (RRF × confidence × importance × recency × scope)
+├── core/
+│   ├── lifecycle-engine.ts       # transitions, reinforce, supersede, archive, softDelete
+│   ├── temporal-engine.ts        # validity intervals, point-in-time, supersession chains
+│   ├── retrieval-engine.ts       # retrieve(): FTS+vector → RRF → score → filter → topK
+│   ├── graph-engine.ts           # entities/relations, linkMemories, bounded traverse
+│   ├── context-engine.ts         # getContext(): retrieve → graph expand → temporal filter → budget
+│   └── consolidation-engine.ts   # clusterMemories, createDerivedMemory, getProvenance
 ├── tools/
-│   ├── remember.ts
-│   ├── recall.ts
-│   ├── forget.ts
-│   ├── update-memory.ts
-│   ├── merge-memory.ts
-│   ├── link-memory.ts
-│   ├── get-context.ts
-│   ├── get-profile.ts
-│   ├── search-history.ts
-│   ├── recent.ts
-│   ├── consolidate.ts
-│   ├── stats.ts
-│   ├── export.ts
-│   └── import.ts
-├── capture/
-│   ├── capture-core.ts
-│   ├── secret-filter.ts
-│   ├── noise-filter.ts
-│   └── dedupe.ts
+│   ├── context.ts                # get_context tool
+│   └── consolidate.ts            # consolidate tool
+├── lib/
+│   └── embed.ts                  # hashing-trick embed + DataView serialize/deserialize (fixed in v2)
 └── plugin/
-    └── learning-capture.ts
+    └── learning-capture.ts        # Bun auto-capture plugin (OpenCode)
+scripts/
+└── claude-capture.mjs            # Claude Code hook capture
+test/
+└── *.test.mjs                     # 12 suites (capture, distill, lifecycle, temporal, conflict,
+                                   #   retrieval, graph, context, consolidation, benchmark, security, smoke)
 ```
 
-Compatibility wrappers may temporarily keep old file names during migration.
+Compatibility wrappers keep the old `remember`/`recall`/etc. tool names; v2 internals live under `core/`, `memory/`, `retrieval/`.
 
 ---
 
@@ -1019,23 +996,19 @@ Only after validation may v2 consider old tables deprecated.
 
 ---
 
-# 24. Migration Files
+# 24. Migration Files (as-built)
 
-Use ordered migrations:
+Migrations are **TypeScript modules** in `src/db/migrations.ts`, not `.sql` files. Each entry is an idempotent `up(db)` (`CREATE TABLE IF NOT EXISTS`) tracked in `schema_meta`. This avoids `.sql` file-copy issues under `tsc` while keeping deterministic order. The logical schema in §6 is the contract; the TS implementation realizes it.
 
-```text
-migrations/
-├── 001_schema_meta.sql
-├── 002_memories.sql
-├── 003_memory_indexes.sql
-├── 004_entities_relations.sql
-├── 005_memory_links.sql
-├── 006_temporal_fields.sql
-├── 007_search_indexes.sql
-└── 008_v1_data_migration.sql
-```
+Ordered migrations applied in v2.0.0:
 
-Exact SQL can differ if implementation constraints require it, but migration order and semantics must remain deterministic.
+1. `schema_meta` table
+2. `memories` + indexes
+3. `entities` / `relations`
+4. `memory_links`
+5. v1 backfill (`preferences → PREFERENCE`, `lessons → LESSON`, sync FTS + embeddings; guarded by `v1_backfilled` flag, runs once)
+
+The spec allowed implementation differences ("Exact SQL can differ if implementation constraints require it"); the TS approach is the chosen realization.
 
 ---
 
@@ -1563,3 +1536,47 @@ The canonical v2 flow is:
 ```
 
 **This document is the implementation source of truth for th-memory-mcp v2 unless a later version explicitly supersedes it.**
+
+---
+
+# 40. Implementation Status (as-built, v2.1.0)
+
+This section folds in the former `design.md` build log. All v2 engine phases are complete and tested. v2.1.0 adds the five previously-deferred tools.
+
+## What shipped (v2.0.0 + v2.1.0)
+- **16 MCP tools** (see §17). `save_lesson` retained as a compatibility wrapper. The four tools originally marked deferred (`update_memory`, `merge_memory`, `link_memory`, `import_memory`) plus `extract_memories` landed in v2.1.0.
+- **Non-destructive migration** from v1.2.2: v1 tables preserved; `memories`/`entities`/`relations`/`memory_links`/`schema_meta` added; one-time backfill of preferences + lessons.
+- **Hybrid retrieval**: FTS5 + local semantic (hashing-trick vectors) fused via RRF, then scored by confidence × importance × recency × scope.
+- **Temporal model**: validity intervals, point-in-time retrieval, supersession chains, change detection.
+- **Conflict/dedup**: normalize → exact → similar → classify (duplicate/update/contradiction/unrelated); ambiguous conflicts preserved, never silently destroyed.
+- **Graph**: entities/relations + bounded memory-link traversal (maxDepth 1–5); `link_memory` exposes it publicly.
+- **Context engine**: `get_context` with token budgeting, temporal filtering, optional graph expansion.
+- **Consolidation**: clustering + derived memories with `derived_from` provenance.
+- **Auto-extraction**: `extract_memories` scans recent interactions for memory-intent (deterministic, no LLM) and proposes/creates memories.
+- **Security**: secret filtering, parameterized SQL, FTS-injection quoting, memory treated as untrusted data, bounded output.
+
+## Phase checklist
+- [x] Phase 1 — Core abstraction (types, migrations, repository, index wiring)
+- [x] Phase 2 — Lifecycle engine (decay, source-weights, scorer, transitions)
+- [x] Phase 3 — Temporal model
+- [x] Phase 4 — Conflict & dedup (+ fixed v1 `embed.ts` DataView bug)
+- [x] Phase 5 — Hybrid retrieval (FTS/vector/fusion/scorer/engine)
+- [x] Phase 6 — Graph engine
+- [x] Phase 7 — Context engine (`get_context`)
+- [x] Phase 8 — Consolidation (`consolidate`)
+- [x] Phase 9 — Benchmark + security suites (13 test suites total)
+- [x] Phase 10 — Docs + v2.0.0 release (npm, GitHub Release, Official MCP Registry, Glama)
+- [x] v2.1.0 — `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` (16 tools, 13 suites)
+
+## Test status
+All 13 test suites pass (capture, distill, lifecycle 17, temporal 7, conflict 14, retrieval 7, graph 7, context 7, consolidation 5, benchmark 2, security 5, tools_v21 21, smoke 16-tool).
+
+## Known gaps vs original spec (deferred, not regressions)
+- Retrieval/conflict benchmark quality targets (Recall@5 ≥ 0.90 etc., §26/§27) are **not yet measured** in-repo; only a performance benchmark (retrieve < 2000 ms over 300 memories) exists.
+- Perf targets in §29 are engineering goals, not yet benchmarked in CI.
+- `extract_memories` is a deterministic heuristic extractor (no LLM); AI-assisted extraction/summarization remains future work.
+- Auto entity extraction in consolidation is future work.
+
+## Release
+- v2.0.0: released — npm `th-memory-mcp@2.0.0` (latest), GitHub Release `v2.0.0`, Official MCP Registry `io.github.worakorn-prince/th-memory-mcp@2.0.0`, Glama listed.
+- v2.1.0: implemented and tested locally; **npm/GitHub/MCP Registry/Glama publish pending** because the publish token expired and requires the owner to re-authenticate (`npm login` / `mcp-publisher` GitHub OAuth).

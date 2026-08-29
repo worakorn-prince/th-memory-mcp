@@ -9,7 +9,7 @@ These fields are already set in `package.json`:
 ```json
 {
   "bin": { "th-memory-mcp": "dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE", "design.md", "opencode.example.json", "AGENTS.memory.example.md"],
+  "files": ["dist", "README.md", "LICENSE", "ARCHITECTURE_v2.md", "opencode.example.json", "AGENTS.memory.example.md"],
   "engines": { "node": ">=20" }
 }
 ```
