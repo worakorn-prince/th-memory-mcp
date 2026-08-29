@@ -4,7 +4,7 @@
 สเปคฉบับเต็มอยู่ที่ `ARCHITECTURE_v2.md` (canonical spec) ไฟล์นี้สรุปภาพรวมและสถานะปัจจุบันเพื่อความสะดวก
 
 ## สถานะปัจจุบัน
-- **เวอร์ชัน:** `package.json` = `2.1.0` (มีการเปลี่ยนแปลงใน local  yet to be released เป็น 2.2.0)
+- **เวอร์ชัน:** `package.json` = `2.2.0`
 - **MCP tools:** 16 tools (`remember`, `recall`, `get_context`, `link_memory`, `merge_memory`, `update_memory`, `import_memory`, `extract_memories`, `consolidate`, `forget`, `history`, `recent_interactions`, `profile`, `lesson`, `memory_stats`, `export_memory`)
 - **ชุดเทสต์:** 20 suites ผ่านหมด (0 fail) — รันผ่าน `npm test` (มี CI บน GitHub Actions)
 
@@ -48,12 +48,11 @@
 `preferences` และ `lessons` ยังคงเป็น global (ไม่มี user column)
 
 ## ข้อจำกัดที่รู้อยู่ (known limitations)
-- ไม่มี user authentication — `userId` คือสิ่งที่ client แจ้งมา ใครก็ตั้งเป็นใครก็ได้
-- `preferences` / `lessons` ไม่ถูกแบ่งตาม user
+- **Trust model:** ไม่มี user authentication — `userId` คือสิ่งที่ client แจ้งมา (client-declared) เหมาะกับการ deploy แบบ local single-user ที่ไฟล์ SQLite เป็นของเจ้าของคนเดียว หากต้องการแยกผู้ใช้หลายคน แนะนำแก้ที่ระดับไฟล์ DB (หนึ่ง DB ต่อผู้ใช้) ไม่ใช่เพิ่ม auth ลงใน engine
+- `preferences` / `lessons` ไม่ถูกแบ่งตาม user (ยังเป็น global) — ยอมรับได้สำหรับ single-user
 - Semantic embedding ใช้ hashing-trick (deterministic, offline) — ไม่ใช่ embedding ระดับ LLM จึงมีขีดจำกัดเรื่อง paraphrase ที่ห่างกันมาก
 - **AI-assisted extraction ไม่พัฒนาต่อ** — เจ้าของตัดสินใจตัดหัวข้อนี้ออก `extract_memories` จึงเป็น deterministic heuristic เท่านั้น (ไม่ใช้ LLM) ตามหลักการออกแบบที่ว่า core engine ต้องไม่พึ่งพา external LLM API
 
 ## Release
 - v2.0.0 ปล่อยแล้ว (npm, GitHub Release, Official MCP Registry, Glama)
-- v2.1.0 ทำเสร็จและเทสต์ผ่านใน local แต่ยังไม่ได้ publish (publish token หมดอายุ รอเจ้าของ re-auth)
-- การเปลี่ยนแปลงหลัง v2.1.0 (USER scope, entity extraction, benchmark ทั้งหมด, CI) ยังไม่ได้ตัดเป็นเวอร์ชันใหม่
+- v2.2.0 — tag + GitHub Release สร้างโดย build agent; `npm` / Official MCP Registry / Glama publish รอเจ้าของ re-auth (publish token หมดอายุ)

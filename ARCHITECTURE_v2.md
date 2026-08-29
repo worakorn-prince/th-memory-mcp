@@ -1574,6 +1574,7 @@ All 20 test suites pass (capture, distill, lifecycle 17, temporal 7, conflict 14
 - ✅ DONE — Conflict-resolution quality benchmark (§27, ≥95% correct classification): measured in-repo (`test/conflict_benchmark.test.mjs`), 100% accuracy on a 14-case labeled set covering all 7 required categories (exact/paraphrase duplicate, preference update, direct contradiction, temporary exception, two valid scoped memories, ambiguous conflict). Ambiguous opposite-preference pairs preserved as `contradiction` (linked), never silently superseded.
 - ✅ DONE — Perf targets (§29): measured in CI via the perf benchmark suite (`test/benchmark.test.mjs`); all per-op latencies meet targets.
 - ✅ DONE — USER scope (migration 007: `users` table + `memories.user_id`). Clients pass `userId` (external identity) to `import_memory`, `extract_memories`, and `get_context`; `createMemory` derives `USER` scope and auto-creates the user row. `scopeFactorFor` boosts USER-scoped memories (1.0) for the matching user and penalizes foreign ones (0.3); SESSION/PROJECT/GLOBAL isolation unchanged. Preferences and lessons remain global (no user column).
+- Trust model: `userId` is client-declared (no authentication). This is acceptable for the intended single-user local deployment where the SQLite DB file is private to its owner. Multi-user isolation, if ever required, should be solved at the DB-file level (one DB per user/session), not by adding auth to the engine.
 - ✅ DONE — Auto entity extraction in consolidation (`src/core/entity-extractor.ts`, wired into `consolidate`).
 
 ## Future-feature backlog (resolved)
@@ -1589,4 +1590,5 @@ All previously-deferred future features are implemented. AI-assisted extraction 
 
 ## Release
 - v2.0.0: released — npm `th-memory-mcp@2.0.0` (latest), GitHub Release `v2.0.0`, Official MCP Registry `io.github.worakorn-prince/th-memory-mcp@2.0.0`, Glama listed.
-- v2.1.0: implemented and tested locally; **npm/GitHub/MCP Registry/Glama publish pending** because the publish token expired and requires the owner to re-authenticate (`npm login` / `mcp-publisher` GitHub OAuth).
+- v2.1.0: implemented and tested locally; publish skipped (superseded by v2.2.0).
+- v2.2.0: tag + GitHub Release created by the build agent. **npm / Official MCP Registry / Glama publish pending** — requires the owner to re-authenticate (`npm login` / `mcp-publisher` GitHub OAuth) because the publish token expired.
