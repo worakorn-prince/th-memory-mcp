@@ -1408,63 +1408,63 @@ The release is acceptable only when all are true:
 
 ### Data
 
-- [ ] v1 DB can be backed up and migrated.
-- [ ] preferences map correctly to PREFERENCE memories.
-- [ ] lessons map correctly to LESSON memories.
-- [ ] interactions remain queryable.
-- [ ] profile remains available as a projection.
+- [x] v1 DB can be backed up and migrated.
+- [x] preferences map correctly to PREFERENCE memories.
+- [x] lessons map correctly to LESSON memories.
+- [x] interactions remain queryable.
+- [x] profile remains available as a projection.
 
 ### Memory
 
-- [ ] unified memory model works.
-- [ ] lifecycle states work.
-- [ ] temporal validity works.
-- [ ] supersession works.
-- [ ] duplicate detection works.
-- [ ] conflict handling preserves ambiguous evidence.
+- [x] unified memory model works.
+- [x] lifecycle states work.
+- [x] temporal validity works.
+- [x] supersession works.
+- [x] duplicate detection works.
+- [x] conflict handling preserves ambiguous evidence.
 
 ### Retrieval
 
-- [ ] FTS retrieval works.
-- [ ] local semantic retrieval works.
-- [ ] RRF fusion works.
-- [ ] metadata/project scope works.
-- [ ] stale/superseded filtering works.
-- [ ] bounded output works.
+- [x] FTS retrieval works.
+- [x] local semantic retrieval works.
+- [x] RRF fusion works.
+- [x] metadata/project scope works.
+- [x] stale/superseded filtering works.
+- [x] bounded output works.
 
 ### Context
 
-- [ ] `get_context` works.
-- [ ] token/character budget is enforced.
-- [ ] current project context is prioritized.
-- [ ] critical constraints are prioritized.
+- [x] `get_context` works.
+- [x] token/character budget is enforced.
+- [x] current project context is prioritized.
+- [x] critical constraints are prioritized.
 
 ### Graph
 
-- [ ] entity/relation persistence works.
-- [ ] memory links work.
-- [ ] graph traversal is bounded.
-- [ ] graph failure does not break retrieval.
+- [x] entity/relation persistence works.
+- [x] memory links work.
+- [x] graph traversal is bounded.
+- [x] graph failure does not break retrieval.
 
 ### Security
 
-- [ ] secrets are filtered before storage.
-- [ ] exports are confined to the allowed directory.
-- [ ] memory cannot become executable instructions.
-- [ ] import validates schema/version.
+- [x] secrets are filtered before storage.
+- [x] exports are confined to the allowed directory.
+- [x] memory cannot become executable instructions.
+- [x] import validates schema/version.
 
 ### Reliability
 
-- [ ] DB errors do not crash the MCP server.
-- [ ] plugin errors do not crash the host.
-- [ ] stdout remains protocol-safe.
+- [x] DB errors do not crash the MCP server.
+- [x] plugin errors do not crash the host.
+- [x] stdout remains protocol-safe.
 
 ### Quality
 
-- [ ] retrieval benchmark passes project targets.
-- [ ] conflict benchmark meets >=95% target.
-- [ ] migration tests pass.
-- [ ] performance targets are measured and documented.
+- [x] retrieval benchmark passes project targets.
+- [x] conflict benchmark meets >=95% target.
+- [x] migration tests pass.
+- [x] performance targets are measured and documented.
 
 ---
 
@@ -1570,11 +1570,11 @@ This section folds in the former `design.md` build log. All v2 engine phases are
 All 20 test suites pass (capture, distill, lifecycle 17, temporal 7, conflict 14, retrieval 7, graph 7, context 7, consolidation 5, benchmark 2, security 5, tools_v21 21, smoke 16-tool, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark).
 
 ## Resolved gaps vs original spec (all addressed — no regressions)
-- ✅ เสร็จแล้ว — Retrieval quality benchmark (§26): measured in-repo (`test/retrieval_benchmark.test.mjs`), meets targets (Recall@5=1.00, Precision@5=0.92, MRR=1.00 on a 700-memory baseline).
-- ✅ เสร็จแล้ว — Conflict-resolution quality benchmark (§27, ≥95% correct classification): measured in-repo (`test/conflict_benchmark.test.mjs`), 100% accuracy on a 14-case labeled set covering all 7 required categories (exact/paraphrase duplicate, preference update, direct contradiction, temporary exception, two valid scoped memories, ambiguous conflict). Ambiguous opposite-preference pairs preserved as `contradiction` (linked), never silently superseded.
-- ✅ เสร็จแล้ว — Perf targets (§29): measured in CI via the perf benchmark suite (`test/benchmark.test.mjs`); all per-op latencies meet targets.
-- ✅ เสร็จแล้ว — USER scope (migration 007: `users` table + `memories.user_id`). Clients pass `userId` (external identity) to `import_memory`, `extract_memories`, and `get_context`; `createMemory` derives `USER` scope and auto-creates the user row. `scopeFactorFor` boosts USER-scoped memories (1.0) for the matching user and penalizes foreign ones (0.3); SESSION/PROJECT/GLOBAL isolation unchanged. Preferences and lessons remain global (no user column).
-- ✅ เสร็จแล้ว — Auto entity extraction in consolidation (`src/core/entity-extractor.ts`, wired into `consolidate`).
+- ✅ DONE — Retrieval quality benchmark (§26): measured in-repo (`test/retrieval_benchmark.test.mjs`), meets targets (Recall@5=1.00, Precision@5=0.92, MRR=1.00 on a 700-memory baseline).
+- ✅ DONE — Conflict-resolution quality benchmark (§27, ≥95% correct classification): measured in-repo (`test/conflict_benchmark.test.mjs`), 100% accuracy on a 14-case labeled set covering all 7 required categories (exact/paraphrase duplicate, preference update, direct contradiction, temporary exception, two valid scoped memories, ambiguous conflict). Ambiguous opposite-preference pairs preserved as `contradiction` (linked), never silently superseded.
+- ✅ DONE — Perf targets (§29): measured in CI via the perf benchmark suite (`test/benchmark.test.mjs`); all per-op latencies meet targets.
+- ✅ DONE — USER scope (migration 007: `users` table + `memories.user_id`). Clients pass `userId` (external identity) to `import_memory`, `extract_memories`, and `get_context`; `createMemory` derives `USER` scope and auto-creates the user row. `scopeFactorFor` boosts USER-scoped memories (1.0) for the matching user and penalizes foreign ones (0.3); SESSION/PROJECT/GLOBAL isolation unchanged. Preferences and lessons remain global (no user column).
+- ✅ DONE — Auto entity extraction in consolidation (`src/core/entity-extractor.ts`, wired into `consolidate`).
 
 ## Future-feature backlog (resolved)
 All previously-deferred future features are implemented. AI-assisted extraction was dropped by owner decision and is not developed.
