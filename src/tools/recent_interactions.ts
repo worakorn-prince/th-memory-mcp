@@ -34,7 +34,7 @@ export async function getRecentInteractionsHandler(args: {
   kind?: CaptureKind;
 }): Promise<ToolResult> {
   try {
-    const limit = args.limit;
+    const limit = args.limit ?? 20;
     const rows = (
       args.kind
         ? selectByKind.all(args.kind, limit)

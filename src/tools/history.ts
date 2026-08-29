@@ -29,7 +29,7 @@ export async function searchHistoryHandler(args: {
   limit: number;
 }): Promise<ToolResult> {
   try {
-    const limit = args.limit;
+    const limit = args.limit ?? 10;
     const like = `%${escapeLike(args.query)}%`;
     const rows = searchPrompts.all(like, limit) as {
       ts: string;

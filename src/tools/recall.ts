@@ -58,7 +58,7 @@ export async function recallHandler(args: {
   limit: number;
 }): Promise<ToolResult> {
   try {
-    const limit = args.limit;
+        const limit = args.limit ?? 8;
     const parts: string[] = [];
 
     const seen = new Set<string>();
@@ -73,25 +73,25 @@ export async function recallHandler(args: {
       }[];
       for (const r of rows) {
         if (r.ref_table === "preferences") {
-          const line = prefLine(r.ref_id);
+          const line = prefLine(Number(r.ref_id));
           if (line) {
             prefLines += line + "\n";
             seen.add(`p:${r.ref_id}`);
           }
         } else if (r.ref_table === "lessons") {
-          const line = lessonLine(r.ref_id);
+          const line = lessonLine(Number(r.ref_id));
           if (line) {
             lessonLines += line + "\n";
             seen.add(`l:${r.ref_id}`);
           }
         }
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[recall] preference/lesson search failed:", msg);
-      prefLines = "";
-      lessonLines = "";
-    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[recall] preference/lesson search failed:", msg);
+    prefLines = "";
+    lessonLines = "";
+  }
 
     // Semantic blend: surface vector neighbors missed by keyword search.
     try {
