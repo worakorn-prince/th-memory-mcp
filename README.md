@@ -136,7 +136,7 @@ anywhere is readable everywhere.
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | rule-based distill: interactions → profile sections + prune old data (env `RETENTION_DAYS` default 30) |
-| `npm test` | full suite: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, smoke |
+| `npm test` | full suite: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark |
 | `node test/capture.test.mjs` | test capture-core (filter secrets, dedupe, truncate, insert SQL) |
 | `node test/distill.test.mjs` | test distill-core (Thai tokenize, stats, profile sections, prune) |
 | `node test/lifecycle.test.mjs` | test lifecycle engine (states, decay, supersession) |
