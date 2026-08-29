@@ -212,3 +212,9 @@ data/
 
 - DB path can be overridden via the `MEMORY_DB_PATH` env var
 - everything in `data/` is git-ignored
+
+## License
+
+[MIT](LICENSE) © 2026 worakorn-prince
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for the full text.

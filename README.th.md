@@ -169,3 +169,9 @@ data/
 
 - path ของ DB override ได้ผ่าน env `MEMORY_DB_PATH`
 - ทุกอย่างใน `data/` ถูก git ignore
+
+## License
+
+[MIT](LICENSE) © 2026 worakorn-prince
+
+โปรเจกต์นี้เผยแพร่ภายใต้สัญญาอนุญาต MIT — อ่านข้อความฉบับเต็มได้ในไฟล์ [LICENSE](LICENSE)
