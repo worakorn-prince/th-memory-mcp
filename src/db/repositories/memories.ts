@@ -13,6 +13,7 @@ import type {
   SourceType,
   LifecycleState,
   MemoryRecord,
+  Scope,
 } from "../../memory/types.js";
 
 export interface CreateMemoryInput {
@@ -33,14 +34,19 @@ export interface CreateMemoryInput {
 
 export function createMemory(input: CreateMemoryInput): number {
   const ts = nowISO();
+  const scope: Scope = input.sessionId
+    ? "SESSION"
+    : input.projectId
+      ? "PROJECT"
+      : "GLOBAL";
   const info = db
     .prepare(
-      `INSERT INTO memories
-       (type, content, summary, status, source, confidence, importance, salience,
-        project_id, session_id, created_at, updated_at, last_accessed_at, access_count,
-        valid_from, valid_until, metadata)
-       VALUES (@type, @content, @summary, @status, @source, @confidence, @importance, @salience,
-        @projectId, @sessionId, @ts, @ts, NULL, 0, @validFrom, @validUntil, @metadata)`
+        `INSERT INTO memories
+         (type, content, summary, status, source, confidence, importance, salience,
+          project_id, session_id, scope, created_at, updated_at, last_accessed_at, access_count,
+          valid_from, valid_until, metadata)
+         VALUES (@type, @content, @summary, @status, @source, @confidence, @importance, @salience,
+          @projectId, @sessionId, @scope, @ts, @ts, NULL, 0, @validFrom, @validUntil, @metadata)`
     )
     .run({
       type: input.type,
@@ -51,9 +57,10 @@ export function createMemory(input: CreateMemoryInput): number {
       confidence: input.confidence ?? 0.5,
       importance: input.importance ?? 0.5,
       salience: input.salience ?? 0.5,
-      projectId: input.projectId ?? null,
-      sessionId: input.sessionId ?? null,
-      ts,
+        projectId: input.projectId ?? null,
+        sessionId: input.sessionId ?? null,
+        scope,
+        ts,
       validFrom: input.validFrom ?? null,
       validUntil: input.validUntil ?? null,
       metadata:
@@ -95,6 +102,7 @@ export function removeMemoryIndex(id: number): void {
 export interface SearchOptions {
   limit?: number;
   projectId?: string | null;
+  sessionId?: string | null;
   includeArchived?: boolean;
   includeHistory?: boolean;
 }
