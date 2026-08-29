@@ -4,7 +4,7 @@ import {
   ok,
   err,
   type ToolResult,
-} from "../db.js";
+} from "../db/index.js";
 
 export const PROFILE_BUDGET = 3000;
 const PROFILE_SECTION_MAX = 400;

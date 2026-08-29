@@ -163,8 +163,10 @@ try {
   const listResult = await request("tools/list", {});
   const toolNames = (listResult?.tools ?? []).map((t) => t.name).sort();
   const expected = [
+    "consolidate",
     "export_memory",
     "forget",
+    "get_context",
     "get_profile",
     "get_recent_interactions",
     "memory_stats",
@@ -175,7 +177,7 @@ try {
   ];
   report(
     JSON.stringify(toolNames) === JSON.stringify(expected),
-    "3. tools/list has 9 tools",
+    "3. tools/list has 11 tools",
     toolNames.join(", ")
   );
 

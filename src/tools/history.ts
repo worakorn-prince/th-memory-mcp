@@ -6,7 +6,7 @@ import {
   ok,
   err,
   type ToolResult,
-} from "../db.js";
+} from "../db/index.js";
 
 export const searchHistoryInput = {
   query: z.string().min(1).max(500).describe("Text to search in past prompts"),
