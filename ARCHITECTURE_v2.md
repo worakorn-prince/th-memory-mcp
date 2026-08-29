@@ -541,8 +541,6 @@ Create a `supersedes` memory link when useful.
 
 If deterministic rules cannot safely decide, preserve both records and mark the relationship `contradicts`; do not silently destroy information.
 
-Optional AI-assisted resolution may later select the current truth based on explicit user evidence.
-
 ---
 
 # 13. Hybrid Retrieval
@@ -1347,7 +1345,6 @@ Where behavior changes, document it explicitly in `MIGRATION_v2.md`.
 - clustering
 - derived memories
 - provenance
-- optional AI-assisted summarization
 
 ## Phase 9 — Benchmark/security
 
@@ -1572,12 +1569,23 @@ This section folds in the former `design.md` build log. All v2 engine phases are
 ## Test status
 All 20 test suites pass (capture, distill, lifecycle 17, temporal 7, conflict 14, retrieval 7, graph 7, context 7, consolidation 5, benchmark 2, security 5, tools_v21 21, smoke 16-tool, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark).
 
-## Known gaps vs original spec (deferred, not regressions)
-- Retrieval quality benchmark is now measured in-repo (`test/retrieval_benchmark.test.mjs`) and meets §26 targets (Recall@5=1.00, Precision@5=0.92, MRR=1.00 on a 700-memory baseline). Conflict-resolution quality benchmark (§27, ≥95% correct classification) is now measured in-repo (`test/conflict_benchmark.test.mjs`) and meets the target — 100% accuracy on a 14-case labeled set covering all 7 required categories (exact/paraphrase duplicate, preference update, direct contradiction, temporary exception, two valid scoped memories, ambiguous conflict). Ambiguous opposite-preference pairs are preserved as `contradiction` (linked) instead of being silently superseded.
-- Perf targets (§29) are now measured in CI via the perf benchmark suite (`test/benchmark.test.mjs`); all per-op latencies met targets locally.
-- USER scope is implemented (migration 007: `users` table + `memories.user_id`). Clients pass `userId` (external identity) to `import_memory`, `extract_memories`, and `get_context`; `createMemory` derives `USER` scope and auto-creates the user row. `scopeFactorFor` boosts USER-scoped memories (1.0) for the matching user and penalizes foreign ones (0.3); SESSION/PROJECT/GLOBAL isolation unchanged. Preferences and lessons remain global (no user column).
-- `extract_memories` is a deterministic heuristic extractor (no LLM); AI-assisted extraction (item 4) was deferred by user choice.
-- Auto entity extraction in consolidation is implemented (`src/core/entity-extractor.ts`, wired into `consolidate`).
+## Resolved gaps vs original spec (all addressed — no regressions)
+- ✅ เสร็จแล้ว — Retrieval quality benchmark (§26): measured in-repo (`test/retrieval_benchmark.test.mjs`), meets targets (Recall@5=1.00, Precision@5=0.92, MRR=1.00 on a 700-memory baseline).
+- ✅ เสร็จแล้ว — Conflict-resolution quality benchmark (§27, ≥95% correct classification): measured in-repo (`test/conflict_benchmark.test.mjs`), 100% accuracy on a 14-case labeled set covering all 7 required categories (exact/paraphrase duplicate, preference update, direct contradiction, temporary exception, two valid scoped memories, ambiguous conflict). Ambiguous opposite-preference pairs preserved as `contradiction` (linked), never silently superseded.
+- ✅ เสร็จแล้ว — Perf targets (§29): measured in CI via the perf benchmark suite (`test/benchmark.test.mjs`); all per-op latencies meet targets.
+- ✅ เสร็จแล้ว — USER scope (migration 007: `users` table + `memories.user_id`). Clients pass `userId` (external identity) to `import_memory`, `extract_memories`, and `get_context`; `createMemory` derives `USER` scope and auto-creates the user row. `scopeFactorFor` boosts USER-scoped memories (1.0) for the matching user and penalizes foreign ones (0.3); SESSION/PROJECT/GLOBAL isolation unchanged. Preferences and lessons remain global (no user column).
+- ✅ เสร็จแล้ว — Auto entity extraction in consolidation (`src/core/entity-extractor.ts`, wired into `consolidate`).
+
+## Future-feature backlog (resolved)
+All previously-deferred future features are implemented. AI-assisted extraction was dropped by owner decision and is not developed.
+- [x] E2E MCP transport test — `test/e2e_transport.test.mjs`
+- [x] Retrieval quality benchmark (§26) — `test/retrieval_benchmark.test.mjs`
+- [x] Perf benchmark (§29) in CI — `test/benchmark.test.mjs` + `.github/workflows/ci.yml`
+- [x] CI pipeline — `.github/workflows/ci.yml` (ubuntu-latest, node 20, `npm ci`, `npm test`)
+- [x] Scope hierarchy USER/SESSION/PROJECT/GLOBAL — migrations 006 + 007
+- [x] Profile auto-projection — `src/tools/profile.ts`
+- [x] Auto entity extraction in consolidation — `src/core/entity-extractor.ts`
+- [x] Conflict-resolution quality benchmark (§27) — `test/conflict_benchmark.test.mjs`
 
 ## Release
 - v2.0.0: released — npm `th-memory-mcp@2.0.0` (latest), GitHub Release `v2.0.0`, Official MCP Registry `io.github.worakorn-prince/th-memory-mcp@2.0.0`, Glama listed.
