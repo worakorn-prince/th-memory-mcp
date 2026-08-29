@@ -6,7 +6,7 @@ import {
   ok,
   err,
   type ToolResult,
-} from "../db.js";
+} from "../db/index.js";
 
 export const forgetInput = {
   target_id: z

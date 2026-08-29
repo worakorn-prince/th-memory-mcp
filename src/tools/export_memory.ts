@@ -9,7 +9,7 @@ import {
   ok,
   err,
   type ToolResult,
-} from "../db.js";
+} from "../db/index.js";
 import { VERSION, EXPORTS_DIRNAME } from "../lib/config.js";
 import type { InteractionRow } from "../lib/capture-core.js";
 

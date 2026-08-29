@@ -7,7 +7,7 @@
 
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
-**Status:** v1.2.2 — all 4 phases implemented, tests passing 70/70 assertions (smoke 53 + capture 8 + distill 9). New: local semantic/vector search blended into `recall`, and full auto-capture on Claude Code (hooks) plus ready configs for Codex & Cursor.
+**Status:** v2.0.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 11 MCP tools, 12 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2: lifecycle states, temporal validity, conflict/dedup resolution, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, and periodic consolidation.
 
 ## Requirements
 
@@ -63,7 +63,7 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"
 ```
 OpenCode ──┬─ Plugin learning-capture (Bun)  ── auto-captures prompts/tool/error into DB
             │                                   └─ injects profile back into context on compaction
-            └─ MCP th-memory-mcp (Node.js stdio)  ── 9 tools read/write the same SQLite DB
+             └─ MCP th-memory-mcp (Node.js stdio)  ── 11 tools read/write the same SQLite DB
                                                       ▲
                                Global instructions (memory-protocol.md) teach the AI to use the tools
 ```
@@ -78,7 +78,7 @@ LLMs don't remember you between sessions — every new chat starts blank. th-mem
 - **100% local & private** — a single SQLite file, no cloud, no external API. Secrets are filtered before anything is stored.
 - **Low overhead** — each tool call is capped (latency < 10 ms, bounded output size) and the AI only queries memory when it's actually useful, so it never bloats your context.
 - **Resilient** — every tool degrades gracefully; if the DB is unavailable the AI keeps working instead of crashing.
-- **Open & extensible** — MIT licensed, 9 documented tools, a rule-based distill, and an auto-capture plugin you can adapt.
+- **Open & extensible** — MIT licensed, 11 documented tools, a rule-based distill, and an auto-capture plugin you can adapt.
 
 ## Works with other harnesses
 
@@ -89,10 +89,10 @@ our hooks bridge; Codex and Cursor use the tools manually (no hook runtime yet).
 
 | Feature | OpenCode | Claude Code | Qwen Code | Codex | Cursor |
 |---|---|---|---|---|---|
-| 9 MCP tools | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 11 MCP tools | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Auto-capture (background) | ✅ plugin | ✅ [hooks](CLAUDE_CODE_HOOKS.md) | ⚠️ adapter | ❌ manual | ❌ Rules |
 | Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ `get_profile` | ❌ `get_profile` | ❌ `get_profile` |
-| Local semantic search | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) | ✅ (v1.2) |
+| Local semantic search | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) |
 
 - **Claude Code:** see [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md) — drop-in hooks replicate the OpenCode plugin (capture + profile injection on `UserPromptSubmit`/`PreCompact`, rule-based distill on `SessionEnd`).
 - **Qwen Code:** see [QWEN_SETUP.md](QWEN_SETUP.md) — MCP works fully; hooks use the Gemini-CLI schema so auto-capture needs a small adapter.
@@ -107,8 +107,18 @@ anywhere is readable everywhere.
 - **Structured memory** — preferences with confidence scoring plus dedicated
   `lesson` records (situation → mistake → correction) for capturing corrections,
   not just flat facts.
-- **Local semantic search** — `recall` blends FTS5 keyword search with a
-  dependency-free local vector embedding (no model download, 100% offline).
+- **Lifecycle & temporal** — every memory has a lifecycle state
+  (active/stale/superseded/archived), confidence/importance/salience scoring,
+  per-type decay, and validity intervals so the AI can reason about
+  point-in-time truth and supersession chains.
+- **Conflict-aware** — duplicate detection, contradiction detection, and
+  update/supersession resolution preserve both sides of ambiguous evidence
+  instead of silently overwriting.
+- **Hybrid retrieval** — `get_context` blends FTS5 keyword search with a
+  dependency-free local vector embedding (RRF fusion + scoring), then assembles
+  a token-budgeted context with optional memory-graph expansion.
+- **Consolidation** — periodic clustering of similar memories into derived
+  memories with full provenance (`derived_from` links).
 - **First-class Thai / i18n** — Thai-aware tokenization in distill; the AI
   accepts Thai and English interchangeably.
 - **Private by default** — a single local SQLite file, no cloud, no API keys,
@@ -126,11 +136,21 @@ anywhere is readable everywhere.
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | rule-based distill: interactions → profile sections + prune old data (env `RETENTION_DAYS` default 30) |
-| `npm test` | end-to-end smoke test over JSON-RPC (`node test/smoke.mjs`) |
+| `npm test` | full suite: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, smoke |
 | `node test/capture.test.mjs` | test capture-core (filter secrets, dedupe, truncate, insert SQL) |
 | `node test/distill.test.mjs` | test distill-core (Thai tokenize, stats, profile sections, prune) |
+| `node test/lifecycle.test.mjs` | test lifecycle engine (states, decay, supersession) |
+| `node test/temporal.test.mjs` | test temporal model (validity, historical retrieval) |
+| `node test/conflict.test.mjs` | test conflict & dedup resolution |
+| `node test/retrieval.test.mjs` | test hybrid FTS+vector+RRF retrieval |
+| `node test/graph.test.mjs` | test memory graph (entities, relations, traversal) |
+| `node test/context.test.mjs` | test context assembly + token budgeting |
+| `node test/consolidation.test.mjs` | test clustering + derived memories |
+| `node test/benchmark.test.mjs` | latency benchmark over 300 memories |
+| `node test/security.test.mjs` | injection / safety checks |
+| `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (11 tools) |
 
-## Tools (9)
+## Tools (11)
 
 | Tool | Description |
 |------|-------------|
@@ -143,6 +163,8 @@ anywhere is readable everywhere.
 | `memory_stats` | memory statistics: counts by kind, DB size, oldest/newest interaction, profile sections |
 | `get_recent_interactions` | list recent raw interactions (filter by kind) — feedstock for Smart Distill |
 | `export_memory` | export memory to JSON under `data/exports/` only (filename auto-sanitized) |
+| `get_context` | assemble relevant memories for the current task via hybrid retrieval (+ optional graph expansion) with token budgeting |
+| `consolidate` | cluster similar memories via embedding similarity; optionally create derived/consolidated memories linked via `derived_from` |
 
 ## Install with OpenCode
 

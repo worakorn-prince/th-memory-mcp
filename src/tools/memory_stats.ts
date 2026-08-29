@@ -6,7 +6,7 @@ import {
   ok,
   err,
   type ToolResult,
-} from "../db.js";
+} from "../db/index.js";
 import { CAPTURE_KINDS } from "../lib/capture-core.js";
 
 export const STATS_BUDGET = 1500;

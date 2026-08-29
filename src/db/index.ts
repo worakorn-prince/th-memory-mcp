@@ -2,9 +2,10 @@ import Database from "better-sqlite3";
 import type BetterSqlite3 from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { truncate } from "./lib/capture-core.js";
-import { serialize } from "./lib/embed.js";
-import { DEFAULT_DB_PATH } from "./lib/config.js";
+import { truncate } from "../lib/capture-core.js";
+import { serialize } from "../lib/embed.js";
+import { DEFAULT_DB_PATH } from "../lib/config.js";
+import { runMigrations } from "./migrations.js";
 
 type DbInstance = BetterSqlite3.Database;
 
@@ -74,6 +75,9 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 `);
 
+// v2 migration engine (non-destructive: only adds new tables + backfills from v1)
+runMigrations(db);
+
 export function nowISO(): string {
   return new Date().toISOString();
 }
@@ -87,7 +91,7 @@ export function escapeLike(text: string): string {
 
 export function buildFtsMatch(query: string): string {
   const tokens = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
-  return tokens.map((t) => `"${t.replace(/"/g, "")}"`).join(" ");
+  return tokens.map((t) => `"${t.replace(/"/g, "")}"`).join(" OR ");
 }
 
 const insertSearchIndex = db.prepare(

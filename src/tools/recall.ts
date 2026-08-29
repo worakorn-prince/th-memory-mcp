@@ -8,7 +8,7 @@ import {
   ok,
   err,
   type ToolResult,
-} from "../db.js";
+} from "../db/index.js";
 import { embed, cosine, deserialize } from "../lib/embed.js";
 
 export const recallInput = {

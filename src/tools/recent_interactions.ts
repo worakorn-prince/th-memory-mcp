@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { db, truncate, ok, err, type ToolResult } from "../db.js";
+import { db, truncate, ok, err, type ToolResult } from "../db/index.js";
 import {
   CAPTURE_KINDS,
   type CaptureKind,

@@ -63,14 +63,19 @@ export function cosine(a: Float32Array, b: Float32Array): number {
 }
 
 export function serialize(vec: Float32Array): Buffer {
-  const copy = new Float32Array(EMBED_DIM);
-  copy.set(vec);
-  return Buffer.from(copy.buffer);
+  const buf = Buffer.alloc(EMBED_DIM * 4);
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  for (let i = 0; i < EMBED_DIM; i++) dv.setFloat32(i * 4, vec[i] ?? 0, true);
+  return buf;
 }
 
 export function deserialize(buf: Buffer): Float32Array {
   const out = new Float32Array(EMBED_DIM);
-  const ab = Buffer.from(buf).buffer.slice(0, EMBED_DIM * 4);
-  out.set(new Float32Array(ab));
+  const view = new DataView(
+    buf.buffer,
+    buf.byteOffset,
+    Math.min(EMBED_DIM * 4, buf.byteLength)
+  );
+  for (let i = 0; i < EMBED_DIM; i++) out[i] = view.getFloat32(i * 4, true);
   return out;
 }

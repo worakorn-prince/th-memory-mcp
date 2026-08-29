@@ -17,6 +17,8 @@ import {
   exportMemoryInput,
   exportMemoryHandler,
 } from "./tools/export_memory.js";
+import { contextInput, contextHandler } from "./tools/context.js";
+import { consolidateInput, consolidateHandler } from "./tools/consolidate.js";
 import { VERSION } from "./lib/config.js";
 
 const server = new McpServer({
@@ -121,6 +123,28 @@ server.registerTool(
     inputSchema: exportMemoryInput,
   },
   (args) => exportMemoryHandler(args)
+);
+
+server.registerTool(
+  "get_context",
+  {
+    title: "Get assembled context",
+    description:
+      "Assemble relevant memories for the current task via hybrid retrieval (+ optional memory-graph expansion), with token budgeting. Use to load memory into context before a task.",
+    inputSchema: contextInput,
+  },
+  (args) => contextHandler(args)
+);
+
+server.registerTool(
+  "consolidate",
+  {
+    title: "Consolidate memories",
+    description:
+      "Cluster similar memories via embedding similarity and optionally create derived/consolidated memories linked via 'derived_from'. Use during periodic consolidation.",
+    inputSchema: consolidateInput,
+  },
+  (args) => consolidateHandler(args)
 );
 
 async function main(): Promise<void> {
