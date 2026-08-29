@@ -7,7 +7,7 @@
 
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
-**Status:** v2.1.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 13 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2: lifecycle states, temporal validity, conflict/dedup resolution, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`.
+**Status:** v2.1.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 20 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2: lifecycle states, temporal validity, conflict/dedup resolution, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`.
 
 ## Requirements
 
@@ -136,7 +136,7 @@ anywhere is readable everywhere.
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | rule-based distill: interactions → profile sections + prune old data (env `RETENTION_DAYS` default 30) |
-| `npm test` | full suite: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction |
+| `npm test` | full suite: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark |
 | `node test/capture.test.mjs` | test capture-core (filter secrets, dedupe, truncate, insert SQL) |
 | `node test/distill.test.mjs` | test distill-core (Thai tokenize, stats, profile sections, prune) |
 | `node test/lifecycle.test.mjs` | test lifecycle engine (states, decay, supersession) |
