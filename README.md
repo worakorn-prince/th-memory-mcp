@@ -7,7 +7,7 @@
 
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
 
-**Status:** v2.2.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 20 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`.
+**Status:** v2.2.2 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 20 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`.
 
 ## Requirements
 
