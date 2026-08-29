@@ -1,6 +1,6 @@
 {
   "name": "th-memory-mcp",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "mcpName": "io.github.worakorn-prince/th-memory-mcp",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
   "author": "worakorn-prince",
@@ -18,6 +18,7 @@
     "README.md",
     "LICENSE",
     "ARCHITECTURE_v2.md",
+    "design.md",
     "opencode.example.json",
     "AGENTS.memory.example.md"
   ],
