@@ -919,9 +919,9 @@ src/
 scripts/
 └── claude-capture.mjs            # Claude Code hook capture
 test/
-└── *.test.mjs                     # 19 suites (capture, distill, lifecycle, temporal, conflict,
+└── *.test.mjs                     # 20 suites (capture, distill, lifecycle, temporal, conflict,
                                    #   retrieval, graph, context, consolidation, benchmark, security,
-                                   #   tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction)
+                                   #   tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark)
 ```
 
 Compatibility wrappers keep the old `remember`/`recall`/etc. tool names; v2 internals live under `core/`, `memory/`, `retrieval/`.
@@ -1565,15 +1565,15 @@ This section folds in the former `design.md` build log. All v2 engine phases are
 - [x] Phase 6 — Graph engine
 - [x] Phase 7 — Context engine (`get_context`)
 - [x] Phase 8 — Consolidation (`consolidate`)
-- [x] Phase 9 — Benchmark + security suites (19 test suites total)
+- [x] Phase 9 — Benchmark + security suites (20 test suites total)
 - [x] Phase 10 — Docs + v2.0.0 release (npm, GitHub Release, Official MCP Registry, Glama)
-- [x] v2.1.0 — `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` (16 tools, 19 suites)
+- [x] v2.1.0 — `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` (16 tools, 20 suites)
 
 ## Test status
-All 19 test suites pass (capture, distill, lifecycle 17, temporal 7, conflict 14, retrieval 7, graph 7, context 7, consolidation 5, benchmark 2, security 5, tools_v21 21, smoke 16-tool, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction).
+All 20 test suites pass (capture, distill, lifecycle 17, temporal 7, conflict 14, retrieval 7, graph 7, context 7, consolidation 5, benchmark 2, security 5, tools_v21 21, smoke 16-tool, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark).
 
 ## Known gaps vs original spec (deferred, not regressions)
-- Retrieval quality benchmark is now measured in-repo (`test/retrieval_benchmark.test.mjs`) and meets §26 targets (Recall@5=1.00, Precision@5=0.92, MRR=1.00 on a 700-memory baseline). Conflict-resolution quality benchmark (§27, ≥95% correct classification) is **not yet measured**.
+- Retrieval quality benchmark is now measured in-repo (`test/retrieval_benchmark.test.mjs`) and meets §26 targets (Recall@5=1.00, Precision@5=0.92, MRR=1.00 on a 700-memory baseline). Conflict-resolution quality benchmark (§27, ≥95% correct classification) is now measured in-repo (`test/conflict_benchmark.test.mjs`) and meets the target — 100% accuracy on a 14-case labeled set covering all 7 required categories (exact/paraphrase duplicate, preference update, direct contradiction, temporary exception, two valid scoped memories, ambiguous conflict). Ambiguous opposite-preference pairs are preserved as `contradiction` (linked) instead of being silently superseded.
 - Perf targets (§29) are now measured in CI via the perf benchmark suite (`test/benchmark.test.mjs`); all per-op latencies met targets locally.
 - USER scope not yet implemented (the system has no user identity); SESSION/PROJECT/GLOBAL isolation is in place (migration 006, `scopeFactorFor`).
 - `extract_memories` is a deterministic heuristic extractor (no LLM); AI-assisted extraction (item 4) was deferred by user choice.

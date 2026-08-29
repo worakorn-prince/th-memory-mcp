@@ -40,6 +40,15 @@ const NEGATION = [
   /อย่า/i,
 ];
 
+// Opposite-value lexicon for ambiguous preference conflicts (preserve, don't
+// silently supersede). A pair is contradictory when each side names a different
+// antonym from this set.
+const ANTONYMS = new Set([
+  "tabs", "spaces", "vim", "emacs", "light", "dark",
+  "mysql", "postgres", "windows", "mac", "linux",
+  "react", "vue", "ios", "android",
+]);
+
 export function isContradiction(a: string, b: string): boolean {
   const na = NEGATION.some((re) => re.test(a));
   const nb = NEGATION.some((re) => re.test(b));
@@ -49,6 +58,19 @@ export function isContradiction(a: string, b: string): boolean {
   let overlap = 0;
   for (const t of ta) if (tb.has(t)) overlap++;
   return overlap >= 2;
+}
+
+// True when the two texts each name a *different* antonym from ANTONYMS
+// (e.g. "Prefer tabs" vs "Prefer spaces"). Used to preserve ambiguous
+// conflicts as contradictions instead of destructively superseding them.
+export function hasAntonymPair(a: string, b: string): boolean {
+  const ta = tokenSet(a);
+  const tb = tokenSet(b);
+  let aAnt: string | undefined;
+  let bAnt: string | undefined;
+  for (const t of ta) if (ANTONYMS.has(t)) aAnt = t;
+  for (const t of tb) if (ANTONYMS.has(t)) bAnt = t;
+  return !!aAnt && !!bAnt && aAnt !== bAnt;
 }
 
 function tokenSet(s: string): Set<string> {
@@ -68,11 +90,21 @@ export function classifyRelationship(
     .get(relatedId) as { vec: Buffer } | undefined;
   if (!relVecRow) return "unrelated";
   const score = cosine(embed(candidate.content), deserialize(relVecRow.vec));
+  const ta = tokenSet(candidate.content);
+  const tb = tokenSet(rel.content);
+  let overlap = 0;
+  for (const t of ta) if (tb.has(t)) overlap++;
+  const jac = overlap / (ta.size + tb.size - overlap || 1);
+
   if (score >= SIM_DUP) return "duplicate";
   if (isContradiction(candidate.content, rel.content) && score >= SIM_CONTRA) {
     return "contradiction";
   }
-  if (score >= SIM_UPDATE) return "update";
+  if (hasAntonymPair(candidate.content, rel.content)) {
+    return "contradiction";
+  }
+  if (score >= 0.6 && jac >= 0.5) return "duplicate";
+  if (score >= SIM_UPDATE && jac >= 0.25) return "update";
   return "unrelated";
 }
 
