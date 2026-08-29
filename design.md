@@ -56,3 +56,4 @@
 ## Release
 - v2.0.0 ปล่อยแล้ว (npm, GitHub Release, Official MCP Registry, Glama)
 - v2.2.0 — ปล่อยครบ: tag + GitHub Release, **npm publish เรียบร้อย**, Official MCP Registry ดึงจาก npm อัตโนมัติ (ไม่ต้องรัน mcp-publisher แยก), Glama Sync เรียบร้อย
+- v2.2.1 — แก้ Glama quality: เพิ่ม `pnpm.onlyBuiltDependencies: ["better-sqlite3"]` ให้ pnpm รันสคริปต์ดาวน์โหลด native binary สำหรับ Node 24, ขยับ better-sqlite3 เป็น `^12.9.0`, เพิ่ม override `ip-address@^10.2.0` (npm+pnpm) อุดช่องโหว่ XSS ผ่าน MCP SDK ไม่มีการเปลี่ยนโค้ด รอ `npm publish` + Glama ทดสอบใหม่
