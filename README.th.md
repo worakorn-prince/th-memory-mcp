@@ -7,7 +7,7 @@
 
 MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons, ประวัติการใช้งาน ลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) เพื่อให้ AI "จำและปรับตัว" กับผู้ใช้ผ่าน context-based learning
 
-**สถานะ:** v1.1.0 — อิมพลีเมนต์ครบ 4 Phase, tests ผ่าน 70/70 assertions (smoke 53 + capture 8 + distill 9)
+**สถานะ:** v2.0.0 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval 11 MCP tools, 12 ชุดเทสผ่าน อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ฟีเจอร์ใหม่ใน v2: lifecycle states, temporal validity, การแก้ conflict/dedup, hybrid FTS+vector retrieval (RRF), memory graph, ประกอบ `get_context`, และ consolidation
 
 > English: [README.md](README.md)
 
@@ -65,12 +65,12 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"
 ```
 OpenCode ──┬─ Plugin learning-capture (Bun)  ── จับ prompt/tool/error ลง DB อัตโนมัติ
             │                                   └─ ฉีด profile กลับ context ตอน compaction
-            └─ MCP th-memory-mcp (Node.js stdio)  ── tools 9 ตัว อ่าน/เขียน SQLite เดียวกัน
+             └─ MCP th-memory-mcp (Node.js stdio)  ── tools 11 ตัว อ่าน/เขียน SQLite เดียวกัน
                                                       ▲
                                Global instructions (memory-protocol.md) สอน AI ใช้ tools
 ```
 
-รายละเอียดเต็มอยู่ใน [design.md](design.md)
+รายละเอียดเต็มอยู่ใน [design.md](design.md) — คู่มืออัปเกรดจาก v1 ดูได้ที่ [MIGRATION_v2.md](MIGRATION_v2.md)
 
 ## ทำไมต้องใช้ th-memory-mcp?
 
@@ -80,7 +80,11 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 - **local 100% และเป็นส่วนตัว** — ไฟล์ SQLite เดียว ไม่มีคลาวด์ ไม่มี external API มีการกรอง secret ก่อนบันทึกเสมอ
 - **โอเวอร์เฮดต่ำ** — ทุก tool call มีเพดาน (latency < 10 ms, ขนาด output จำกัด) และ AI ค้นความจำเฉพาะตอนจำเป็น จึงไม่บวม context
 - **ทนทาน** — ทุก tool ทำ graceful degradation ถ้า DB ไม่ได้เปิด AI ก็ทำงานต่อได้แทนที่จะพัง
-- **เปิดกว้างและต่อยอดได้** — MIT license, 9 tools ที่อธิบายครบ, มี rule-based distill และ plugin auto-capture ที่คุณปรับแต่งได้
+- **Lifecycle & temporal** — ทุกความจำมี lifecycle state (active/stale/superseded/archived), คะแนน confidence/importance/salience, decay ต่อ type, และ validity intervals ให้ AI เหตุผลเรื่อง point-in-time truth และ supersession chains ได้
+- **Conflict-aware** — ตรวจจับ duplicate / contradiction และแก้ด้วย update/supersession โดยเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้งแทนการเขียนทับเงียบๆ
+- **Hybrid retrieval** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion + scoring) แล้วประกอบ context แบบมี token budget พร้อมขยายผ่าน memory graph
+- **Consolidation** — จัดคลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from` links)
+- **เปิดกว้างและต่อยอดได้** — MIT license, 11 tools ที่อธิบายครบ, มี rule-based distill และ plugin auto-capture ที่คุณปรับแต่งได้
 
 ## Scripts
 
@@ -89,11 +93,21 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
 | `npm run distill` | rule-based distill: interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | smoke test end-to-end ผ่าน JSON-RPC (`node test/smoke.mjs`) |
+| `npm test` | ชุดเทสครบ: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, smoke |
 | `node test/capture.test.mjs` | ทดสอบ capture-core (filter secrets, dedupe, truncate, insert SQL) |
 | `node test/distill.test.mjs` | ทดสอบ distill-core (tokenize ไทย, stats, profile sections, prune) |
+| `node test/lifecycle.test.mjs` | ทดสอบ lifecycle engine (states, decay, supersession) |
+| `node test/temporal.test.mjs` | ทดสอบ temporal model (validity, historical retrieval) |
+| `node test/conflict.test.mjs` | ทดสอบ conflict & dedup resolution |
+| `node test/retrieval.test.mjs` | ทดสอบ hybrid FTS+vector+RRF retrieval |
+| `node test/graph.test.mjs` | ทดสอบ memory graph (entities, relations, traversal) |
+| `node test/context.test.mjs` | ทดสอบ context assembly + token budgeting |
+| `node test/consolidation.test.mjs` | ทดสอบ clustering + derived memories |
+| `node test/benchmark.test.mjs` | เทสความเร็วบนความจำ 300 รายการ |
+| `node test/security.test.mjs` | ตรวจการ injection / ความปลอดภัย |
+| `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (11 tools) |
 
-## Tools (9)
+## Tools (11)
 
 | Tool | คำอธิบาย |
 |------|----------|
@@ -106,6 +120,8 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `memory_stats` | สถิติความจำ: counts แยก kind, ขนาด DB, oldest/newest interaction, profile sections |
 | `get_recent_interactions` | ดึง interactions ล่าสุดแบบดิบ (กรองตาม kind ได้) — วัตถุดิบของ Smart Distill |
 | `export_memory` | export ความจำเป็น JSON ลง `data/exports/` เท่านั้น (sanitize filename ให้เอง) |
+| `get_context` | ประกอบความจำที่เกี่ยวข้องกับงานปัจจุบันผ่าน hybrid retrieval (+ ขยายผ่าน memory graph ได้) พร้อม token budgeting |
+| `consolidate` | จัดคลัสเตอร์ความจำที่คล้ายกันด้วย embedding cosine และสร้าง derived/consolidated memory ที่ผูกด้วย `derived_from` ได้ |
 
 ## ติดตั้งกับ OpenCode
 
