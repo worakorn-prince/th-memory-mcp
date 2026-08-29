@@ -93,7 +93,7 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
 | `npm run distill` | rule-based distill: interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | ชุดเทสครบ: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile |
+| `npm test` | ชุดเทสครบ: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction |
 | `node test/capture.test.mjs` | ทดสอบ capture-core (filter secrets, dedupe, truncate, insert SQL) |
 | `node test/distill.test.mjs` | ทดสอบ distill-core (tokenize ไทย, stats, profile sections, prune) |
 | `node test/lifecycle.test.mjs` | ทดสอบ lifecycle engine (states, decay, supersession) |
