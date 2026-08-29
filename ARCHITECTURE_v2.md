@@ -1591,4 +1591,4 @@ All previously-deferred future features are implemented. AI-assisted extraction 
 ## Release
 - v2.0.0: released — npm `th-memory-mcp@2.0.0` (latest), GitHub Release `v2.0.0`, Official MCP Registry `io.github.worakorn-prince/th-memory-mcp@2.0.0`, Glama listed.
 - v2.1.0: implemented and tested locally; publish skipped (superseded by v2.2.0).
-- v2.2.0: tag + GitHub Release created; **npm published** (`th-memory-mcp@2.2.0`). Official MCP Registry (`mcp-publisher`) + Glama publish pending — require the owner to re-authenticate (`mcp-publisher` GitHub OAuth / Glama Sync).
+- v2.2.0: fully released — tag + GitHub Release, **npm published** (`th-memory-mcp@2.2.0`), Official MCP Registry auto-ingested from npm (manual `mcp-publisher publish` is redundant and errors `duplicate version`), Glama synced. Only `npm publish` + Glama Sync are required.
