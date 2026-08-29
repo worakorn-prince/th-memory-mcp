@@ -19,6 +19,11 @@ import {
 } from "./tools/export_memory.js";
 import { contextInput, contextHandler } from "./tools/context.js";
 import { consolidateInput, consolidateHandler } from "./tools/consolidate.js";
+import { linkMemoryInput, linkMemoryHandler } from "./tools/link_memory.js";
+import { mergeMemoryInput, mergeMemoryHandler } from "./tools/merge_memory.js";
+import { updateMemoryInput, updateMemoryHandler } from "./tools/update_memory.js";
+import { importMemoryInput, importMemoryHandler } from "./tools/import_memory.js";
+import { extractMemoriesInput, extractMemoriesHandler } from "./tools/extract_memories.js";
 import { VERSION } from "./lib/config.js";
 
 const server = new McpServer({
@@ -145,6 +150,61 @@ server.registerTool(
     inputSchema: consolidateInput,
   },
   (args) => consolidateHandler(args)
+);
+
+server.registerTool(
+  "link_memory",
+  {
+    title: "Link two memories",
+    description:
+      "Create a typed relationship between two memories in the graph (supports/contradicts/supersedes/derived_from/related_to/caused_by/depends_on).",
+    inputSchema: linkMemoryInput,
+  },
+  (args) => linkMemoryHandler(args)
+);
+
+server.registerTool(
+  "merge_memory",
+  {
+    title: "Merge memories",
+    description:
+      "Merge a duplicate/near-duplicate memory into a canonical one. The source becomes superseded and provenance is recorded in metadata.merged_from.",
+    inputSchema: mergeMemoryInput,
+  },
+  (args) => mergeMemoryHandler(args)
+);
+
+server.registerTool(
+  "update_memory",
+  {
+    title: "Update a memory",
+    description:
+      "Update mutable fields (summary/importance/confidence/valid_until/metadata) in place. If content changes, a superseding memory is created by default (set supersede=false to edit in place).",
+    inputSchema: updateMemoryInput,
+  },
+  (args) => updateMemoryHandler(args)
+);
+
+server.registerTool(
+  "import_memory",
+  {
+    title: "Import memories",
+    description:
+      "Import memories from a JSON array or a .json file inside data/exports/. Validates type, dedupes against existing memories, and never overwrites active memory blindly. Dry-run by default; pass apply=true to insert.",
+    inputSchema: importMemoryInput,
+  },
+  (args) => importMemoryHandler(args)
+);
+
+server.registerTool(
+  "extract_memories",
+  {
+    title: "Extract memories from interactions",
+    description:
+      "Scan recent captured interactions for memory-intent phrases and propose memory candidates (deterministic, no LLM). Dry-run by default; pass apply=true to create them (source=captured).",
+    inputSchema: extractMemoriesInput,
+  },
+  (args) => extractMemoriesHandler(args)
 );
 
 async function main(): Promise<void> {

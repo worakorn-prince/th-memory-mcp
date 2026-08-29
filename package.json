@@ -1,6 +1,6 @@
 {
   "name": "th-memory-mcp",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "mcpName": "io.github.worakorn-prince/th-memory-mcp",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
   "author": "worakorn-prince",
@@ -17,7 +17,7 @@
     "dist",
     "README.md",
     "LICENSE",
-    "design.md",
+    "ARCHITECTURE_v2.md",
     "opencode.example.json",
     "AGENTS.memory.example.md"
   ],
@@ -26,7 +26,7 @@
     "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
-    "test": "npm run build && node test/capture.test.mjs && node test/distill.test.mjs && node test/lifecycle.test.mjs && node test/temporal.test.mjs && node test/conflict.test.mjs && node test/retrieval.test.mjs && node test/graph.test.mjs && node test/context.test.mjs && node test/consolidation.test.mjs && node test/benchmark.test.mjs && node test/security.test.mjs && node test/smoke.mjs",
+    "test": "npm run build && node test/capture.test.mjs && node test/distill.test.mjs && node test/lifecycle.test.mjs && node test/temporal.test.mjs && node test/conflict.test.mjs && node test/retrieval.test.mjs && node test/graph.test.mjs && node test/context.test.mjs && node test/consolidation.test.mjs && node test/benchmark.test.mjs && node test/security.test.mjs && node test/tools_v21.test.mjs && node test/smoke.mjs",
     "distill": "node dist/distill.js",
     "quickstart": "npm run build && node scripts/quickstart.mjs"
   },

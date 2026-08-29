@@ -7,7 +7,7 @@
 
 MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons, ประวัติการใช้งาน ลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) เพื่อให้ AI "จำและปรับตัว" กับผู้ใช้ผ่าน context-based learning
 
-**สถานะ:** v2.0.0 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval 11 MCP tools, 12 ชุดเทสผ่าน อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ฟีเจอร์ใหม่ใน v2: lifecycle states, temporal validity, การแก้ conflict/dedup, hybrid FTS+vector retrieval (RRF), memory graph, ประกอบ `get_context`, และ consolidation
+**สถานะ:** v2.1.0 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval 16 MCP tools, 13 ชุดเทสผ่าน อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ฟีเจอร์ใหม่ใน v2: lifecycle states, temporal validity, การแก้ conflict/dedup, hybrid FTS+vector retrieval (RRF), memory graph, ประกอบ `get_context`, consolidation, และ `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`
 
 > English: [README.md](README.md)
 
@@ -65,12 +65,12 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"
 ```
 OpenCode ──┬─ Plugin learning-capture (Bun)  ── จับ prompt/tool/error ลง DB อัตโนมัติ
             │                                   └─ ฉีด profile กลับ context ตอน compaction
-             └─ MCP th-memory-mcp (Node.js stdio)  ── tools 11 ตัว อ่าน/เขียน SQLite เดียวกัน
+              └─ MCP th-memory-mcp (Node.js stdio)  ── tools 16 ตัว อ่าน/เขียน SQLite เดียวกัน
                                                       ▲
                                Global instructions (memory-protocol.md) สอน AI ใช้ tools
 ```
 
-รายละเอียดเต็มอยู่ใน [design.md](design.md) — คู่มืออัปเกรดจาก v1 ดูได้ที่ [MIGRATION_v2.md](MIGRATION_v2.md)
+รายละเอียดสถาปัตยกรรมเต็มอยู่ใน [ARCHITECTURE_v2.md](ARCHITECTURE_v2.md) — คู่มืออัปเกรดจาก v1 ดูได้ที่ [MIGRATION_v2.md](MIGRATION_v2.md)
 
 ## ทำไมต้องใช้ th-memory-mcp?
 
@@ -107,7 +107,7 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `node test/security.test.mjs` | ตรวจการ injection / ความปลอดภัย |
 | `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (11 tools) |
 
-## Tools (11)
+## Tools (16)
 
 | Tool | คำอธิบาย |
 |------|----------|
@@ -122,6 +122,11 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `export_memory` | export ความจำเป็น JSON ลง `data/exports/` เท่านั้น (sanitize filename ให้เอง) |
 | `get_context` | ประกอบความจำที่เกี่ยวข้องกับงานปัจจุบันผ่าน hybrid retrieval (+ ขยายผ่าน memory graph ได้) พร้อม token budgeting |
 | `consolidate` | จัดคลัสเตอร์ความจำที่คล้ายกันด้วย embedding cosine และสร้าง derived/consolidated memory ที่ผูกด้วย `derived_from` ได้ |
+| `link_memory` | สร้างความสัมพันธ์แบบมีประเภทระหว่างความจำสองอันในกราฟ |
+| `merge_memory` | รวมความจำที่ซ้ำเข้ากับความจำหลัก (ต้นทางถูก superseded, เก็บ provenance ไว้ใน `metadata.merged_from`) |
+| `update_memory` | อัปเดตฟิลด์ที่เปลี่ยนได้แบบไม่เปลี่ยนตัวตน หรือสร้างความจำแทนที่เมื่อ `content` เปลี่ยน (ตั้ง `supersede=false` เพื่อแก้ในที่) |
+| `import_memory` | นำเข้าความจำจาก JSON (ตรวจสอบ type, dedup กับของเดิม, ไม่เขียนทับแบบมืดบอด); ค่าเริ่มต้น dry-run, ตั้ง `apply=true` เพื่อเพิ่ม |
+| `extract_memories` | สแกน interactions ล่าสุดหาเจตนาบันทึกความจำ และเสนอ/สร้างความจำ (ไม่ใช้ LLM); ค่าเริ่มต้น dry-run, ตั้ง `apply=true` เพื่อสร้าง (source=captured) |
 
 ## ติดตั้งกับ OpenCode
 
