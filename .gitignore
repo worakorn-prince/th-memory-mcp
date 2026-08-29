@@ -16,3 +16,6 @@ PUBLISH.th.md
 # mcp-publisher binary (downloaded tool, not source)
 mcp-publisher.exe
 mcp-publisher
+
+# LongMemEval benchmark workspace — kept local only (data, results, adapters)
+benchmark/
