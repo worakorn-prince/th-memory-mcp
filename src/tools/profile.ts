@@ -21,6 +21,9 @@ const topPrefs = db.prepare(
 const recentLessons = db.prepare(
   "SELECT situation, mistake, correction FROM lessons ORDER BY created_at DESC, id DESC LIMIT 5"
 );
+const topMemories = db.prepare(
+  "SELECT type, content, importance, confidence FROM memories WHERE status = 'active' ORDER BY importance * confidence DESC, updated_at DESC LIMIT 15"
+);
 
 export function buildProfileText(): string {
   const parts: string[] = [];
@@ -55,6 +58,21 @@ export function buildProfileText(): string {
     let block = "[lessons]";
     for (const l of lessons) {
       block += `\n- ${truncate(l.situation, LESSON_SITUATION_MAX)} | mistake: ${truncate(l.mistake, LESSON_MISTAKE_MAX)} -> ${truncate(l.correction, LESSON_CORRECTION_MAX)}`;
+    }
+    parts.push(block);
+  }
+
+  // Auto-projection: surface top memories from the unified store (spec §7 / item 7).
+  const mems = topMemories.all() as {
+    type: string;
+    content: string;
+    importance: number;
+    confidence: number;
+  }[];
+  if (mems.length > 0) {
+    let block = "[memories]";
+    for (const m of mems) {
+      block += `\n- (${m.type} c${m.confidence.toFixed(2)}) ${truncate(m.content, 200)}`;
     }
     parts.push(block);
   }
