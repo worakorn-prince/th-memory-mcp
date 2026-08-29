@@ -55,4 +55,4 @@
 
 ## Release
 - v2.0.0 ปล่อยแล้ว (npm, GitHub Release, Official MCP Registry, Glama)
-- v2.2.0 — tag + GitHub Release สร้างโดย build agent; `npm` / Official MCP Registry / Glama publish รอเจ้าของ re-auth (publish token หมดอายุ)
+- v2.2.0 — tag + GitHub Release สร้างโดย build agent; **npm publish เรียบร้อย** (`th-memory-mcp@2.2.0`) ส่วน Official MCP Registry (`mcp-publisher`) + Glama รอเจ้าของ re-auth
