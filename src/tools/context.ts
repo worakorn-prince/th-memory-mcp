@@ -13,6 +13,11 @@ export const contextInput = {
     .optional()
     .describe("Scope context to a project"),
   sessionId: z.string().nullable().optional(),
+  userId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Scope context to a user (USER scope)"),
   limit: z
     .number()
     .int()
@@ -44,6 +49,7 @@ export function contextHandler(args: Record<string, unknown>) {
       typeof args.projectId === "string" ? args.projectId : null,
     sessionId:
       typeof args.sessionId === "string" ? args.sessionId : null,
+    userId: typeof args.userId === "string" ? args.userId : null,
     limit: typeof args.limit === "number" ? args.limit : undefined,
     maxTokens:
       typeof args.maxTokens === "number" ? args.maxTokens : undefined,

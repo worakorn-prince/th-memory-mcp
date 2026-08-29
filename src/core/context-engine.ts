@@ -7,6 +7,7 @@ export interface ContextOptions {
   query?: string;
   projectId?: string | null;
   sessionId?: string | null;
+  userId?: string | null;
   limit?: number;
   maxTokens?: number;
   includeHistory?: boolean;
@@ -42,6 +43,7 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
     limit,
     projectId: opts.projectId,
     sessionId: opts.sessionId,
+    userId: opts.userId,
     includeArchived: opts.includeHistory,
   });
 

@@ -44,12 +44,18 @@ export const extractMemoriesInput = {
     .boolean()
     .optional()
     .describe("Create the proposed memories (default false = propose only)"),
+  userId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Scope extracted memories to a user (USER scope)"),
 };
 
 export function extractMemoriesHandler(args: {
   limit?: number;
   kind?: "prompt" | "tool_call" | "error";
   apply?: boolean;
+  userId?: string | null;
 }): ToolResult {
   try {
     const limit = args.limit ?? 50;
@@ -91,6 +97,7 @@ export function extractMemoriesHandler(args: {
           type: c.type,
           content: c.content,
           source: "captured",
+          userId: typeof args.userId === "string" ? args.userId : null,
         });
         n++;
       }

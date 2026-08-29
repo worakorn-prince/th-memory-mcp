@@ -21,6 +21,11 @@ export const importMemoryInput = {
     .boolean()
     .optional()
     .describe("Actually insert memories (default false = dry run, just report)"),
+  userId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Scope imported memories to a user (USER scope)"),
 };
 
 interface ImportItem {
@@ -32,6 +37,7 @@ interface ImportItem {
   importance?: unknown;
   projectId?: unknown;
   sessionId?: unknown;
+  userId?: unknown;
   validFrom?: unknown;
   validUntil?: unknown;
   metadata?: unknown;
@@ -41,6 +47,7 @@ export function importMemoryHandler(args: {
   file?: string;
   json?: string;
   apply?: boolean;
+  userId?: string | null;
 }): ToolResult {
   try {
     let raw: string;
@@ -105,6 +112,12 @@ export function importMemoryHandler(args: {
             typeof it.projectId === "string" ? it.projectId : null,
           sessionId:
             typeof it.sessionId === "string" ? it.sessionId : null,
+          userId:
+            typeof it.userId === "string"
+              ? it.userId
+              : typeof args.userId === "string"
+                ? args.userId
+                : null,
           validFrom:
             typeof it.validFrom === "string" ? it.validFrom : null,
           validUntil:

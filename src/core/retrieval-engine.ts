@@ -4,12 +4,14 @@ import { vectorSearch } from "../retrieval/vector.js";
 import { rrfFuse } from "../retrieval/fusion.js";
 import { finalScore, scopeFactorFor } from "../retrieval/scorer.js";
 import { recencyFactorFor } from "../memory/decay.js";
+import { resolveUserId } from "../db/repositories/users.js";
 import type { MemoryRecord } from "../memory/types.js";
 
 export interface RetrieveOptions {
   limit?: number;
   projectId?: string | null;
   sessionId?: string | null;
+  userId?: string | null;
   includeArchived?: boolean;
   includeHistory?: boolean;
 }
@@ -48,6 +50,7 @@ export function retrieve(
     const scope = scopeFactorFor(mem, {
       projectId: opts.projectId,
       sessionId: opts.sessionId,
+      userId: opts.userId ? resolveUserId(opts.userId) : null,
     });
     const fs = finalScore({
       rrf,
