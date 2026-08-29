@@ -61,6 +61,7 @@ export interface MemoryRecord {
   salience: number;
   project_id: string | null;
   session_id: string | null;
+  scope: Scope;
   created_at: string;
   updated_at: string;
   last_accessed_at: string | null;

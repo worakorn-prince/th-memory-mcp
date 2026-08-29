@@ -193,12 +193,25 @@ const M005_backfill_v1: Migration = {
   },
 };
 
+const M006_scope: Migration = {
+  id: "006_scope",
+  up(db) {
+    db.exec(`ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'GLOBAL';`);
+    db.exec(`UPDATE memories SET scope = 'SESSION' WHERE session_id IS NOT NULL;`);
+    db.exec(
+      `UPDATE memories SET scope = 'PROJECT' WHERE session_id IS NULL AND project_id IS NOT NULL;`
+    );
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope);`);
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
   M003_entities_relations,
   M004_memory_links,
   M005_backfill_v1,
+  M006_scope,
 ];
 
 export function runMigrations(db: DB): void {

@@ -41,6 +41,7 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
   const seeds = retrieve(query, {
     limit,
     projectId: opts.projectId,
+    sessionId: opts.sessionId,
     includeArchived: opts.includeHistory,
   });
 

@@ -9,6 +9,7 @@ import type { MemoryRecord } from "../memory/types.js";
 export interface RetrieveOptions {
   limit?: number;
   projectId?: string | null;
+  sessionId?: string | null;
   includeArchived?: boolean;
   includeHistory?: boolean;
 }
@@ -44,7 +45,10 @@ export function retrieve(
     )
       continue;
     const recency = recencyFactorFor(mem.type, mem.updated_at, now);
-    const scope = scopeFactorFor(mem, opts.projectId);
+    const scope = scopeFactorFor(mem, {
+      projectId: opts.projectId,
+      sessionId: opts.sessionId,
+    });
     const fs = finalScore({
       rrf,
       confidence: mem.confidence,
