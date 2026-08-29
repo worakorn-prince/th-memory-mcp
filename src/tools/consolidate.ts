@@ -3,6 +3,10 @@ import {
   clusterMemories,
   createDerivedMemory,
 } from "../core/consolidation-engine.js";
+import {
+  linkEntitiesForMemory,
+  linkMemoriesBySharedEntities,
+} from "../core/entity-extractor.js";
 import { db, ok } from "../db/index.js";
 
 export const consolidateInput = {
@@ -46,6 +50,15 @@ export function consolidateHandler(args: Record<string, unknown>) {
         .get(id) as { content: string } | undefined;
       return `  - [${id}] ${m?.content ?? "?"}`;
     });
+    // Auto entity extraction (item 5): persist entities + co-occurrence, then
+    // link memories in the cluster that share an entity.
+    for (const id of c) {
+      const m = db
+        .prepare("SELECT content FROM memories WHERE id = ?")
+        .get(id) as { content: string } | undefined;
+      if (m) linkEntitiesForMemory(id, m.content);
+    }
+    linkMemoriesBySharedEntities(c);
     lines.push(`Cluster (${c.length}):\n${contents.join("\n")}`);
     if (args.derive === true) {
       const summary = c
