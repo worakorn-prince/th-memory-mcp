@@ -4,10 +4,11 @@
 [![npm downloads](https://img.shields.io/npm/dm/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
-
+[![th-memory-mcp MCP server](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/card.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp)
 Long-term memory MCP server for OpenCode — stores preferences, lessons, and usage history in a single local SQLite file (100% local, no external API) so the AI can "remember and adapt" to the user through context-based learning.
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/worakorn-prince/th-memory-mcp)
 
-**Status:** v2.2.2 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 20 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`.
+**Status:** v2.2.3 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 25 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2.2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`. New in v2.2.3: scope-enforced retrieval, graph scope isolation, export/import round-trip, hardened import path (realpath), strict import validation, N+1 query elimination, cold/ablation benchmark, and `MEMORY_RETRIEVAL_MODE` switch.
 
 ## Requirements
 

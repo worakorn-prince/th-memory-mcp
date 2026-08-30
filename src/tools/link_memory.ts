@@ -25,6 +25,22 @@ export function linkMemoryHandler(args: {
     if (src.status === "deleted" || tgt.status === "deleted")
       return err("cannot link deleted memories");
     if (src.id === tgt.id) return err("cannot link a memory to itself");
+    if (
+      (src.scope === "USER" || tgt.scope === "USER") &&
+      src.user_id !== tgt.user_id
+    )
+      return err("cannot link memories across different users");
+    if (
+      (src.scope === "SESSION" || tgt.scope === "SESSION") &&
+      src.session_id !== tgt.session_id
+    )
+      return err("cannot link memories across different sessions");
+    if (
+      src.scope === "PROJECT" &&
+      tgt.scope === "PROJECT" &&
+      src.project_id !== tgt.project_id
+    )
+      return err("cannot link memories across different projects");
     linkMemories(args.sourceId, args.targetId, args.relation);
     return ok(
       `linked memory ${args.sourceId} -[${args.relation}]-> ${args.targetId}`

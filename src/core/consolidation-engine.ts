@@ -14,29 +14,34 @@ export interface ClusterOptions {
 export function clusterMemories(opts: ClusterOptions = {}): number[][] {
   const threshold = opts.threshold ?? 0.7;
   const minSize = opts.minClusterSize ?? 2;
-  const rows = getAllEmbeddings() as Array<{ ref_id: number; vec: Buffer }>;
+  const rows = db
+    .prepare(
+      `SELECT e.ref_id as ref_id, e.vec as vec, m.status, m.project_id, m.scope, m.session_id, m.user_id
+       FROM embeddings e
+       JOIN memories m ON m.id = e.ref_id
+       WHERE e.ref_table = 'memories'
+         AND ( ? OR m.status NOT IN ('deleted','archived','superseded'))`
+    )
+    .all(opts.includeArchived ? 1 : 0) as Array<{
+    ref_id: number;
+    vec: Buffer;
+    status: string;
+    project_id: string | null;
+    scope: string;
+    session_id: string | null;
+    user_id: number | null;
+  }>;
   const valid = rows.filter((r) => {
-    const m = db
-      .prepare("SELECT status, project_id FROM memories WHERE id = ?")
-      .get(r.ref_id) as
-      | { status: string; project_id: string | null }
-      | undefined;
-    if (!m) return false;
-    if (
-      !opts.includeArchived &&
-      (m.status === "deleted" || m.status === "archived")
-    )
-      return false;
-    if (
-      opts.projectId &&
-      !(m.project_id === opts.projectId || m.project_id === null)
-    )
-      return false;
+    if (r.scope === "USER" || r.scope === "SESSION" || r.scope === "PROJECT") {
+      if (opts.projectId && r.project_id !== opts.projectId) return false;
+    }
     return true;
   });
 
+  const CAP = 2000;
+  const sliced = valid.slice(0, CAP);
   const vecs = new Map<number, Float32Array>();
-  for (const r of valid) vecs.set(r.ref_id, deserialize(r.vec));
+  for (const r of sliced) vecs.set(r.ref_id, deserialize(r.vec));
   const ids = [...vecs.keys()];
 
   const parent = new Map<number, number>();

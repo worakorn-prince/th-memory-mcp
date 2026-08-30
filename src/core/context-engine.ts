@@ -1,6 +1,7 @@
 import { db } from "../db/index.js";
 import { retrieve } from "./retrieval-engine.js";
 import { traverse } from "./graph-engine.js";
+import { resolveUserId } from "../db/repositories/users.js";
 import type { MemoryRecord } from "../memory/types.js";
 
 export interface ContextOptions {
@@ -24,6 +25,26 @@ export interface ContextResult {
   memories: ContextMemory[];
   tokenEstimate: number;
   truncated: boolean;
+}
+
+function isScopeVisible(
+  m: MemoryRecord,
+  opts: ContextOptions,
+  uid: number | null
+): boolean {
+  if (m.scope === "USER") {
+    if (opts.userId == null) return false;
+    return m.user_id === uid;
+  }
+  if (m.scope === "SESSION") {
+    if (opts.sessionId == null) return false;
+    return m.session_id === opts.sessionId;
+  }
+  if (m.scope === "PROJECT") {
+    if (opts.projectId == null) return false;
+    return m.project_id === opts.projectId;
+  }
+  return true;
 }
 
 function isCurrentlyValid(m: MemoryRecord, now: Date): boolean {
@@ -52,11 +73,28 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
 
   const ids = new Set<number>(seeds.map((s) => s.id));
   if (opts.includeGraph) {
+    const uid = opts.userId ? resolveUserId(opts.userId) : null;
     for (const s of seeds) {
-      for (const n of traverse(s.id, { maxDepth: 1 })) ids.add(n.memoryId);
+      for (const n of traverse(s.id, { maxDepth: 1 })) {
+        const m = db
+          .prepare("SELECT * FROM memories WHERE id = ?")
+          .get(n.memoryId) as MemoryRecord | undefined;
+        if (!m) continue;
+        if (
+          !opts.includeHistory &&
+          (m.status === "deleted" ||
+            m.status === "archived" ||
+            m.status === "superseded")
+        )
+          continue;
+        if (!isScopeVisible(m, opts, uid)) continue;
+        if (!opts.includeHistory && !isCurrentlyValid(m, now)) continue;
+        ids.add(n.memoryId);
+      }
     }
   }
 
+  const resolvedUid = opts.userId ? resolveUserId(opts.userId) : null;
   const all = [...ids]
     .map(
       (id) =>
@@ -65,7 +103,13 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
           | undefined
     )
     .filter((m): m is MemoryRecord => !!m)
-    .filter((m) => opts.includeHistory || isCurrentlyValid(m, now));
+    .filter((m) => opts.includeHistory || isCurrentlyValid(m, now))
+    .filter((m) => isScopeVisible(m, opts, resolvedUid))
+    .filter(
+      (m) =>
+        opts.includeHistory ||
+        !(m.status === "deleted" || m.status === "archived" || m.status === "superseded")
+    );
 
   all.sort(
     (a, b) =>
