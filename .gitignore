@@ -17,5 +17,6 @@ PUBLISH.th.md
 mcp-publisher.exe
 mcp-publisher
 
-# LongMemEval benchmark workspace — kept local only (data, results, adapters)
+# Own benchmark framework (per TH_MEMORY_MCP_BENCHMARK_SPEC.md) — kept local only
 benchmark/
+TH_MEMORY_MCP_BENCHMARK_SPEC.md
