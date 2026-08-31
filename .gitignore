@@ -17,6 +17,5 @@ PUBLISH.th.md
 mcp-publisher.exe
 mcp-publisher
 
-# Own benchmark framework (per TH_MEMORY_MCP_BENCHMARK_SPEC.md) — kept local only
-benchmark/
+# Own benchmark framework — now tracked (previously local only)
 TH_MEMORY_MCP_BENCHMARK_SPEC.md
