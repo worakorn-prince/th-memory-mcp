@@ -4,6 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>th-memory-mcp Benchmark Viewer — 3 latest versions</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
   body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:24px;background:#0f1115;color:#e6e8eb}
   h1{font-size:22px;margin:0 0 8px}
@@ -21,22 +22,26 @@
   @media(max-width:900px){.grid{grid-template-columns:1fr}}
   a{color:#6ea8fe}
   .scroll{overflow:auto;max-height:520px}
+  button{padding:6px 12px;border-radius:8px;border:1px solid #2a3448;background:#1a2333;color:#e6e8eb;cursor:pointer}
+  button:hover{background:#222a38}
 </style>
 <h1>Benchmark Viewer — 3 Latest Versions</h1>
-<div class="sub">Comparing latest run per version — every benchmark metric — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
+<div class="sub">Comparing latest run per version — every benchmark metric with units — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
 
 <div class="card">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <button id="reload">Reload</button>
+    <button id="exportCsv">Export CSV</button>
+    <button id="exportXlsx">Export Excel</button>
     <span id="status" class="badge">loading…</span>
     <span class="badge">Open via http://localhost:3000/benchmark/viewer/ or http://localhost:3000/result/viewer.html</span>
   </div>
 </div>
 
 <div class="card">
-  <h3 style="margin:0 0 8px">Comparison — Latest Run of 3 Latest Versions — All Metrics (green best / red worst)</h3>
+  <h3 style="margin:0 0 8px">Comparison — Latest Run of 3 Latest Versions — All Metrics (green best / red worst) — Units shown</h3>
   <div id="tableWrap" class="scroll"></div>
-  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Row highlight: green = latest version, blue = second, orange = oldest. Cell highlight: <span style="background:#0f3d0f;color:#b6f7b6;padding:1px 4px;border-radius:4px">green = best</span> <span style="background:#4d1a1a;color:#ffb3b3;padding:1px 4px;border-radius:4px">red = worst</span> per metric (higher is better except latency/noise/contamination where lower is better).</div>
+  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Row highlight: green = latest version, blue = second, orange = oldest. Cell highlight: <span style="background:#0f3d0f;color:#b6f7b6;padding:1px 4px;border-radius:4px">green = best</span> <span style="background:#4d1a1a;color:#ffb3b3;padding:1px 4px;border-radius:4px">red = worst</span> per metric (higher is better except latency/noise/contamination/tokens where lower is better). Units in header.</div>
   <div id="perSuite" style="margin-top:16px"></div>
 </div>
 
@@ -89,6 +94,24 @@ function isHigherBetter(path){
   if(lower.includes("latency") || lower.includes("noise") || lower.includes("contamination") || lower.includes("tokensused") || lower.includes("truncated")) return false;
   return true;
 }
+function getUnit(path){
+  const p = path.toLowerCase();
+  if(p.includes("latency")) return "ms";
+  if(p.includes("tokensused")) return "tokens";
+  if(p.includes("infodensity")) return "per 1k tokens";
+  if(p.includes("accuracypertoken")) return "per token";
+  if(p.includes("recall") || p.includes("precision") || p.includes("mrr") || p.includes("ndcg") || p.includes("criticalcoverage") || p.includes("contextrelevance") || p.includes("relevanttokenratio")) return "0-1";
+  if(p.includes("noiseratio") || p.includes("contamination")) return "0-1 (lower better)";
+  if(p.includes("dataset")) return "records";
+  if(p.includes("operations") || p.includes("runs")) return "count";
+  if(p.includes("dbsize") || p.includes("mbper")) return "MB";
+  if(p.includes("memoriespersec")) return "mem/s";
+  if(p.includes("peakrss") || p.includes("rssgrowth")) return "MB";
+  if(p.includes("cpu")) return "ms";
+  return "";
+}
+let perVerMetricsGlobal = [];
+let sortedPathsGlobal = [];
 async function main(){
   const status=document.getElementById("status");
   try{
@@ -109,6 +132,7 @@ async function main(){
     const allPaths = new Set();
     for(const r of rows){ const flat = flattenSuites(r.suites); for(const k of Object.keys(flat)) allPaths.add(k); }
     const sortedPaths = [...allPaths].sort();
+    sortedPathsGlobal = sortedPaths;
     const perVerMetrics = perVer.map(({ver, arr})=>{
       const flatLatest = flattenSuites(arr[arr.length-1].suites);
       const resolved = {};
@@ -123,8 +147,8 @@ async function main(){
       }
       return {ver, latest: arr[arr.length-1], resolved, count: arr.length};
     });
+    perVerMetricsGlobal = perVerMetrics;
 
-    // Compute best/worst per metric
     const bestWorst = {};
     for(const p of sortedPaths){
       const vals = perVerMetrics.map(m=>m.resolved[p]).filter(v=>v!=null);
@@ -138,7 +162,10 @@ async function main(){
 
     const shortCol = c => c.replace(".metrics.",".").replace(".latency.",".").replace("B.retrieval.","R.").replace("E.performance.","P.").replace("E.cold.","C.").replace("B.ablation.","A.").replace("D.context.","D.").replace("F.scalability.","F.").replace("C.temporal.","T.").replace("C.conflict.","Cf.").replace("C.scope.","S.").replace("A.storage.","S.").slice(0,22);
     let html="<table><thead><tr><th>version</th><th>ts</th><th>commit</th>";
-    for(const c of sortedPaths) html+=`<th title="${c}">${shortCol(c)}</th>`;
+    for(const c of sortedPaths){
+      const unit = getUnit(c);
+      html+=`<th title="${c}">${shortCol(c)}${unit?`<br><span style="font-weight:400;color:#9aa3b2">(${unit})</span>`:""}</th>`;
+    }
     html+="<th>runs</th></tr></thead><tbody>";
     perVerMetrics.forEach(({ver, latest, resolved, count}, idx)=>{
       const cls = idx===perVerMetrics.length-1 ? "hl1" : idx===perVerMetrics.length-2 ? "hl2" : "hl3";
@@ -165,12 +192,13 @@ async function main(){
     for(const s of suites){
       const cols = sortedPaths.filter(p=>p.startsWith(s+"."));
       if(cols.length===0) continue;
-      perSuiteHtml+=`<h4 style="margin:12px 0 6px;color:#9aa3b2">${s}</h4><table><thead><tr><th>metric</th>`;
+      perSuiteHtml+=`<h4 style="margin:12px 0 6px;color:#9aa3b2">${s}</h4><table><thead><tr><th>metric</th><th>unit</th>`;
       for(const {ver} of perVerMetrics) perSuiteHtml+=`<th>${ver}</th>`;
       perSuiteHtml+="</tr></thead><tbody>";
       for(const c of cols){
         const short = c.replace(s+".metrics.","").replace(s+".latency.","");
-        perSuiteHtml+="<tr><td>"+short+"</td>";
+        const unit = getUnit(c);
+        perSuiteHtml+="<tr><td>"+short+"</td><td>"+unit+"</td>";
         for(const {resolved} of perVerMetrics){
           const v=resolved[c];
           let cls2="";
@@ -191,28 +219,59 @@ async function main(){
     new Chart(document.getElementById("chartRecall"),{
       type:"bar",
       data:{ labels, datasets:[
-        {label:"Recall@5", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.recallAt5")), backgroundColor:"#6ea8fe"},
-        {label:"MRR", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.mrr")), backgroundColor:"#7ee787"},
-        {label:"NDCG@5", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.ndcgAt5")), backgroundColor:"#ffce6e"},
+        {label:"Recall@5 (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.recallAt5")), backgroundColor:"#6ea8fe"},
+        {label:"MRR (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.mrr")), backgroundColor:"#7ee787"},
+        {label:"NDCG@5 (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.ndcgAt5")), backgroundColor:"#ffce6e"},
       ]},
       options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}, min:0, max:1}} }
     });
     new Chart(document.getElementById("chartLatency"),{
       type:"bar",
       data:{ labels, datasets:[
-        {label:"retrieve p95", data: perVerMetrics.map(p=> get(p,"E.performance.latency.retrieve.p95")), backgroundColor:"#6ea8fe"},
-        {label:"getContext p95", data: perVerMetrics.map(p=> get(p,"E.performance.latency.getContext.p95")), backgroundColor:"#ff8b8b"},
-        {label:"recall p95", data: perVerMetrics.map(p=> get(p,"E.performance.latency.recall.p95")), backgroundColor:"#d2a8ff"},
+        {label:"retrieve p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.retrieve.p95")), backgroundColor:"#6ea8fe"},
+        {label:"getContext p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.getContext.p95")), backgroundColor:"#ff8b8b"},
+        {label:"recall p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.recall.p95")), backgroundColor:"#d2a8ff"},
       ]},
       options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
     });
 
-    status.textContent = `Showing ${perVer.length} latest versions: ${perVer.map(p=>p.ver).join(", ")} (from ${byVer.size} versions, ${rows.length} runs) — ${sortedPaths.length} metrics — green best / red worst`;
+    status.textContent = `Showing ${perVer.length} latest versions: ${perVer.map(p=>p.ver).join(", ")} (from ${byVer.size} versions, ${rows.length} runs) — ${sortedPaths.length} metrics`;
   }catch(e){
     status.textContent="error: "+e.message;
     document.getElementById("tableWrap").innerHTML=`<pre style="white-space:pre-wrap;color:#ff8b8b">${e.stack||e.message}</pre>`;
   }
 }
+function exportCsv(){
+  if(!perVerMetricsGlobal.length) return;
+  const header = ["version","ts","commit", ...sortedPathsGlobal.map(p=>`${p} (${getUnit(p)})`), "runs"];
+  const rows = perVerMetricsGlobal.map(({ver, latest, resolved, count})=>{
+    const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
+    const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
+    return [ver, ts, commit, ...sortedPathsGlobal.map(p=> resolved[p]==null?"":resolved[p]), count];
+  });
+  const csv = [header, ...rows].map(r=> r.map(v=> `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download=`benchmark_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+}
+function exportXlsx(){
+  if(!perVerMetricsGlobal.length) return;
+  const header = ["version","ts","commit", ...sortedPathsGlobal, "runs"];
+  const rows = perVerMetricsGlobal.map(({ver, latest, resolved, count})=>{
+    const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
+    const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
+    return [ver, ts, commit, ...sortedPathsGlobal.map(p=> resolved[p]??""), count];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "benchmark");
+  // Also add units row
+  const units = ["", "", "", ...sortedPathsGlobal.map(getUnit), ""];
+  XLSX.utils.sheet_add_aoa(ws, [units], {origin: 1});
+  XLSX.writeFile(wb, `benchmark_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
 document.getElementById("reload").onclick=()=>location.reload();
+document.getElementById("exportCsv").onclick=exportCsv;
+document.getElementById("exportXlsx").onclick=exportXlsx;
 main();
 </script>
