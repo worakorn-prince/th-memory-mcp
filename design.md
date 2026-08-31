@@ -1,61 +1,60 @@
-# th-memory-mcp — Design Notes (ปัจจุบัน)
+# th-memory-mcp — Design Notes (Current)
 
-เอกสารนี้อัปเดตล่าสุดสอดคล้องกับสถานะจริงของโค้ด (หลังจบแผนฟีเจอร์อนาคตทั้งหมด ยกเว้น AI-assisted extraction ที่ตัดออก)
-สเปคฉบับเต็มอยู่ที่ `ARCHITECTURE_v2.md` (canonical spec) ไฟล์นี้สรุปภาพรวมและสถานะปัจจุบันเพื่อความสะดวก
+This document is up-to-date with the actual codebase state (after completing all future feature plans except AI-assisted extraction, which was removed). The full specification is at `ARCHITECTURE_v2.md` (canonical spec); this file summarizes the overview and current status for convenience.
 
-## สถานะปัจจุบัน
-- **เวอร์ชัน:** `package.json` = `2.2.4`
+## Current Status
+- **Version:** `package.json` = `2.2.4`
 - **MCP tools:** 16 tools (`remember`, `recall`, `get_context`, `link_memory`, `merge_memory`, `update_memory`, `import_memory`, `extract_memories`, `consolidate`, `forget`, `history`, `recent_interactions`, `profile`, `lesson`, `memory_stats`, `export_memory`)
-- **ชุดเทสต์:** 25 suites ผ่านหมด (0 fail) — รันผ่าน `npm test` (มี CI บน GitHub Actions)
+- **Test suites:** 25 suites passing (0 fail) — run via `npm test` (CI on GitHub Actions)
 
-## องค์ประกอบหลัก (src/)
-- `db/` — better-sqlite3 (WAL mode), migrations เชิงเส้น (M001–M007), repositories (`memories`, `users`, `preferences`, `lessons`)
-- `lib/embed.ts` — semantic vector แบบ hashing-trick (ไม่พึ่ง LLM/network)
+## Core Components (src/)
+- `db/` — better-sqlite3 (WAL mode), linear migrations (M001–M007), repositories (`memories`, `users`, `preferences`, `lessons`)
+- `lib/embed.ts` — hashing-trick semantic vector (no LLM/network dependency)
 - `retrieval/` — FTS5 + vector → RRF fusion → scorer (confidence × importance × recency × scope)
 - `memory/` — types, lifecycle-engine (decay/source-weights), conflict-resolver, deduplicator
 - `core/` — retrieval-engine, context-engine, graph-engine, consolidation-engine, entity-extractor
 - `tools/` — 16 MCP tool handlers
 - `index.ts` — MCP stdio server
 
-## ฟีเจอร์ที่ทำเสร็จแล้ว
+## Completed Features
 - ✅ Temporal model — validity intervals, point-in-time retrieval, supersession chains, change detection
-- ✅ Conflict/dedup — normalize → exact → similar → classify (duplicate/update/contradiction/unrelated); ambiguous conflicts ถูกเก็บไว้ (link `contradicts`) ไม่เขียนทับเงียบๆ
+- ✅ Conflict/dedup — normalize → exact → similar → classify (duplicate/update/contradiction/unrelated); ambiguous conflicts are kept (link `contradicts`) instead of silently overwriting
 - ✅ Hybrid retrieval (FTS + vector, RRF)
 - ✅ Memory graph — entities/relations + bounded traversal (`link_memory`)
-- ✅ Context engine — `get_context` with token budgeting, temporal filter, graph expansion
+- ✅ Context engine — `get_context` with token budgeting, temporal filtering, graph expansion
 - ✅ Consolidation — clustering + derived memories (`derived_from` provenance)
 - ✅ Scope hierarchy — `USER` / `SESSION` / `PROJECT` / `GLOBAL` (migrations 006 + 007)
-  - `createMemory` อนุมาน scope ตามลำดับ SESSION > PROJECT > USER > GLOBAL
-  - `scopeFactorFor` boost ความจำที่เข้าข่ายบริบทปัจจุบัน (USER=1.0, PROJECT/SESSION ตามบริบท, GLOBAL เป็น base)
-- ✅ Profile auto-projection — `profile.ts` ดึงความจำสำคัญมาแทรกใน `[memories]`
-- ✅ Auto entity extraction — `entity-extractor.ts` สกัด entity แบบ heuristic (ไม่ใช้ LLM) ผูกเข้า graph ตอน consolidate
-- ✅ Benchmark in-repo:
+  - `createMemory` infers scope in order SESSION > PROJECT > USER > GLOBAL
+  - `scopeFactorFor` boosts memories matching the current context (USER=1.0, PROJECT/SESSION depending on context, GLOBAL as base)
+- ✅ Profile auto-projection — `profile.ts` injects important memories into `[memories]`
+- ✅ Auto entity extraction — `entity-extractor.ts` extracts entities heuristically (no LLM) and links them into the graph during consolidation
+- ✅ In-repo benchmark:
   - Retrieval quality (§26) — `test/retrieval_benchmark.test.mjs` (Recall@5=1.00, Precision@5=0.92, MRR=1.00)
-  - Perf (§29) — `test/benchmark.test.mjs` วัด latency ต่อ op ผ่าน CI
-  - Conflict quality (§27) — `test/conflict_benchmark.test.mjs` (100% บนชุด 14 เคส ครบ 7 หมวด)
-  - E2E transport — `test/e2e_transport.test.mjs` (spawn server ผ่าน StdioClientTransport)
+  - Perf (§29) — `test/benchmark.test.mjs` measures latency per operation via CI
+  - Conflict quality (§27) — `test/conflict_benchmark.test.mjs` (100% on 14 cases across 7 categories)
+  - E2E transport — `test/e2e_transport.test.mjs` (spawn server via StdioClientTransport)
 - ✅ CI pipeline — `.github/workflows/ci.yml` (ubuntu-latest, node 20, `npm ci`, `npm test`)
 
-## Scope model (รายละเอียด)
-| Scope | เงื่อนไข | พฤติกรรม |
-|-------|----------|----------|
-| SESSION | มี `sessionId` | ผูกกับ session นั้น |
-| PROJECT | มี `projectId` (ไม่มี session) | ผูกกับ project นั้น |
-| USER | มี `userId` (ไม่มี session/project) | ผูกกับ user นั้น (auto-create row ใน `users`) |
-| GLOBAL | ไม่มีอะไรเลย | ความจำร่วมกันทั้งระบบ |
+## Scope Model (Details)
+| Scope | Condition | Behavior |
+|-------|-----------|----------|
+| SESSION | has `sessionId` | bound to that session |
+| PROJECT | has `projectId` (no session) | bound to that project |
+| USER | has `userId` (no session/project) | bound to that user (auto-creates row in `users`) |
+| GLOBAL | none | shared system-wide memory |
 
-`userId` ที่รับจาก client เป็น external identity (string) — ระบบไม่มีการ authenticate; ตัวตัดความเป็นของ client ทั้งหมด
-`preferences` และ `lessons` ยังคงเป็น global (ไม่มี user column)
+`userId` received from the client is an external identity (string) — the system does not authenticate; it is entirely client-declared.
+`preferences` and `lessons` remain global (no user column).
 
-## ข้อจำกัดที่รู้อยู่ (known limitations)
-- **Trust model:** ไม่มี user authentication — `userId` คือสิ่งที่ client แจ้งมา (client-declared) เหมาะกับการ deploy แบบ local single-user ที่ไฟล์ SQLite เป็นของเจ้าของคนเดียว หากต้องการแยกผู้ใช้หลายคน แนะนำแก้ที่ระดับไฟล์ DB (หนึ่ง DB ต่อผู้ใช้) ไม่ใช่เพิ่ม auth ลงใน engine
-- `preferences` / `lessons` ไม่ถูกแบ่งตาม user (ยังเป็น global) — ยอมรับได้สำหรับ single-user
-- Semantic embedding ใช้ hashing-trick (deterministic, offline) — ไม่ใช่ embedding ระดับ LLM จึงมีขีดจำกัดเรื่อง paraphrase ที่ห่างกันมาก
-- **AI-assisted extraction ไม่พัฒนาต่อ** — เจ้าของตัดสินใจตัดหัวข้อนี้ออก `extract_memories` จึงเป็น deterministic heuristic เท่านั้น (ไม่ใช้ LLM) ตามหลักการออกแบบที่ว่า core engine ต้องไม่พึ่งพา external LLM API
+## Known Limitations
+- **Trust model:** No user authentication — `userId` is client-declared. Suitable for local single-user deployment where the SQLite file is owned by a single user. For multi-user separation, use one DB file per user instead of adding auth to the engine.
+- `preferences` / `lessons` are not partitioned by user (still global) — acceptable for single-user.
+- Semantic embedding uses hashing-trick (deterministic, offline) — not LLM-level embedding, so there are limits on distant paraphrases.
+- **AI-assisted extraction discontinued** — the owner decided to remove this; `extract_memories` is therefore deterministic heuristic only (no LLM), per the design principle that the core engine must not depend on an external LLM API.
 
 ## Release
-- v2.0.0 ปล่อยแล้ว (npm, GitHub Release, Official MCP Registry, Glama)
-- v2.2.0 — ปล่อยครบ: tag + GitHub Release, **npm publish เรียบร้อย**, Official MCP Registry ดึงจาก npm อัตโนมัติ (ไม่ต้องรัน mcp-publisher แยก), Glama Sync เรียบร้อย
-- v2.2.1 — แก้ Glama quality: เพิ่ม `pnpm.onlyBuiltDependencies: ["better-sqlite3"]` ให้ pnpm รันสคริปต์ดาวน์โหลด native binary สำหรับ Node 24, ขยับ better-sqlite3 เป็น `^12.9.0`, เพิ่ม override `ip-address@^10.2.0` (npm+pnpm) อุดช่องโหว่ XSS ผ่าน MCP SDK ไม่มีการเปลี่ยนโค้ด รอ `npm publish` + Glama ทดสอบใหม่
-- v2.2.3 — ชุดแก้ความปลอดภัย + ประสิทธิภาพตาม `report_checkup.md`: บังคับ scope filtering (ไม่คืน foreign USER/SESSION), กรอง graph ไม่ข้าม scope, ห้าม link ข้าม scope, export/import แบบ round-trip, ใช้ `realpath` กัน symlink, ตรวจ import เข้มงวด (enum/0..1/ISO), เลิก N+1 query (vector JOIN, bulk fetch, cap consolidation), benchmark cold/ablation และสวิตช์ `MEMORY_RETRIEVAL_MODE`, เพิ่ม 5 เทสต์ใหม่เป็น 25/25, benchmark รันครบทุก suite
-- v2.2.4 — docs: จัดหน้า badge ใน README ให้เป็นระเบียบ
+- v2.0.0 released (npm, GitHub Release, Official MCP Registry, Glama)
+- v2.2.0 — full release: tag + GitHub Release, **npm publish done**, Official MCP Registry auto-pulls from npm (no separate mcp-publisher run), Glama Sync done
+- v2.2.1 — Glama quality fix: added `pnpm.onlyBuiltDependencies: ["better-sqlite3"]` so pnpm runs the native binary download script for Node 24, bumped better-sqlite3 to `^12.9.0`, added override `ip-address@^10.2.0` (npm+pnpm) to patch XSS via MCP SDK — no code change, waiting for `npm publish` + Glama re-test
+- v2.2.3 — security + performance hardening per `report_checkup.md`: enforced scope filtering (no foreign USER/SESSION returned), graph scope isolation, disallow cross-scope links, round-trip export/import, `realpath` against symlink, strict import validation (enum/0..1/ISO), eliminated N+1 queries (vector JOIN, bulk fetch, cap consolidation), cold/ablation benchmark and `MEMORY_RETRIEVAL_MODE` switch, added 5 new tests to 25/25, benchmark runs all suites
+- v2.2.4 — docs: tidy README badge layout
