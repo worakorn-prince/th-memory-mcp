@@ -9,8 +9,8 @@
   h1{font-size:22px;margin:0 0 8px}
   .sub{color:#9aa3b2;font-size:13px;margin-bottom:16px}
   .card{background:#161a22;border:1px solid #222a38;border-radius:12px;padding:16px;margin-bottom:16px}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{padding:8px 10px;border-bottom:1px solid #222a38;text-align:left}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:6px 8px;border-bottom:1px solid #222a38;text-align:left;white-space:nowrap}
   th{color:#9aa3b2;font-weight:600;background:#0f1115;position:sticky;top:0}
   tr.hl1{background:#1a2a1a} tr.hl2{background:#1a2333} tr.hl3{background:#2a2520}
   .badge{font-size:11px;padding:2px 6px;border-radius:999px;background:#222a38;color:#9aa3b2}
@@ -18,9 +18,11 @@
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:900px){.grid{grid-template-columns:1fr}}
   a{color:#6ea8fe}
+  .scroll{overflow:auto;max-height:520px}
+  .small{font-size:11px;color:#9aa3b2}
 </style>
 <h1>Benchmark Viewer — 3 Latest Versions</h1>
-<div class="sub">Comparing 2.2.2 / 2.2.3 / 2.2.4 — latest run per version (table + charts) — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
+<div class="sub">Comparing latest run per version (e.g. 2.2.4 / 2.2.5 / 2.2.6) — every benchmark metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
 
 <div class="card">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -31,9 +33,10 @@
 </div>
 
 <div class="card">
-  <h3 style="margin:0 0 8px">Comparison Table — Latest Run of 3 Latest Versions (highlighted)</h3>
-  <div id="tableWrap" style="overflow:auto;max-height:520px"></div>
-  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Highlight: green = latest, blue = second latest, orange = oldest among the 3 versions</div>
+  <h3 style="margin:0 0 8px">Comparison — Latest Run of 3 Latest Versions (highlighted) — All Metrics</h3>
+  <div id="tableWrap" class="scroll"></div>
+  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Highlight: green = latest, blue = second latest, orange = oldest. Values are taken from the most recent run within each version that actually contains the metric (fallback), so every benchmark value appears.</div>
+  <div id="perSuite" style="margin-top:16px"></div>
 </div>
 
 <div class="grid">
@@ -50,11 +53,30 @@ async function loadHistory(){
   throw lastErr||new Error("history.jsonl not found");
 }
 function parseHistory(txt){ return txt.trim().split("\n").filter(Boolean).map(l=>{try{return JSON.parse(l);}catch{return null;}}).filter(Boolean); }
-function getMetric(row, path){
-  const parts=path.split(".");
-  let cur=row.suites;
-  for(const p of parts){ if(cur && typeof cur==="object" && p in cur) cur=cur[p]; else return null; }
-  return typeof cur==="number"?cur:null;
+function flattenSuites(suites, out={}, prefix=""){
+  for(const [name, suite] of Object.entries(suites||{})){
+    if(suite && suite.metrics && typeof suite.metrics==="object"){
+      for(const [k,v] of Object.entries(suite.metrics)){
+        if(typeof v==="number") out[`${name}.metrics.${k}`]=v;
+        else if(v && typeof v==="object"){
+          for(const [k2,v2] of Object.entries(v)){
+            if(typeof v2==="number") out[`${name}.metrics.${k}.${k2}`]=v2;
+            else if(v2 && typeof v2==="object"){
+              for(const [k3,v3] of Object.entries(v2)) if(typeof v3==="number") out[`${name}.metrics.${k}.${k2}.${k3}`]=v3;
+            }
+          }
+        }
+      }
+    }
+    if(suite && suite.latency && typeof suite.latency==="object"){
+      for(const [op, lat] of Object.entries(suite.latency)){
+        if(lat && typeof lat==="object"){
+          for(const [k,v] of Object.entries(lat)) if(typeof v==="number") out[`${name}.latency.${op}.${k}`]=v;
+        }
+      }
+    }
+  }
+  return out;
 }
 function verCompare(a,b){
   const pa=a.split(".").map(n=>parseInt(n,10)||0), pb=b.split(".").map(n=>parseInt(n,10)||0);
@@ -73,62 +95,97 @@ async function main(){
       byVer.get(v).push(r);
     }
     for(const arr of byVer.values()) arr.sort((a,b)=> new Date(a.ts||a.environment?.timestamp) - new Date(b.ts||b.environment?.timestamp));
-    let perVer = [...byVer.entries()].map(([ver,arr])=>({ver, latest: arr[arr.length-1], count: arr.length}));
+    let perVer = [...byVer.entries()].map(([ver,arr])=>({ver, arr, latest: arr[arr.length-1]}));
     perVer.sort((a,b)=> verCompare(a.ver,b.ver));
     perVer = perVer.slice(-3);
     perVer.sort((a,b)=> verCompare(a.ver,b.ver));
 
-    const cols = [
-      "B.retrieval.metrics.recallAt5",
-      "B.retrieval.metrics.mrr",
-      "B.retrieval.metrics.ndcgAt5",
-      "E.performance.latency.retrieve.p95",
-      "E.performance.latency.getContext.p95",
-      "E.performance.latency.recall.p95",
-    ];
-    const shortCol = c => c.replace("B.retrieval.metrics.","R:").replace("E.performance.latency.","L:").replace(".p95"," p95");
+    // Collect all metric paths across all rows
+    const allPaths = new Set();
+    for(const r of rows){
+      const flat = flattenSuites(r.suites);
+      for(const k of Object.keys(flat)) allPaths.add(k);
+    }
+    const sortedPaths = [...allPaths].sort();
+    // For each version, build metric map with fallback to most recent run within that version that has the metric
+    const perVerMetrics = perVer.map(({ver, arr})=>{
+      const flatLatest = flattenSuites(arr[arr.length-1].suites);
+      // fallback
+      const resolved = {};
+      for(const p of sortedPaths){
+        if(p in flatLatest) resolved[p]=flatLatest[p];
+        else{
+          for(let i=arr.length-2;i>=0;i--){
+            const f=flattenSuites(arr[i].suites);
+            if(p in f){ resolved[p]=f[p]; break; }
+          }
+        }
+      }
+      return {ver, latest: arr[arr.length-1], resolved, count: arr.length};
+    });
+
+    // Build main table with all metrics
+    const shortCol = c => c.replace(".metrics.",".").replace(".latency.",".").replace("B.retrieval.","R.").replace("E.performance.","P.").replace("E.cold.","C.").replace("B.ablation.","A.").replace("D.context.","D.").replace("F.scalability.","F.").replace("C.temporal.","T.").replace("C.conflict.","Cf.").replace("C.scope.","S.").replace("A.storage.","S.").slice(0,22);
     let html="<table><thead><tr><th>version</th><th>ts</th><th>commit</th>";
-    for(const c of cols) html+=`<th>${shortCol(c)}</th>`;
+    for(const c of sortedPaths) html+=`<th title="${c}">${shortCol(c)}</th>`;
     html+="<th>runs</th></tr></thead><tbody>";
-    perVer.forEach(({ver, latest, count}, idx)=>{
-      const cls = idx===perVer.length-1 ? "hl1" : idx===perVer.length-2 ? "hl2" : "hl3";
+    perVerMetrics.forEach(({ver, latest, resolved, count}, idx)=>{
+      const cls = idx===perVerMetrics.length-1 ? "hl1" : idx===perVerMetrics.length-2 ? "hl2" : "hl3";
       const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
       const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
       html+=`<tr class="${cls}"><td><b>${ver}</b></td><td>${ts}</td><td>${commit}</td>`;
-      for(const c of cols){ const v=getMetric(latest,c); html+=`<td>${v==null?"-":v.toFixed(4)}</td>`; }
+      for(const c of sortedPaths){ const v=resolved[c]; html+=`<td>${v==null?"-": (Math.abs(v)>=100? v.toFixed(1): v.toFixed(4))}</td>`; }
       html+=`<td>${count}</td></tr>`;
     });
     if(perVer.length===0) html="<div>No data</div>";
     else html+="</tbody></table>";
     document.getElementById("tableWrap").innerHTML = html;
 
-    const labels = perVer.map(p=>p.ver);
-    const recallData = perVer.map(p=> getMetric(p.latest,"B.retrieval.metrics.recallAt5"));
-    const mrrData = perVer.map(p=> getMetric(p.latest,"B.retrieval.metrics.mrr"));
-    const ndcgData = perVer.map(p=> getMetric(p.latest,"B.retrieval.metrics.ndcgAt5"));
+    // Per-suite breakdown (more readable)
+    let perSuiteHtml="";
+    const suites = [...new Set(sortedPaths.map(p=>p.split(".")[0]))].sort();
+    for(const s of suites){
+      const cols = sortedPaths.filter(p=>p.startsWith(s+"."));
+      if(cols.length===0) continue;
+      perSuiteHtml+=`<h4 style="margin:12px 0 6px;color:#9aa3b2">${s}</h4><table><thead><tr><th>metric</th>`;
+      for(const {ver} of perVerMetrics) perSuiteHtml+=`<th>${ver}</th>`;
+      perSuiteHtml+="</tr></thead><tbody>";
+      for(const c of cols){
+        const short = c.replace(s+".metrics.","").replace(s+".latency.","");
+        perSuiteHtml+="<tr><td>"+short+"</td>";
+        for(const {resolved} of perVerMetrics){
+          const v=resolved[c];
+          perSuiteHtml+=`<td>${v==null?"-": v.toFixed(4)}</td>`;
+        }
+        perSuiteHtml+="</tr>";
+      }
+      perSuiteHtml+="</tbody></table>";
+    }
+    document.getElementById("perSuite").innerHTML = perSuiteHtml;
+
+    // Charts
+    const labels = perVerMetrics.map(p=>p.ver);
+    function get(p, path){ return p.resolved[path] ?? null; }
     new Chart(document.getElementById("chartRecall"),{
       type:"bar",
       data:{ labels, datasets:[
-        {label:"Recall@5", data: recallData, backgroundColor:"#6ea8fe"},
-        {label:"MRR", data: mrrData, backgroundColor:"#7ee787"},
-        {label:"NDCG@5", data: ndcgData, backgroundColor:"#ffce6e"},
+        {label:"Recall@5", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.recallAt5")), backgroundColor:"#6ea8fe"},
+        {label:"MRR", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.mrr")), backgroundColor:"#7ee787"},
+        {label:"NDCG@5", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.ndcgAt5")), backgroundColor:"#ffce6e"},
       ]},
       options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}, min:0, max:1}} }
     });
-    const latRetrieve = perVer.map(p=> getMetric(p.latest,"E.performance.latency.retrieve.p95"));
-    const latGetCtx = perVer.map(p=> getMetric(p.latest,"E.performance.latency.getContext.p95"));
-    const latRecall = perVer.map(p=> getMetric(p.latest,"E.performance.latency.recall.p95"));
     new Chart(document.getElementById("chartLatency"),{
       type:"bar",
       data:{ labels, datasets:[
-        {label:"retrieve p95", data: latRetrieve, backgroundColor:"#6ea8fe"},
-        {label:"getContext p95", data: latGetCtx, backgroundColor:"#ff8b8b"},
-        {label:"recall p95", data: latRecall, backgroundColor:"#d2a8ff"},
+        {label:"retrieve p95", data: perVerMetrics.map(p=> get(p,"E.performance.latency.retrieve.p95")), backgroundColor:"#6ea8fe"},
+        {label:"getContext p95", data: perVerMetrics.map(p=> get(p,"E.performance.latency.getContext.p95")), backgroundColor:"#ff8b8b"},
+        {label:"recall p95", data: perVerMetrics.map(p=> get(p,"E.performance.latency.recall.p95")), backgroundColor:"#d2a8ff"},
       ]},
       options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
     });
 
-    status.textContent = `Showing ${perVer.length} latest versions: ${perVer.map(p=>p.ver).join(", ")} (from ${byVer.size} versions, ${rows.length} runs)`;
+    status.textContent = `Showing ${perVer.length} latest versions: ${perVer.map(p=>p.ver).join(", ")} (from ${byVer.size} versions, ${rows.length} runs) — ${sortedPaths.length} metrics`;
   }catch(e){
     status.textContent="error: "+e.message;
     document.getElementById("tableWrap").innerHTML=`<pre style="white-space:pre-wrap;color:#ff8b8b">${e.stack||e.message}</pre>`;
