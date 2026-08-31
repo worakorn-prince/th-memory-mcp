@@ -13,16 +13,17 @@
   th,td{padding:6px 8px;border-bottom:1px solid #222a38;text-align:left;white-space:nowrap}
   th{color:#9aa3b2;font-weight:600;background:#0f1115;position:sticky;top:0}
   tr.hl1{background:#1a2a1a} tr.hl2{background:#1a2333} tr.hl3{background:#2a2520}
+  td.best{background:#0f3d0f !important;color:#b6f7b6;font-weight:700}
+  td.worst{background:#4d1a1a !important;color:#ffb3b3;font-weight:700}
   .badge{font-size:11px;padding:2px 6px;border-radius:999px;background:#222a38;color:#9aa3b2}
   canvas{background:#0f1115;border-radius:8px}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:900px){.grid{grid-template-columns:1fr}}
   a{color:#6ea8fe}
   .scroll{overflow:auto;max-height:520px}
-  .small{font-size:11px;color:#9aa3b2}
 </style>
 <h1>Benchmark Viewer — 3 Latest Versions</h1>
-<div class="sub">Comparing latest run per version (e.g. 2.2.4 / 2.2.5 / 2.2.6) — every benchmark metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
+<div class="sub">Comparing latest run per version — every benchmark metric — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
 
 <div class="card">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -33,9 +34,9 @@
 </div>
 
 <div class="card">
-  <h3 style="margin:0 0 8px">Comparison — Latest Run of 3 Latest Versions (highlighted) — All Metrics</h3>
+  <h3 style="margin:0 0 8px">Comparison — Latest Run of 3 Latest Versions — All Metrics (green best / red worst)</h3>
   <div id="tableWrap" class="scroll"></div>
-  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Highlight: green = latest, blue = second latest, orange = oldest. Values are taken from the most recent run within each version that actually contains the metric (fallback), so every benchmark value appears.</div>
+  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Row highlight: green = latest version, blue = second, orange = oldest. Cell highlight: <span style="background:#0f3d0f;color:#b6f7b6;padding:1px 4px;border-radius:4px">green = best</span> <span style="background:#4d1a1a;color:#ffb3b3;padding:1px 4px;border-radius:4px">red = worst</span> per metric (higher is better except latency/noise/contamination where lower is better).</div>
   <div id="perSuite" style="margin-top:16px"></div>
 </div>
 
@@ -83,6 +84,11 @@ function verCompare(a,b){
   for(let i=0;i<Math.max(pa.length,pb.length);i++){ const da=pa[i]||0, db=pb[i]||0; if(da!==db) return da-db; }
   return a.localeCompare(b);
 }
+function isHigherBetter(path){
+  const lower = path.toLowerCase();
+  if(lower.includes("latency") || lower.includes("noise") || lower.includes("contamination") || lower.includes("tokensused") || lower.includes("truncated")) return false;
+  return true;
+}
 async function main(){
   const status=document.getElementById("status");
   try{
@@ -100,17 +106,11 @@ async function main(){
     perVer = perVer.slice(-3);
     perVer.sort((a,b)=> verCompare(a.ver,b.ver));
 
-    // Collect all metric paths across all rows
     const allPaths = new Set();
-    for(const r of rows){
-      const flat = flattenSuites(r.suites);
-      for(const k of Object.keys(flat)) allPaths.add(k);
-    }
+    for(const r of rows){ const flat = flattenSuites(r.suites); for(const k of Object.keys(flat)) allPaths.add(k); }
     const sortedPaths = [...allPaths].sort();
-    // For each version, build metric map with fallback to most recent run within that version that has the metric
     const perVerMetrics = perVer.map(({ver, arr})=>{
       const flatLatest = flattenSuites(arr[arr.length-1].suites);
-      // fallback
       const resolved = {};
       for(const p of sortedPaths){
         if(p in flatLatest) resolved[p]=flatLatest[p];
@@ -124,7 +124,18 @@ async function main(){
       return {ver, latest: arr[arr.length-1], resolved, count: arr.length};
     });
 
-    // Build main table with all metrics
+    // Compute best/worst per metric
+    const bestWorst = {};
+    for(const p of sortedPaths){
+      const vals = perVerMetrics.map(m=>m.resolved[p]).filter(v=>v!=null);
+      if(vals.length<2) continue;
+      const higherBetter = isHigherBetter(p);
+      const best = higherBetter ? Math.max(...vals) : Math.min(...vals);
+      const worst = higherBetter ? Math.min(...vals) : Math.max(...vals);
+      if(best===worst) continue;
+      bestWorst[p] = {best, worst};
+    }
+
     const shortCol = c => c.replace(".metrics.",".").replace(".latency.",".").replace("B.retrieval.","R.").replace("E.performance.","P.").replace("E.cold.","C.").replace("B.ablation.","A.").replace("D.context.","D.").replace("F.scalability.","F.").replace("C.temporal.","T.").replace("C.conflict.","Cf.").replace("C.scope.","S.").replace("A.storage.","S.").slice(0,22);
     let html="<table><thead><tr><th>version</th><th>ts</th><th>commit</th>";
     for(const c of sortedPaths) html+=`<th title="${c}">${shortCol(c)}</th>`;
@@ -134,14 +145,21 @@ async function main(){
       const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
       const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
       html+=`<tr class="${cls}"><td><b>${ver}</b></td><td>${ts}</td><td>${commit}</td>`;
-      for(const c of sortedPaths){ const v=resolved[c]; html+=`<td>${v==null?"-": (Math.abs(v)>=100? v.toFixed(1): v.toFixed(4))}</td>`; }
+      for(const c of sortedPaths){
+        const v=resolved[c];
+        let cls2="";
+        if(v!=null && bestWorst[c]){
+          if(v===bestWorst[c].best) cls2="best";
+          else if(v===bestWorst[c].worst) cls2="worst";
+        }
+        html+=`<td class="${cls2}">${v==null?"-": (Math.abs(v)>=100? v.toFixed(1): v.toFixed(4))}</td>`;
+      }
       html+=`<td>${count}</td></tr>`;
     });
     if(perVer.length===0) html="<div>No data</div>";
     else html+="</tbody></table>";
     document.getElementById("tableWrap").innerHTML = html;
 
-    // Per-suite breakdown (more readable)
     let perSuiteHtml="";
     const suites = [...new Set(sortedPaths.map(p=>p.split(".")[0]))].sort();
     for(const s of suites){
@@ -155,7 +173,12 @@ async function main(){
         perSuiteHtml+="<tr><td>"+short+"</td>";
         for(const {resolved} of perVerMetrics){
           const v=resolved[c];
-          perSuiteHtml+=`<td>${v==null?"-": v.toFixed(4)}</td>`;
+          let cls2="";
+          if(v!=null && bestWorst[c]){
+            if(v===bestWorst[c].best) cls2="best";
+            else if(v===bestWorst[c].worst) cls2="worst";
+          }
+          perSuiteHtml+=`<td class="${cls2}">${v==null?"-": v.toFixed(4)}</td>`;
         }
         perSuiteHtml+="</tr>";
       }
@@ -163,7 +186,6 @@ async function main(){
     }
     document.getElementById("perSuite").innerHTML = perSuiteHtml;
 
-    // Charts
     const labels = perVerMetrics.map(p=>p.ver);
     function get(p, path){ return p.resolved[path] ?? null; }
     new Chart(document.getElementById("chartRecall"),{
@@ -185,7 +207,7 @@ async function main(){
       options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
     });
 
-    status.textContent = `Showing ${perVer.length} latest versions: ${perVer.map(p=>p.ver).join(", ")} (from ${byVer.size} versions, ${rows.length} runs) — ${sortedPaths.length} metrics`;
+    status.textContent = `Showing ${perVer.length} latest versions: ${perVer.map(p=>p.ver).join(", ")} (from ${byVer.size} versions, ${rows.length} runs) — ${sortedPaths.length} metrics — green best / red worst`;
   }catch(e){
     status.textContent="error: "+e.message;
     document.getElementById("tableWrap").innerHTML=`<pre style="white-space:pre-wrap;color:#ff8b8b">${e.stack||e.message}</pre>`;
