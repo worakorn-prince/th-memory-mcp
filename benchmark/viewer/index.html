@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="th">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>th-memory-mcp Benchmark Viewer</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:24px;background:#0f1115;color:#e6e8eb}
+  h1{font-size:22px;margin:0 0 8px}
+  .sub{color:#9aa3b2;font-size:13px;margin-bottom:16px}
+  .card{background:#161a22;border:1px solid #222a38;border-radius:12px;padding:16px;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;border-bottom:1px solid #222a38;text-align:left}
+  th{color:#9aa3b2;font-weight:600;background:#0f1115;position:sticky;top:0}
+  tr.hl1{background:#1a2a1a}
+  tr.hl2{background:#1a2333}
+  tr.hl3{background:#2a1a1a}
+  .badge{font-size:11px;padding:2px 6px;border-radius:999px;background:#222a38;color:#9aa3b2}
+  canvas{background:#0f1115;border-radius:8px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  a{color:#6ea8fe}
+</style>
+<h1>Benchmark Viewer — th-memory-mcp</h1>
+<div class="sub">เปรียบเทียบแบบตาราง ไฮไลต์ 3 ครั้งล่าสุดต่อ version + กราฟ — โหลดจาก <code>benchmark/results/history.jsonl</code> และ <code>benchmark/results/versions/*/history.jsonl</code> — รัน <code>npx serve .</code> แล้วเปิดไฟล์นี้ (ห้ามเปิดแบบ file:// โดยตรงเพราะ fetch จะถูกบล็อก)</div>
+
+<div class="card">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button id="reload">Reload</button>
+    <span id="status" class="badge">loading…</span>
+    <span class="badge">Tip: npx serve . -l 3000 แล้วเปิด http://localhost:3000/benchmark/viewer/ หรือ http://localhost:3000/result/viewer.html</span>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 8px">ตารางเปรียบเทียบ — 3 ครั้งล่าสุดต่อ version (ไฮไลต์)</h3>
+  <div id="tableWrap" style="overflow:auto;max-height:520px"></div>
+</div>
+
+<div class="grid">
+  <div class="card"><h3>Recall@5 / MRR แยกตาม version</h3><canvas id="chartRecall" height="220"></canvas></div>
+  <div class="card"><h3>Latency p95 (ms) — retrieve / get_context</h3><canvas id="chartLatency" height="220"></canvas></div>
+</div>
+
+<script>
+async function fetchText(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(url+" "+r.status);
+  return r.text();
+}
+async function loadHistory(){
+  const candidates = [
+    "../results/history.jsonl",
+    "../../benchmark/results/history.jsonl",
+    "benchmark/results/history.jsonl",
+    "../benchmark/results/history.jsonl",
+    "./benchmark/results/history.jsonl"
+  ];
+  let txt=null, lastErr=null;
+  for(const u of candidates){
+    try{ txt = await fetchText(u); if(txt) return {txt, base: u}; }catch(e){ lastErr=e; }
+  }
+  throw lastErr || new Error("history.jsonl not found");
+}
+function parseHistory(txt){
+  return txt.trim().split("\n").filter(Boolean).map(l=>{
+    try{ return JSON.parse(l);}catch{ return null;}
+  }).filter(Boolean);
+}
+function getMetric(row, path){
+  // path like B.retrieval.metrics.recallAt5 or E.performance.latency.retrieve.p95
+  const parts = path.split(".");
+  let cur = row.suites;
+  for(const p of parts){
+    if(cur && typeof cur==="object" && p in cur) cur = cur[p];
+    else return null;
+  }
+  return typeof cur==="number" ? cur : null;
+}
+async function main(){
+  const status = document.getElementById("status");
+  try{
+    const {txt} = await loadHistory();
+    const rows = parseHistory(txt);
+    // group by version
+    const byVer = new Map();
+    for(const r of rows){
+      const v = r.projectVersion || r.environment?.projectVersion || "unknown";
+      if(!byVer.has(v)) byVer.set(v, []);
+      byVer.get(v).push(r);
+    }
+    // sort each version by ts and take last 3
+    const perVerLast3 = [];
+    for(const [ver, arr] of byVer){
+      arr.sort((a,b)=> new Date(a.ts||a.environment?.timestamp) - new Date(b.ts||b.environment?.timestamp));
+      const last3 = arr.slice(-3);
+      perVerLast3.push({ver, last3, all: arr});
+    }
+    perVerLast3.sort((a,b)=> a.ver.localeCompare(b.ver));
+
+    // Build table
+    const cols = [
+      "B.retrieval.metrics.recallAt5",
+      "B.retrieval.metrics.mrr",
+      "B.retrieval.metrics.ndcgAt5",
+      "E.performance.latency.retrieve.p95",
+      "E.performance.latency.getContext.p95",
+      "E.performance.latency.recall.p95",
+    ];
+    const shortCol = c => c.replace("B.retrieval.metrics.","R:").replace("E.performance.latency.","L:").replace(".p95"," p95");
+    let html = "<table><thead><tr><th>version</th><th>ts</th><th>commit</th>";
+    for(const c of cols) html+=`<th>${shortCol(c)}</th>`;
+    html+="</tr></thead><tbody>";
+    for(const {ver, last3} of perVerLast3){
+      last3.forEach((r,i)=>{
+        const cls = i===last3.length-1 ? "hl1" : i===last3.length-2 ? "hl2" : "hl3";
+        const ts = (r.ts||r.environment?.timestamp||"").slice(0,19).replace("T"," ");
+        const commit = (r.gitCommit||r.environment?.gitCommit||"").slice(0,7);
+        html+=`<tr class="${cls}"><td>${ver}</td><td>${ts}</td><td>${commit}</td>`;
+        for(const c of cols){
+          const v = getMetric(r,c);
+          html+=`<td>${v==null ? "-" : v.toFixed(4)}</td>`;
+        }
+        html+="</tr>";
+      });
+    }
+    html+="</tbody></table>";
+    if(perVerLast3.length===0) html="<div>ไม่พบข้อมูล history.jsonl</div>";
+    document.getElementById("tableWrap").innerHTML = html;
+
+    // Charts
+    // Prepare datasets per version for Recall@5 over time
+    const labels = [...new Set(rows.map(r=> (r.ts||r.environment?.timestamp||"").slice(0,19).replace("T"," ")))].sort();
+    // For simplicity, chart per version last 10 runs aggregated
+    const datasetsRecall = perVerLast3.map(({ver, all}, idx)=>{
+      const color = ["#6ea8fe","#7ee787","#ff8b8b","#d2a8ff","#ffce6e"][idx%5];
+      const map = new Map(all.map(r=>[(r.ts||r.environment?.timestamp||"").slice(0,19).replace("T"," "), getMetric(r,"B.retrieval.metrics.recallAt5")]));
+      return { label: ver, data: labels.map(l=> map.get(l) ?? null), borderColor: color, backgroundColor: color, spanGaps:true, tension:0.2 };
+    });
+    new Chart(document.getElementById("chartRecall"), {
+      type:"line",
+      data:{ labels, datasets: datasetsRecall },
+      options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2", maxRotation:45}}, y:{ticks:{color:"#9aa3b2"}, min:0, max:1}} }
+    });
+    const datasetsLat = perVerLast3.map(({ver, all}, idx)=>{
+      const color = ["#6ea8fe","#7ee787","#ff8b8b"][idx%5];
+      const map = new Map(all.map(r=>[(r.ts||r.environment?.timestamp||"").slice(0,19).replace("T"," "), getMetric(r,"E.performance.latency.retrieve.p95")]));
+      return { label: ver+" retrieve p95", data: labels.map(l=> map.get(l) ?? null), borderColor: color, spanGaps:true, tension:0.2 };
+    });
+    new Chart(document.getElementById("chartLatency"), {
+      type:"line",
+      data:{ labels, datasets: datasetsLat },
+      options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2", maxRotation:45}}, y:{ticks:{color:"#9aa3b2"}}} }
+    });
+
+    status.textContent = `loaded ${rows.length} runs, ${perVerLast3.length} versions`;
+  }catch(e){
+    status.textContent = "error: "+e.message;
+    document.getElementById("tableWrap").innerHTML = `<pre style="white-space:pre-wrap;color:#ff8b8b">${e.stack||e.message}</pre>`;
+  }
+}
+document.getElementById("reload").onclick = ()=> location.reload();
+main();
+</script>
