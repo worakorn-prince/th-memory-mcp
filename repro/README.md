@@ -1,20 +1,20 @@
 # repro — Reproducible benchmark (internal, small-N)
 
-ชุดข้อมูลและ harness สำหรับทำซ้ำผล benchmark `result/v2.2.4_benchmark_result.md` บนเครื่องตัวเอง
+Dataset and harness to reproduce the benchmark in `result/v2.2.4_benchmark_result.md` on your machine.
 
-- **ขนาด:** 180 records (30 topics × 5 relevant + 30 distractors) — `datasetVersion: 1.0`
-- **ลักษณะ:** internal, small-N, single-machine self-run — **not a third-party benchmark** ห้ามเทียบเท่ากับ LongMemEval
+- **Size:** 180 records (30 topics × 5 relevant + 30 distractors) — `datasetVersion: 1.0`
+- **Nature:** internal, small-N, single-machine self-run — **not a third-party benchmark**, do not compare as if from an external evaluator
 
-## วิธีรัน
+## How to run
 
 ```powershell
 npm run build
 node repro/run.mjs --out repro/results
 ```
 
-ตัวเลือก: `--k 10` กำหนด top-K (default 10), `--out` กำหนดโฟลเดอร์ผลลัพธ์
+Options: `--k 10` sets top-K (default 10), `--out` sets output folder
 
-## ผลลัพธ์
+## Output
 
 - `repro/results/latest.json` — raw metrics
-- พิมพ์สรุป Recall@K / Precision@K / MRR / NDCG ทาง stdout
+- Prints summary Recall@K / Precision@K / MRR / NDCG to stdout

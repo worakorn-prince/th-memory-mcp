@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="th">
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>th-memory-mcp Benchmark Viewer — 3 versions</title>
+<title>th-memory-mcp Benchmark Viewer — 3 latest versions</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:24px;background:#0f1115;color:#e6e8eb}
@@ -19,25 +19,25 @@
   @media(max-width:900px){.grid{grid-template-columns:1fr}}
   a{color:#6ea8fe}
 </style>
-<h1>Benchmark Viewer — 3 เวอร์ชันล่าสุด</h1>
-<div class="sub">จำลอง 2.2.2 / 2.2.3 / 2.2.4 — แสดงผลล่าสุดของแต่ละ version แล้วเทียบกัน (ตาราง + กราฟ) — โหลดจาก <code>benchmark/results/history.jsonl</code> — รัน <code>npx serve .</code> แล้วเปิดไฟล์นี้</div>
+<h1>Benchmark Viewer — 3 Latest Versions</h1>
+<div class="sub">Comparing 2.2.2 / 2.2.3 / 2.2.4 — latest run per version (table + charts) — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
 
 <div class="card">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <button id="reload">Reload</button>
     <span id="status" class="badge">loading…</span>
-    <span class="badge">เปิดผ่าน http://localhost:3000/benchmark/viewer/ หรือ http://localhost:3000/result/viewer.html</span>
+    <span class="badge">Open via http://localhost:3000/benchmark/viewer/ or http://localhost:3000/result/viewer.html</span>
   </div>
 </div>
 
 <div class="card">
-  <h3 style="margin:0 0 8px">ตารางเปรียบเทียบ — ผลล่าสุดของ 3 version หลังสุด (ไฮไลต์)</h3>
+  <h3 style="margin:0 0 8px">Comparison Table — Latest Run of 3 Latest Versions (highlighted)</h3>
   <div id="tableWrap" style="overflow:auto;max-height:520px"></div>
-  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">ไฮไลต์: เขียว = ล่าสุด, น้ำเงิน = รองล่าสุด, ส้ม = เก่าสุด ใน 3 version</div>
+  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Highlight: green = latest, blue = second latest, orange = oldest among the 3 versions</div>
 </div>
 
 <div class="grid">
-  <div class="card"><h3>Recall@5 / MRR / NDCG@5 — เทียบ 3 version</h3><canvas id="chartRecall" height="240"></canvas></div>
+  <div class="card"><h3>Recall@5 / MRR / NDCG@5 — Across 3 Versions</h3><canvas id="chartRecall" height="240"></canvas></div>
   <div class="card"><h3>Latency p95 (ms) — retrieve / get_context / recall</h3><canvas id="chartLatency" height="240"></canvas></div>
 </div>
 
@@ -73,12 +73,9 @@ async function main(){
       byVer.get(v).push(r);
     }
     for(const arr of byVer.values()) arr.sort((a,b)=> new Date(a.ts||a.environment?.timestamp) - new Date(b.ts||b.environment?.timestamp));
-    // Latest per version
     let perVer = [...byVer.entries()].map(([ver,arr])=>({ver, latest: arr[arr.length-1], count: arr.length}));
     perVer.sort((a,b)=> verCompare(a.ver,b.ver));
-    // Take 3 latest versions
     perVer = perVer.slice(-3);
-    // Sort by version order for display (oldest -> newest)
     perVer.sort((a,b)=> verCompare(a.ver,b.ver));
 
     const cols = [
@@ -101,11 +98,10 @@ async function main(){
       for(const c of cols){ const v=getMetric(latest,c); html+=`<td>${v==null?"-":v.toFixed(4)}</td>`; }
       html+=`<td>${count}</td></tr>`;
     });
-    if(perVer.length===0) html="<div>ไม่พบข้อมูล</div>";
+    if(perVer.length===0) html="<div>No data</div>";
     else html+="</tbody></table>";
     document.getElementById("tableWrap").innerHTML = html;
 
-    // Charts — Bar comparison across 3 versions
     const labels = perVer.map(p=>p.ver);
     const recallData = perVer.map(p=> getMetric(p.latest,"B.retrieval.metrics.recallAt5"));
     const mrrData = perVer.map(p=> getMetric(p.latest,"B.retrieval.metrics.mrr"));
@@ -132,7 +128,7 @@ async function main(){
       options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
     });
 
-    status.textContent = `แสดง ${perVer.length} version ล่าสุด: ${perVer.map(p=>p.ver).join(", ")} (จากทั้งหมด ${byVer.size} versions, ${rows.length} runs)`;
+    status.textContent = `Showing ${perVer.length} latest versions: ${perVer.map(p=>p.ver).join(", ")} (from ${byVer.size} versions, ${rows.length} runs)`;
   }catch(e){
     status.textContent="error: "+e.message;
     document.getElementById("tableWrap").innerHTML=`<pre style="white-space:pre-wrap;color:#ff8b8b">${e.stack||e.message}</pre>`;

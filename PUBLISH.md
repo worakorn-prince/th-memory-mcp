@@ -45,8 +45,8 @@ Example `opencode.json`:
 ```
 
 ## Pre-publish checklist
-- [ ] `npm test` passes (70/70)
+- [ ] `npm test` passes (25/25)
 - [ ] `npm run build` succeeds
 - [ ] LICENSE is correct (MIT, copyright `worakorn-prince`)
-- [ ] `README.md` version and install instructions are updated
-- [ ] Create a Git tag matching the version (e.g. `v1.2.0`) and a GitHub Release
+- [ ] `README.md` / `design.md` / `ARCHITECTURE_v2.md` versions are in sync (`npm run version:check`)
+- [ ] Create a Git tag matching the version (e.g. `v2.2.5`) and a GitHub Release
