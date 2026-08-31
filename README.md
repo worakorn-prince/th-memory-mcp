@@ -11,7 +11,7 @@
 [![th-memory-mcp MCP server](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/card.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp)
 
 
-**Status:** v2.2.4 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 25 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2.2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`. New in v2.2.3: scope-enforced retrieval, graph scope isolation, export/import round-trip, hardened import path (realpath), strict import validation, N+1 query elimination, cold/ablation benchmark, and `MEMORY_RETRIEVAL_MODE` switch.
+**Status:** v2.2.5 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 25 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2.2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`. New in v2.2.3: scope-enforced retrieval, graph scope isolation, export/import round-trip, hardened import path (realpath), strict import validation, N+1 query elimination, cold/ablation benchmark, and `MEMORY_RETRIEVAL_MODE` switch.
 
 ## Requirements
 
@@ -96,7 +96,7 @@ our hooks bridge; Codex and Cursor use the tools manually (no hook runtime yet).
 | 16 MCP tools | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Auto-capture (background) | ✅ plugin | ✅ [hooks](CLAUDE_CODE_HOOKS.md) | ⚠️ adapter | ❌ manual | ❌ Rules |
 | Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ `get_profile` | ❌ `get_profile` | ❌ `get_profile` |
-| Local semantic search | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) |
+| Lexical fuzzy matching | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) |
 
 - **Claude Code:** see [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md) — drop-in hooks replicate the OpenCode plugin (capture + profile injection on `UserPromptSubmit`/`PreCompact`, rule-based distill on `SessionEnd`).
 - **Qwen Code:** see [QWEN_SETUP.md](QWEN_SETUP.md) — MCP works fully; hooks use the Gemini-CLI schema so auto-capture needs a small adapter.
@@ -119,7 +119,7 @@ anywhere is readable everywhere.
   update/supersession resolution preserve both sides of ambiguous evidence
   instead of silently overwriting.
 - **Hybrid retrieval** — `get_context` blends FTS5 keyword search with a
-  dependency-free local vector embedding (RRF fusion + scoring), then assembles
+  dependency-free lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) (RRF fusion + scoring), then assembles
   a token-budgeted context with optional memory-graph expansion.
 - **Consolidation** — periodic clustering of similar memories into derived
   memories with full provenance (`derived_from` links).
@@ -140,7 +140,7 @@ anywhere is readable everywhere.
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | rule-based distill: interactions → profile sections + prune old data (env `RETENTION_DAYS` default 30) |
-| `npm test` | full suite: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark |
+| `npm test` | full suite: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark, security_regression, export_import_roundtrip |
 | `node test/capture.test.mjs` | test capture-core (filter secrets, dedupe, truncate, insert SQL) |
 | `node test/distill.test.mjs` | test distill-core (Thai tokenize, stats, profile sections, prune) |
 | `node test/lifecycle.test.mjs` | test lifecycle engine (states, decay, supersession) |
@@ -223,19 +223,39 @@ data/
 > - **internal small-N**: **180 records/30 topics** (B.retrieval: 30 topics × 5 relevant + 30 distractors = 180; full run also uses small-N storage/temporal/context subsets)
 > - **single-machine self-run**: single developer machine, single OS/Node/better-sqlite3 build — not cross-machine, not independently verified
 > - **not third-party benchmark**: self-reported, not independently verified; do not compare as if from an external evaluator
-> - Dataset and harness are in `repro/` (commitable). `benchmark/` is gitignored (full framework, see `TH_MEMORY_MCP_BENCHMARK_SPEC.md` and `benchmark/README.md`) — local only.
+> - Dataset and harness are in `repro/` (commitable) and `benchmark/` (full framework, see `TH_MEMORY_MCP_BENCHMARK_SPEC.md` and `benchmark/README.md`).
 
-Reproduce (small-N retrieval, 180 records/30 topics, single-machine self-run):
+**Two modes**
+
+| Mode | Command | Data | Suites | Use case |
+|------|---------|------|--------|----------|
+| Normal | `npm run benchmark` | 180 records / 30 topics | retrieval | quick check (<5s) |
+| Heavy | `npm run benchmark:heavy` | 600 records / 100 topics + 2k scale | all (storage/retrieval/temporal/context/performance/scalability/cold/ablation) | stress / regression |
+
+Reproduce:
 
 ```powershell
 npm run build
-node repro/run.mjs
-# options:
-node repro/run.mjs --k 10
-node repro/run.mjs --out repro/results
-# full framework if local benchmark/ exists:
-node benchmark/run.mjs --suite all --out benchmark/results
+# Normal — quick
+npm run benchmark
+npm run benchmark -- --k 10
+npm run benchmark -- --out repro/results
+
+# Heavy — full framework, more data
+npm run benchmark:heavy
+# or custom:
+node benchmark/run.mjs --suite all --topics 100 --distractors 100 --scale 2000 --out benchmark/results
 ```
+
+**Viewer — compare last 3 versions (table + charts)**
+
+```powershell
+npm run benchmark:viewer
+# or: npx serve . -l 3000
+# open http://localhost:3000/benchmark/viewer/  or  http://localhost:3000/result/viewer.html
+```
+
+The viewer loads `benchmark/results/history.jsonl`, groups by version, takes the **latest run of the 3 most recent versions** (e.g. 2.2.2 / 2.2.3 / 2.2.4) and shows a highlighted table (1 row per version) + bar charts for `Recall@5 / MRR / NDCG@5` and `Latency p95`. Results are also saved per version in `result/v*_benchmark_result.md` and `benchmark/results/versions/<ver>/`.
 
 Last internal run (v2.2.4, warm, same dataset — not third-party): Recall@5=0.92, Precision@5=0.92, MRR=1.00, NDCG@5=0.94 over 30 topics/180 records. See `result/v2.2.4_benchmark_result.md` and `repro/README.md` for details and caveats (internal small-N, single-machine self-run).
 
