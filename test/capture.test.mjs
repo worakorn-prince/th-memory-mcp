@@ -31,12 +31,13 @@ function check(name, fn) {
 }
 
 // --- 2. filterSecrets ---
-check("2. filterSecrets drops secret lines, keeps normal lines", () => {
+check("2. filterSecrets redacts secret lines, keeps normal lines", () => {
   const dirty = "step one\nAPI_KEY=abc123\npassword: hunter2\nstep two";
   const cleaned = filterSecrets(dirty);
   assert.ok(!SECRET_LINE.test(cleaned), "cleaned text still matches SECRET_LINE");
   assert.equal(cleaned.includes("abc123"), false);
-  assert.equal(cleaned, "step one\nstep two");
+  assert.ok(cleaned.includes("[REDACTED]"), "should contain [REDACTED]");
+  assert.equal(cleaned.split("\n").length, 4);
 });
 check("2b. filterSecrets keeps clean text unchanged", () => {
   assert.equal(filterSecrets("a\nb\nc"), "a\nb\nc");

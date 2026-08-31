@@ -76,13 +76,13 @@ export async function recallHandler(args: {
           const line = prefLine(Number(r.ref_id));
           if (line) {
             prefLines += line + "\n";
-            seen.add(`p:${r.ref_id}`);
+            seen.add(`p:${String(r.ref_id)}`);
           }
         } else if (r.ref_table === "lessons") {
           const line = lessonLine(Number(r.ref_id));
           if (line) {
             lessonLines += line + "\n";
-            seen.add(`l:${r.ref_id}`);
+            seen.add(`l:${String(r.ref_id)}`);
           }
         }
       }
@@ -107,7 +107,7 @@ export async function recallHandler(args: {
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
       for (const x of scored) {
-        const key = `${x.table[0]}:${x.id}`;
+        const key = `${x.table[0]}:${String(x.id)}`;
         if (seen.has(key)) continue;
         if (x.table === "preferences") {
           const line = prefLine(x.id);

@@ -12,6 +12,7 @@ export interface RetrieveOptions {
   projectId?: string | null;
   sessionId?: string | null;
   userId?: string | null;
+  resolvedUid?: number | null;
   includeArchived?: boolean;
   includeHistory?: boolean;
 }
@@ -39,7 +40,12 @@ export function retrieve(
   }
   const fused = rrfFuse(lists);
   const now = new Date();
-  const resolvedUid = opts.userId ? resolveUserId(opts.userId) : null;
+  const resolvedUid =
+    opts.resolvedUid !== undefined
+      ? opts.resolvedUid
+      : opts.userId
+        ? resolveUserId(opts.userId)
+        : null;
   const visible = (m: MemoryRecord): boolean => {
     if (m.scope === "USER") {
       if (opts.userId == null) return false;
@@ -78,7 +84,7 @@ export function retrieve(
     const scope = scopeFactorFor(mem, {
       projectId: opts.projectId,
       sessionId: opts.sessionId,
-      userId: opts.userId ? resolveUserId(opts.userId) : null,
+      userId: resolvedUid,
     });
     const fs = finalScore({
       rrf,

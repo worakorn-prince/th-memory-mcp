@@ -1,4 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
+import { copyFileSync } from "node:fs";
 import { embed, serialize } from "../lib/embed.js";
 
 type DB = BetterSqlite3.Database;
@@ -233,6 +234,18 @@ export const MIGRATIONS: Migration[] = [
 ];
 
 export function runMigrations(db: DB): void {
+  try {
+    const dbPath = (db as unknown as { name: string }).name;
+    if (dbPath && dbPath !== ":memory:") {
+      const backupPath = `${dbPath}.backup-${Date.now()}`;
+      try {
+        copyFileSync(dbPath, backupPath);
+      } catch {
+        console.error("[migrations] failed to create backup, aborting");
+        return;
+      }
+    }
+  } catch {}
   db.exec(
     `CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`
   );
