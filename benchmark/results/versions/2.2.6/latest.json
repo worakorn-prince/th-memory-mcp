@@ -2,7 +2,7 @@
   "environment": {
     "benchmarkVersion": "1.0",
     "projectVersion": "2.2.6",
-    "gitCommit": "3fc1b8e",
+    "gitCommit": "b33d850",
     "os": "Windows_NT 10.0.19045",
     "cpu": "AMD Ryzen 7 2700U with Radeon Vega Mobile Gfx  ",
     "cpuCount": 8,
@@ -10,7 +10,7 @@
     "node": "v26.1.0",
     "pnpm": "n/a",
     "betterSqlite3": "12.11.1",
-    "timestamp": "2026-08-31T17:25:09.078Z"
+    "timestamp": "2026-08-31T17:39:00.930Z"
   },
   "runMode": "warm",
   "args": {
@@ -18,8 +18,8 @@
     "warmup": 10,
     "iterations": 20,
     "k": 10,
-    "topics": 30,
-    "distractors": 30
+    "topics": 100,
+    "distractors": 100
   },
   "suites": {
     "A.storage": {
@@ -35,20 +35,20 @@
     },
     "B.retrieval": {
       "metrics": {
-        "dataset": 180,
-        "recallAt1": 0.2000000000000001,
-        "recallAt3": 0.6,
-        "recallAt5": 0.9200000000000002,
-        "recallAt10": 0.9733333333333334,
+        "dataset": 600,
+        "recallAt1": 0.19999999999999962,
+        "recallAt3": 0.596000000000001,
+        "recallAt5": 0.9059999999999998,
+        "recallAt10": 0.9679999999999999,
         "precisionAt1": 1,
-        "precisionAt3": 1,
-        "precisionAt5": 0.9200000000000002,
-        "precisionAt10": 0.4866666666666667,
+        "precisionAt3": 0.9933333333333334,
+        "precisionAt5": 0.9059999999999998,
+        "precisionAt10": 0.48399999999999993,
         "mrr": 1,
-        "ndcgAt5": 0.9445453145289904,
-        "ndcgAt10": 0.976503065217468
+        "ndcgAt5": 0.9347420913239408,
+        "ndcgAt10": 0.9713421976312925
       },
-      "notes": "Recall@K/Precision@K/MRR/NDCG over 30 topics (5 relevant + 30 distractors)"
+      "notes": "Recall@K/Precision@K/MRR/NDCG over 100 topics (5 relevant + 100 distractors)"
     },
     "C.temporal": {
       "metrics": {
@@ -145,12 +145,12 @@
       "latency": {
         "remember": {
           "min": 0,
-          "mean": 3.2,
-          "median": 1,
-          "p50": 1,
-          "p95": 3.600000000000037,
-          "p99": 43.11999999999993,
-          "max": 53,
+          "mean": 3.6,
+          "median": 0,
+          "p50": 0,
+          "p95": 4.150000000000045,
+          "p99": 52.029999999999916,
+          "max": 64,
           "n": 20
         },
         "recall": {
@@ -175,7 +175,7 @@
         },
         "retrieve": {
           "min": 0,
-          "mean": 0.4,
+          "mean": 0.35,
           "median": 0,
           "p50": 0,
           "p95": 1,
@@ -185,7 +185,7 @@
         },
         "createMemory": {
           "min": 0,
-          "mean": 0.85,
+          "mean": 0.7,
           "median": 1,
           "p50": 1,
           "p95": 1,
@@ -195,27 +195,27 @@
         },
         "updateMemory": {
           "min": 1,
-          "mean": 4.95,
+          "mean": 4.7,
           "median": 2,
           "p50": 2,
-          "p95": 8.400000000000034,
-          "p99": 44.87999999999994,
+          "p95": 5.550000000000036,
+          "p99": 44.30999999999993,
           "max": 54,
           "n": 20
         },
         "mergeMemory": {
-          "min": 1,
-          "mean": 6.6,
-          "median": 3,
-          "p50": 3,
-          "p95": 43.05,
-          "p99": 43.81,
-          "max": 44,
+          "min": 2,
+          "mean": 5.7,
+          "median": 2.5,
+          "p50": 2.5,
+          "p95": 7.100000000000044,
+          "p99": 54.21999999999992,
+          "max": 66,
           "n": 20
         },
         "linkMemory": {
           "min": 1,
-          "mean": 4.45,
+          "mean": 4.05,
           "median": 2,
           "p50": 2,
           "p95": 5.250000000000032,
@@ -225,12 +225,12 @@
         },
         "forget": {
           "min": 0,
-          "mean": 0.85,
+          "mean": 3.5,
           "median": 1,
           "p50": 1,
-          "p95": 1.0500000000000007,
-          "p99": 1.8099999999999987,
-          "max": 2,
+          "p95": 10.600000000000023,
+          "p99": 34.91999999999996,
+          "max": 41,
           "n": 20
         }
       },
@@ -238,14 +238,14 @@
     },
     "F.scalability": {
       "metrics": {
-        "memoriesInserted": 500,
-        "memoriesPerSec": 549.4505494505495,
-        "dbSizeMB": 6.261474609375,
-        "mbPer1kMemories": 12.52294921875,
-        "peakRssMB": 74.86328125,
-        "rssGrowthMB": 0,
-        "cpuUserMs": 250,
-        "cpuSysMs": 250
+        "memoriesInserted": 2000,
+        "memoriesPerSec": 434.59365493263795,
+        "dbSizeMB": 12.780982971191406,
+        "mbPer1kMemories": 6.390491485595703,
+        "peakRssMB": 103.30078125,
+        "rssGrowthMB": 2.9375,
+        "cpuUserMs": 1454,
+        "cpuSysMs": 1188
       },
       "notes": "throughput + DB size + CPU/RAM (§13,§14,§15). cold-state not yet implemented (needs subprocess)."
     },
@@ -257,7 +257,47 @@
       "latency": {
         "remember": {
           "min": 0,
-          "mean": 1.05,
+          "mean": 1.15,
+          "median": 1,
+          "p50": 1,
+          "p95": 2,
+          "p99": 2,
+          "max": 2,
+          "n": 20
+        },
+        "recall": {
+          "min": 4,
+          "mean": 4.85,
+          "median": 5,
+          "p50": 5,
+          "p95": 6,
+          "p99": 6,
+          "max": 6,
+          "n": 20
+        },
+        "getContext": {
+          "min": 9,
+          "mean": 10.85,
+          "median": 10.5,
+          "p50": 10.5,
+          "p95": 14,
+          "p99": 14,
+          "max": 14,
+          "n": 20
+        },
+        "retrieve": {
+          "min": 6,
+          "mean": 8.05,
+          "median": 8,
+          "p50": 8,
+          "p95": 10.05,
+          "p99": 10.809999999999999,
+          "max": 11,
+          "n": 20
+        },
+        "createMemory": {
+          "min": 0,
+          "mean": 1,
           "median": 1,
           "p50": 1,
           "p95": 2.0500000000000007,
@@ -265,84 +305,44 @@
           "max": 3,
           "n": 20
         },
-        "recall": {
-          "min": 3,
-          "mean": 5.05,
-          "median": 5,
-          "p50": 5,
-          "p95": 6.100000000000001,
-          "p99": 7.619999999999997,
-          "max": 8,
-          "n": 20
-        },
-        "getContext": {
-          "min": 8,
-          "mean": 10.15,
-          "median": 10,
-          "p50": 10,
-          "p95": 13,
-          "p99": 13,
-          "max": 13,
-          "n": 20
-        },
-        "retrieve": {
-          "min": 6,
-          "mean": 8.55,
-          "median": 8,
-          "p50": 8,
-          "p95": 12.150000000000002,
-          "p99": 14.429999999999996,
-          "max": 15,
-          "n": 20
-        },
-        "createMemory": {
-          "min": 0,
-          "mean": 0.8,
-          "median": 1,
-          "p50": 1,
-          "p95": 1,
-          "p99": 1,
-          "max": 1,
-          "n": 20
-        },
         "updateMemory": {
-          "min": 2,
-          "mean": 3.4,
+          "min": 3,
+          "mean": 3.45,
           "median": 3,
           "p50": 3,
-          "p95": 5.050000000000001,
-          "p99": 5.809999999999999,
-          "max": 6,
+          "p95": 5,
+          "p99": 5,
+          "max": 5,
           "n": 20
         },
         "mergeMemory": {
           "min": 2,
-          "mean": 3.7,
-          "median": 3.5,
-          "p50": 3.5,
-          "p95": 6.050000000000001,
-          "p99": 6.809999999999999,
-          "max": 7,
+          "mean": 4,
+          "median": 4,
+          "p50": 4,
+          "p95": 6,
+          "p99": 6,
+          "max": 6,
           "n": 20
         },
         "linkMemory": {
           "min": 1,
-          "mean": 2.5,
-          "median": 2,
-          "p50": 2,
-          "p95": 4.050000000000001,
-          "p99": 4.809999999999999,
-          "max": 5,
+          "mean": 2.6,
+          "median": 2.5,
+          "p50": 2.5,
+          "p95": 4,
+          "p99": 4,
+          "max": 4,
           "n": 20
         },
         "forget": {
-          "min": 2,
-          "mean": 2.35,
+          "min": 1,
+          "mean": 2.25,
           "median": 2,
           "p50": 2,
-          "p95": 3.0500000000000007,
-          "p99": 3.8099999999999987,
-          "max": 4,
+          "p95": 3,
+          "p99": 3,
+          "max": 3,
           "n": 20
         }
       },
@@ -351,8 +351,8 @@
     "B.ablation": {
       "metrics": {
         "fts_only": {
-          "recallAt1": 0.2000000000000001,
-          "recallAt3": 0.6,
+          "recallAt1": 0.19999999999999962,
+          "recallAt3": 0.600000000000001,
           "recallAt5": 1,
           "recallAt10": 1,
           "mrr": 1,
@@ -360,43 +360,43 @@
           "ndcgAt10": 1
         },
         "vec_only": {
-          "recallAt1": 0.2000000000000001,
-          "recallAt3": 0.4866666666666666,
-          "recallAt5": 0.6933333333333331,
-          "recallAt10": 0.8599999999999999,
-          "mrr": 1,
-          "ndcgAt5": 0.7666809866055148,
-          "ndcgAt10": 0.8585679301211616
+          "recallAt1": 0.19199999999999964,
+          "recallAt3": 0.4519999999999999,
+          "recallAt5": 0.6259999999999996,
+          "recallAt10": 0.81,
+          "mrr": 0.9783333333333333,
+          "ndcgAt5": 0.7077403261537593,
+          "ndcgAt10": 0.8099593250776145
         },
         "fts_vec_sumrank": {
-          "recallAt1": 0.2000000000000001,
-          "recallAt3": 0.5933333333333333,
-          "recallAt5": 0.9533333333333334,
-          "recallAt10": 0.98,
+          "recallAt1": 0.19999999999999962,
+          "recallAt3": 0.5780000000000007,
+          "recallAt5": 0.9359999999999999,
+          "recallAt10": 0.9599999999999999,
           "mrr": 1,
-          "ndcgAt5": 0.9666199871766016,
-          "ndcgAt10": 0.9824695641718134
+          "ndcgAt5": 0.9526040606459302,
+          "ndcgAt10": 0.9662430768440023
         },
         "fts_vec_rrf": {
-          "recallAt1": 0.2000000000000001,
-          "recallAt3": 0.5933333333333333,
-          "recallAt5": 0.9466666666666668,
-          "recallAt10": 0.9866666666666667,
+          "recallAt1": 0.19999999999999962,
+          "recallAt3": 0.5800000000000007,
+          "recallAt5": 0.9339999999999999,
+          "recallAt10": 0.9619999999999999,
           "mrr": 1,
-          "ndcgAt5": 0.9622464845928569,
-          "ndcgAt10": 0.9856895427569606
+          "ndcgAt5": 0.9515271273987479,
+          "ndcgAt10": 0.9677814681825185
         },
         "fts_vec_rrf_graph": {
-          "recallAt1": 0.2000000000000001,
-          "recallAt3": 0.5933333333333333,
-          "recallAt5": 0.9466666666666668,
-          "recallAt10": 0.9866666666666667,
+          "recallAt1": 0.19999999999999962,
+          "recallAt3": 0.5800000000000007,
+          "recallAt5": 0.9339999999999999,
+          "recallAt10": 0.9619999999999999,
           "mrr": 1,
-          "ndcgAt5": 0.9622464845928569,
-          "ndcgAt10": 0.9856895427569606
+          "ndcgAt5": 0.9515271273987479,
+          "ndcgAt10": 0.9677814681825185
         }
       },
-      "notes": "retrieval ablation (§6): FTS / Vector / FTS+Vector / FTS+Vector+RRF / +Graph over 30 topics; +Graph equals RRF (dataset has no links)"
+      "notes": "retrieval ablation (§6): FTS / Vector / FTS+Vector / FTS+Vector+RRF / +Graph over 100 topics; +Graph equals RRF (dataset has no links)"
     }
   }
 }

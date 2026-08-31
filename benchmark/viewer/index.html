@@ -10,9 +10,12 @@
   h1{font-size:22px;margin:0 0 8px}
   .sub{color:#9aa3b2;font-size:13px;margin-bottom:16px}
   .card{background:#161a22;border:1px solid #222a38;border-radius:12px;padding:16px;margin-bottom:16px}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th,td{padding:6px 8px;border-bottom:1px solid #222a38;text-align:left;white-space:nowrap}
+  table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+  th,td{padding:6px 8px;border-bottom:1px solid #222a38;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   th{color:#9aa3b2;font-weight:600;background:#0f1115;position:sticky;top:0}
+  td:first-child,th:first-child{text-align:left;min-width:90px}
+  th:nth-child(2),td:nth-child(2){min-width:140px}
+  th:nth-child(3),td:nth-child(3){min-width:70px}
   tr.hl1{background:#1a2a1a} tr.hl2{background:#1a2333} tr.hl3{background:#2a2520}
   td.best{background:#0f3d0f !important;color:#b6f7b6;font-weight:700}
   td.worst{background:#4d1a1a !important;color:#ffb3b3;font-weight:700}
