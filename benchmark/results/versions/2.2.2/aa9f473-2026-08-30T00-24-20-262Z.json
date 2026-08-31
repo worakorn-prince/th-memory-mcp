@@ -1,0 +1,37 @@
+{
+  "environment": {
+    "benchmarkVersion": "1.0",
+    "projectVersion": "2.2.2",
+    "gitCommit": "aa9f473",
+    "os": "Windows_NT 10.0.19045",
+    "cpu": "AMD Ryzen 7 2700U with Radeon Vega Mobile Gfx  ",
+    "cpuCount": 8,
+    "ramMB": 15261,
+    "node": "v26.1.0",
+    "pnpm": "n/a",
+    "betterSqlite3": "12.11.1",
+    "timestamp": "2026-08-30T00:24:20.262Z"
+  },
+  "runMode": "warm",
+  "args": {
+    "suite": "storage",
+    "warmup": 20,
+    "iterations": 100,
+    "k": 10,
+    "topics": 120,
+    "distractors": 100
+  },
+  "suites": {
+    "A.storage": {
+      "metrics": {
+        "preferenceInsertSuccess": 1,
+        "preferenceRoundTrip": 1,
+        "lessonInsertSuccess": 1,
+        "lessonRoundTrip": 1,
+        "forgetCorrectness": 1,
+        "storageCorrectness": 1
+      },
+      "notes": "inserted 60 prefs + 40 lessons into a fresh temp DB"
+    }
+  }
+}

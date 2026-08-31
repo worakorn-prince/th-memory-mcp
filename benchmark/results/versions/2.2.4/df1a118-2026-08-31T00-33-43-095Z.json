@@ -1,0 +1,43 @@
+{
+  "environment": {
+    "benchmarkVersion": "1.0",
+    "projectVersion": "2.2.4",
+    "gitCommit": "df1a118",
+    "os": "Windows_NT 10.0.19045",
+    "cpu": "AMD Ryzen 7 2700U with Radeon Vega Mobile Gfx  ",
+    "cpuCount": 8,
+    "ramMB": 15261,
+    "node": "v26.1.0",
+    "pnpm": "n/a",
+    "betterSqlite3": "12.11.1",
+    "timestamp": "2026-08-31T00:33:43.095Z"
+  },
+  "runMode": "warm",
+  "args": {
+    "suite": "retrieval",
+    "warmup": 20,
+    "iterations": 100,
+    "k": 10,
+    "topics": 5,
+    "distractors": 5
+  },
+  "suites": {
+    "B.retrieval": {
+      "metrics": {
+        "dataset": 30,
+        "recallAt1": 0.2,
+        "recallAt3": 0.6,
+        "recallAt5": 0.8799999999999999,
+        "recallAt10": 1,
+        "precisionAt1": 1,
+        "precisionAt3": 1,
+        "precisionAt5": 0.8799999999999999,
+        "precisionAt10": 0.5,
+        "mrr": 1,
+        "ndcgAt5": 0.9123589900943762,
+        "ndcgAt10": 0.9848457717140728
+      },
+      "notes": "Recall@K/Precision@K/MRR/NDCG over 5 topics (5 relevant + 5 distractors)"
+    }
+  }
+}

@@ -1,0 +1,362 @@
+{
+  "environment": {
+    "benchmarkVersion": "1.0",
+    "projectVersion": "2.2.2",
+    "gitCommit": "aa9f473",
+    "os": "Windows_NT 10.0.19045",
+    "cpu": "AMD Ryzen 7 2700U with Radeon Vega Mobile Gfx  ",
+    "cpuCount": 8,
+    "ramMB": 15261,
+    "node": "v26.1.0",
+    "pnpm": "n/a",
+    "betterSqlite3": "12.11.1",
+    "timestamp": "2026-08-30T22:11:41.741Z"
+  },
+  "runMode": "warm",
+  "args": {
+    "suite": "all",
+    "warmup": 20,
+    "iterations": 100,
+    "k": 10,
+    "topics": 120,
+    "distractors": 100
+  },
+  "suites": {
+    "A.storage": {
+      "metrics": {
+        "preferenceInsertSuccess": 1,
+        "preferenceRoundTrip": 1,
+        "lessonInsertSuccess": 1,
+        "lessonRoundTrip": 1,
+        "forgetCorrectness": 1,
+        "storageCorrectness": 1
+      },
+      "notes": "inserted 60 prefs + 40 lessons into a fresh temp DB"
+    },
+    "B.retrieval": {
+      "metrics": {
+        "dataset": 700,
+        "recallAt1": 0.19999999999999957,
+        "recallAt3": 0.596666666666667,
+        "recallAt5": 0.9149999999999996,
+        "recallAt10": 0.9699999999999999,
+        "precisionAt1": 1,
+        "precisionAt3": 0.9944444444444446,
+        "precisionAt5": 0.9149999999999996,
+        "precisionAt10": 0.48499999999999993,
+        "mrr": 1,
+        "ndcgAt5": 0.9411210462501195,
+        "ndcgAt10": 0.9736346565512375
+      },
+      "notes": "Recall@K/Precision@K/MRR/NDCG over 120 topics (5 relevant + 100 distractors)"
+    },
+    "C.temporal": {
+      "metrics": {
+        "currentStateAccuracy": 1,
+        "historicalStateAccuracy": 1,
+        "supersessionAccuracy": 0
+      },
+      "notes": "20 temporal cases via get_context (current/historical/supersession) §7"
+    },
+    "C.conflict": {
+      "metrics": {
+        "conflictResolutionAccuracy": 1,
+        "falseConflictScopeAccuracy": 0,
+        "crossScopeContaminationRate": 0
+      },
+      "notes": "true conflict (20) + false conflict by scope (20) via get_context §8"
+    },
+    "C.scope": {
+      "metrics": {
+        "scopeSelectionAccuracy": 1,
+        "crossScopeContaminationRate": 1
+      },
+      "notes": "4 scopes (USER/SESSION/PROJECT/GLOBAL) + 40 distractors via get_context §9"
+    },
+    "D.context": {
+      "metrics": {
+        "budget_256": {
+          "criticalCoverage": 0.75,
+          "relevantTokenRatio": 1,
+          "noiseRatio": 0,
+          "contextRelevance": 1,
+          "infoDensity": 38.46153846153846,
+          "tokensUsed": 234,
+          "truncated": true,
+          "accuracyPerToken": 0.003205128205128205
+        },
+        "budget_512": {
+          "criticalCoverage": 1,
+          "relevantTokenRatio": 1,
+          "noiseRatio": 0,
+          "contextRelevance": 1,
+          "infoDensity": 38.095238095238095,
+          "tokensUsed": 315,
+          "truncated": false,
+          "accuracyPerToken": 0.0031746031746031746
+        },
+        "budget_1024": {
+          "criticalCoverage": 1,
+          "relevantTokenRatio": 1,
+          "noiseRatio": 0,
+          "contextRelevance": 1,
+          "infoDensity": 38.095238095238095,
+          "tokensUsed": 315,
+          "truncated": false,
+          "accuracyPerToken": 0.0031746031746031746
+        },
+        "budget_2048": {
+          "criticalCoverage": 1,
+          "relevantTokenRatio": 1,
+          "noiseRatio": 0,
+          "contextRelevance": 1,
+          "infoDensity": 38.095238095238095,
+          "tokensUsed": 315,
+          "truncated": false,
+          "accuracyPerToken": 0.0031746031746031746
+        },
+        "budget_4096": {
+          "criticalCoverage": 1,
+          "relevantTokenRatio": 1,
+          "noiseRatio": 0,
+          "contextRelevance": 1,
+          "infoDensity": 38.095238095238095,
+          "tokensUsed": 315,
+          "truncated": false,
+          "accuracyPerToken": 0.0031746031746031746
+        },
+        "budget_8192": {
+          "criticalCoverage": 1,
+          "relevantTokenRatio": 1,
+          "noiseRatio": 0,
+          "contextRelevance": 1,
+          "infoDensity": 38.095238095238095,
+          "tokensUsed": 315,
+          "truncated": false,
+          "accuracyPerToken": 0.0031746031746031746
+        }
+      },
+      "notes": "token-budget sweep (§11,§16,§17): 12 critical + 60 irrelevant memories"
+    },
+    "E.performance": {
+      "metrics": {
+        "operations": 9
+      },
+      "latency": {
+        "remember": {
+          "min": 0,
+          "mean": 0.94,
+          "median": 0,
+          "p50": 0,
+          "p95": 1,
+          "p99": 1.4500000000002302,
+          "max": 46,
+          "n": 100
+        },
+        "recall": {
+          "min": 0,
+          "mean": 1.19,
+          "median": 1,
+          "p50": 1,
+          "p95": 2,
+          "p99": 2.0300000000000153,
+          "max": 5,
+          "n": 100
+        },
+        "getContext": {
+          "min": 0,
+          "mean": 0.71,
+          "median": 1,
+          "p50": 1,
+          "p95": 1,
+          "p99": 2.010000000000005,
+          "max": 3,
+          "n": 100
+        },
+        "retrieve": {
+          "min": 0,
+          "mean": 0.25,
+          "median": 0,
+          "p50": 0,
+          "p95": 1,
+          "p99": 1,
+          "max": 1,
+          "n": 100
+        },
+        "createMemory": {
+          "min": 0,
+          "mean": 1.63,
+          "median": 1,
+          "p50": 1,
+          "p95": 1,
+          "p99": 46.070000000000036,
+          "max": 53,
+          "n": 100
+        },
+        "updateMemory": {
+          "min": 1,
+          "mean": 4.9,
+          "median": 2,
+          "p50": 2,
+          "p95": 43.05,
+          "p99": 51.06000000000003,
+          "max": 57,
+          "n": 100
+        },
+        "mergeMemory": {
+          "min": 2,
+          "mean": 5.62,
+          "median": 3,
+          "p50": 3,
+          "p95": 43.14999999999999,
+          "p99": 55.030000000000015,
+          "max": 58,
+          "n": 100
+        },
+        "linkMemory": {
+          "min": 1,
+          "mean": 4.55,
+          "median": 2,
+          "p50": 2,
+          "p95": 4.749999999999957,
+          "p99": 55.10000000000005,
+          "max": 65,
+          "n": 100
+        },
+        "forget": {
+          "min": 1,
+          "mean": 2.64,
+          "median": 1,
+          "p50": 1,
+          "p95": 2,
+          "p99": 41,
+          "max": 41,
+          "n": 100
+        }
+      },
+      "notes": "warmup=20 iterations=100 (warm only; cold not yet implemented)"
+    },
+    "F.scalability": {
+      "metrics": {
+        "memoriesInserted": 1000,
+        "memoriesPerSec": 514.9330587023687,
+        "dbSizeMB": 8.718528747558594,
+        "mbPer1kMemories": 8.718528747558594,
+        "peakRssMB": 92.89453125,
+        "rssGrowthMB": 7.07421875,
+        "cpuUserMs": 421,
+        "cpuSysMs": 437
+      },
+      "notes": "throughput + DB size + CPU/RAM (§13,§14,§15). cold-state not yet implemented (needs subprocess)."
+    },
+    "E.cold": {
+      "metrics": {
+        "operations": 5,
+        "samples": 100
+      },
+      "latency": {
+        "remember": {
+          "min": 0,
+          "mean": 0.92,
+          "median": 1,
+          "p50": 1,
+          "p95": 1.0499999999999972,
+          "p99": 3,
+          "max": 3,
+          "n": 100
+        },
+        "recall": {
+          "min": 3,
+          "mean": 3.9,
+          "median": 4,
+          "p50": 4,
+          "p95": 5,
+          "p99": 5.010000000000005,
+          "max": 6,
+          "n": 100
+        },
+        "getContext": {
+          "min": 8,
+          "mean": 10.91,
+          "median": 11,
+          "p50": 11,
+          "p95": 14,
+          "p99": 15.010000000000005,
+          "max": 16,
+          "n": 100
+        },
+        "retrieve": {
+          "min": 7,
+          "mean": 9.26,
+          "median": 9,
+          "p50": 9,
+          "p95": 12,
+          "p99": 13.010000000000005,
+          "max": 14,
+          "n": 100
+        },
+        "createMemory": {
+          "min": 0,
+          "mean": 0.71,
+          "median": 1,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1.0100000000000051,
+          "max": 2,
+          "n": 100
+        }
+      },
+      "notes": "cold = fresh process + fresh DB per call; reports min/mean/p95/max over 100 spawns (§12.2)"
+    },
+    "B.ablation": {
+      "metrics": {
+        "fts_only": {
+          "recallAt1": 0.19999999999999957,
+          "recallAt3": 0.6000000000000002,
+          "recallAt5": 1,
+          "recallAt10": 1,
+          "mrr": 1,
+          "ndcgAt5": 1,
+          "ndcgAt10": 1
+        },
+        "vec_only": {
+          "recallAt1": 0.1933333333333329,
+          "recallAt3": 0.4633333333333333,
+          "recallAt5": 0.641666666666666,
+          "recallAt10": 0.8166666666666664,
+          "mrr": 0.9819444444444444,
+          "ndcgAt5": 0.7217910914672524,
+          "ndcgAt10": 0.8192986819934448
+        },
+        "fts_vec_sumrank": {
+          "recallAt1": 0.19999999999999957,
+          "recallAt3": 0.581666666666667,
+          "recallAt5": 0.9433333333333332,
+          "recallAt10": 0.9649999999999999,
+          "mrr": 1,
+          "ndcgAt5": 0.9581927719769829,
+          "ndcgAt10": 0.9706496994868903
+        },
+        "fts_vec_rrf": {
+          "recallAt1": 0.19999999999999957,
+          "recallAt3": 0.5833333333333336,
+          "recallAt5": 0.9416666666666665,
+          "recallAt10": 0.9649999999999999,
+          "mrr": 1,
+          "ndcgAt5": 0.9572953276043311,
+          "ndcgAt10": 0.9710808806429629
+        },
+        "fts_vec_rrf_graph": {
+          "recallAt1": 0.19999999999999957,
+          "recallAt3": 0.5833333333333336,
+          "recallAt5": 0.9416666666666665,
+          "recallAt10": 0.9649999999999999,
+          "mrr": 1,
+          "ndcgAt5": 0.9572953276043311,
+          "ndcgAt10": 0.9710808806429629
+        }
+      },
+      "notes": "retrieval ablation (§6): FTS / Vector / FTS+Vector / FTS+Vector+RRF / +Graph over 120 topics; +Graph equals RRF (dataset has no links)"
+    }
+  }
+}

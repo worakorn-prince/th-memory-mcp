@@ -43,11 +43,26 @@ const NEGATION = [
 // Opposite-value lexicon for ambiguous preference conflicts (preserve, don't
 // silently supersede). A pair is contradictory when each side names a different
 // antonym from this set.
-const ANTONYMS = new Set([
+export const ANTONYMS = new Set<string>([
   "tabs", "spaces", "vim", "emacs", "light", "dark",
   "mysql", "postgres", "windows", "mac", "linux",
   "react", "vue", "ios", "android",
+  "ชา", "กาแฟ", "แมว", "สุนัข", "กลางคืน", "กลางวัน", "ร้อน", "เย็น", "หวาน", "เค็ม",
+  "เปิด", "ปิด", "ซ้าย", "ขวา", "บน", "ล่าง", "ก่อน", "หลัง", "ไทย", "อังกฤษ",
 ]);
+
+function parseAntonymsExtra(raw: string): string[] {
+  return raw.split(/[\s,;\n|:\/]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+if (process.env.MEMORY_ANTONYMS_EXTRA) {
+  for (const w of parseAntonymsExtra(process.env.MEMORY_ANTONYMS_EXTRA)) ANTONYMS.add(w);
+}
+export function addAntonyms(...words: (string | string[])[]): void {
+  for (const w of words.flat()) {
+    for (const t of parseAntonymsExtra(String(w))) ANTONYMS.add(t);
+  }
+}
+export function getAntonyms(): string[] { return [...ANTONYMS]; }
 
 export function isContradiction(a: string, b: string): boolean {
   const na = NEGATION.some((re) => re.test(a));
@@ -64,13 +79,26 @@ export function isContradiction(a: string, b: string): boolean {
 // (e.g. "Prefer tabs" vs "Prefer spaces"). Used to preserve ambiguous
 // conflicts as contradictions instead of destructively superseding them.
 export function hasAntonymPair(a: string, b: string): boolean {
+  const lowerA = a.toLowerCase();
+  const lowerB = b.toLowerCase();
   const ta = tokenSet(a);
   const tb = tokenSet(b);
   let aAnt: string | undefined;
   let bAnt: string | undefined;
-  for (const t of ta) if (ANTONYMS.has(t)) aAnt = t;
-  for (const t of tb) if (ANTONYMS.has(t)) bAnt = t;
-  return !!aAnt && !!bAnt && aAnt !== bAnt;
+  for (const w of ANTONYMS) {
+    if (ta.has(w) || lowerA.includes(w)) aAnt = w;
+    if (tb.has(w) || lowerB.includes(w)) bAnt = w;
+  }
+  // Find distinct pair: ensure each side has at least one and they are different
+  if (!aAnt || !bAnt) return false;
+  if (aAnt === bAnt) {
+    // Check if there are other hits that give distinct pair
+    const hitsA = [...ANTONYMS].filter((w) => ta.has(w) || lowerA.includes(w));
+    const hitsB = [...ANTONYMS].filter((w) => tb.has(w) || lowerB.includes(w));
+    for (const ha of hitsA) for (const hb of hitsB) if (ha !== hb) return true;
+    return false;
+  }
+  return true;
 }
 
 function tokenSet(s: string): Set<string> {
