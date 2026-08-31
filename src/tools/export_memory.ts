@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, statSync } from "node:fs";
+import { mkdirSync, writeFileSync, statSync, statfsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { z } from "zod";
 import {
@@ -135,6 +135,11 @@ export async function exportMemoryHandler(args: {
     const json = JSON.stringify(payload, null, 2);
 
     mkdirSync(EXPORT_DIR, { recursive: true });
+    try {
+      const stats = statfsSync(EXPORT_DIR);
+      if (json.length > stats.bavail * stats.bsize * 0.9)
+        return err("insufficient disk space for export");
+    } catch {}
     const filePath = join(EXPORT_DIR, filename);
     writeFileSync(filePath, json, "utf8");
     const size = statSync(filePath).size;

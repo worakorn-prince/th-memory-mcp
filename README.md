@@ -4,6 +4,8 @@
 [![npm downloads](https://img.shields.io/npm/dm/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
+[![CI](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/ci.yml)
+[![Version Sync](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/version-sync.yml/badge.svg)](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/version-sync.yml)
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/worakorn-prince/th-memory-mcp)
 
 [![th-memory-mcp MCP server](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/card.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp)
@@ -236,6 +238,10 @@ node benchmark/run.mjs --suite all --out benchmark/results
 ```
 
 Last internal run (v2.2.4, warm, same dataset — not third-party): Recall@5=0.92, Precision@5=0.92, MRR=1.00, NDCG@5=0.94 over 30 topics/180 records. See `result/v2.2.4_benchmark_result.md` and `repro/README.md` for details and caveats (internal small-N, single-machine self-run).
+
+## Known Limitations
+
+- **No encryption at rest (plaintext-at-rest)** — `data/memory.db` (WAL mode, `better-sqlite3`) is a plain, unencrypted SQLite file. `100% local & private` means no cloud or network exfiltration — it does **not** mean encrypted at rest. Anyone with filesystem access (shared machine, backup, malware, stolen device) can read preferences/lessons/interactions in plaintext. For sensitive data, use OS-level full-disk encryption (BitLocker / FileVault / LUKS) or an opt-in SQLCipher build (requires native rebuild and key management). No SQLCipher/in-code encryption is applied by default and `src/db/index.ts` documents this explicitly.
 
 ## License
 

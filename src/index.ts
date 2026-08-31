@@ -207,7 +207,22 @@ server.registerTool(
   (args) => extractMemoriesHandler(args)
 );
 
+function isSupportedHarness(): boolean {
+  const env = process.env as Record<string, string | undefined>;
+  if (env.OPENCODE || env.CLAUDE_CODE_ENTRYPOINT || env.CLAUDECODE) return true;
+  const harness = (env.MCP_HARNESS ?? env.HARNESS ?? "").toLowerCase();
+  if (harness.includes("opencode") || harness.includes("claude")) return true;
+  const argv = process.argv.join(" ").toLowerCase();
+  if (argv.includes("opencode") || argv.includes("claude")) return true;
+  return false;
+}
+
 async function main(): Promise<void> {
+  if (!isSupportedHarness()) {
+    console.error(
+      "[th-memory-mcp] warning: running outside OpenCode/Claude Code — auto-capture unavailable, MCP tools still work. See README 'Works with other harnesses'."
+    );
+  }
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(`[th-memory-mcp] ready on stdio`);

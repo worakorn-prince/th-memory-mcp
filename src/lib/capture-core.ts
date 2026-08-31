@@ -1,5 +1,14 @@
 export const SECRET_LINE = /(api[_-]?key|secret|token|password)\s*[=:]/i;
 
+export const SECRET_PATTERNS = [
+  /(api[_-]?key|secret|token|password|auth|bearer|credential|private[_-]?key|access[_-]?key|database[_-]?url|connection[_-]?string)\s*[=:]\s*\S+/i,
+  /(sk-[a-zA-Z0-9]{20,})/i,
+  /(ghp_[a-zA-Z0-9]{36})/i,
+  /(glpat-[a-zA-Z0-9\-]{20,})/i,
+  /(Bearer\s+[a-zA-Z0-9\-_]+)/i,
+  /(-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)/i,
+];
+
 export const CAPTURE_KINDS = ["prompt", "tool_call", "error"] as const;
 export type CaptureKind = (typeof CAPTURE_KINDS)[number];
 
@@ -12,13 +21,19 @@ export const LIMITS: Record<CaptureKind, number> = {
 export function filterSecrets(text: string): string {
   return text
     .split("\n")
-    .filter((line) => !SECRET_LINE.test(line))
+    .map((line) => {
+      for (const p of SECRET_PATTERNS) {
+        if (p.test(line)) return line.replace(p, "[REDACTED]");
+      }
+      return line;
+    })
     .join("\n");
 }
 
 export function truncate(text: string, max: number): string {
+  if (max <= 0) return "";
   if (text.length <= max) return text;
-  return text.slice(0, max - 1) + "\u2026";
+  return text.slice(0, Math.max(0, max - 1)) + "\u2026";
 }
 
 export interface Dedupe {

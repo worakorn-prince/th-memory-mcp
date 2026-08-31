@@ -60,6 +60,13 @@ export function updateMemoryHandler(args: {
       args.content !== undefined && (args.supersede ?? true);
 
     if (supersedeContent) {
+      const externalId = mem.user_id
+        ? (
+            db
+              .prepare("SELECT external_id FROM users WHERE id = ?")
+              .get(mem.user_id) as { external_id: string } | undefined
+          )?.external_id ?? null
+        : null;
       const newId = createMemory({
         type: mem.type as MemoryType,
         content: args.content as string,
@@ -70,6 +77,7 @@ export function updateMemoryHandler(args: {
         salience: mem.salience,
         projectId: mem.project_id,
         sessionId: mem.session_id,
+        userId: externalId,
         validFrom: mem.valid_from,
         validUntil:
           args.validUntil !== undefined ? args.validUntil : mem.valid_until,

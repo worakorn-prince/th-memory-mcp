@@ -59,12 +59,14 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
   const limit = Math.min(Math.max(opts.limit ?? 10, 1), 50);
   const maxTokens = opts.maxTokens ?? 2000;
   const now = new Date();
+  const resolvedUid = opts.userId ? resolveUserId(opts.userId) : null;
 
   const seeds = retrieve(query, {
     limit,
     projectId: opts.projectId,
     sessionId: opts.sessionId,
     userId: opts.userId,
+    resolvedUid,
     includeArchived: opts.includeHistory,
   });
 
@@ -73,7 +75,6 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
 
   const ids = new Set<number>(seeds.map((s) => s.id));
   if (opts.includeGraph) {
-    const uid = opts.userId ? resolveUserId(opts.userId) : null;
     for (const s of seeds) {
       for (const n of traverse(s.id, { maxDepth: 1 })) {
         const m = db
@@ -87,14 +88,14 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
             m.status === "superseded")
         )
           continue;
-        if (!isScopeVisible(m, opts, uid)) continue;
+        if (!isScopeVisible(m, opts, resolvedUid)) continue;
         if (!opts.includeHistory && !isCurrentlyValid(m, now)) continue;
         ids.add(n.memoryId);
       }
     }
   }
 
-  const resolvedUid = opts.userId ? resolveUserId(opts.userId) : null;
+
   const all = [...ids]
     .map(
       (id) =>
