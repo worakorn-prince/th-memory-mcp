@@ -1,7 +1,7 @@
 # th-memory-mcp v2 — Architecture & Implementation Specification
 
 **Status:** ✅ Released — `th-memory-mcp v2.0.0` is published (npm + Official MCP Registry + Glama).  
-**Baseline:** v1.2.2 → **Current:** v2.0.0  
+**Baseline:** v1.2.2 → **Current:** v2.2.5  
 **Primary goal:** evolve th-memory-mcp from a structured local memory MCP into a durable, temporal, conflict-aware, hybrid-retrieval memory engine for AI agents.
 
 > **Audience guide:** End users should read [README.md](README.md) (install, tools, usage). This document is the **canonical architecture & agent-rules spec** for developers and AI coding agents — the single source of truth for structure and behavior. The former `design.md` build log has been folded into §40 Implementation Status.

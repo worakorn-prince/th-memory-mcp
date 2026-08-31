@@ -3,7 +3,7 @@
 This document is up-to-date with the actual codebase state (after completing all future feature plans except AI-assisted extraction, which was removed). The full specification is at `ARCHITECTURE_v2.md` (canonical spec); this file summarizes the overview and current status for convenience.
 
 ## Current Status
-- **Version:** `package.json` = `2.2.4`
+- **Version:** `package.json` = `2.2.5`
 - **MCP tools:** 16 tools (`remember`, `recall`, `get_context`, `link_memory`, `merge_memory`, `update_memory`, `import_memory`, `extract_memories`, `consolidate`, `forget`, `history`, `recent_interactions`, `profile`, `lesson`, `memory_stats`, `export_memory`)
 - **Test suites:** 25 suites passing (0 fail) — run via `npm test` (CI on GitHub Actions)
 
@@ -33,6 +33,7 @@ This document is up-to-date with the actual codebase state (after completing all
   - Perf (§29) — `test/benchmark.test.mjs` measures latency per operation via CI
   - Conflict quality (§27) — `test/conflict_benchmark.test.mjs` (100% on 14 cases across 7 categories)
   - E2E transport — `test/e2e_transport.test.mjs` (spawn server via StdioClientTransport)
+  - Two modes — `npm run benchmark` (normal, 180 records) and `npm run benchmark:heavy` (600 records + full suite), viewer at `benchmark/viewer/` (`npm run benchmark:viewer`, compares latest 3 versions)
 - ✅ CI pipeline — `.github/workflows/ci.yml` (ubuntu-latest, node 20, `npm ci`, `npm test`)
 
 ## Scope Model (Details)
@@ -59,3 +60,4 @@ This document is up-to-date with the actual codebase state (after completing all
 - v2.2.1 — Glama quality fix: added `pnpm.onlyBuiltDependencies: ["better-sqlite3"]` so pnpm runs the native binary download script for Node 24, bumped better-sqlite3 to `^12.9.0`, added override `ip-address@^10.2.0` (npm+pnpm) to patch XSS via MCP SDK — no code change, waiting for `npm publish` + Glama re-test
 - v2.2.3 — security + performance hardening per `report_checkup.md`: enforced scope filtering (no foreign USER/SESSION returned), graph scope isolation, disallow cross-scope links, round-trip export/import, `realpath` against symlink, strict import validation (enum/0..1/ISO), eliminated N+1 queries (vector JOIN, bulk fetch, cap consolidation), cold/ablation benchmark and `MEMORY_RETRIEVAL_MODE` switch, added 5 new tests to 25/25, benchmark runs all suites
 - v2.2.4 — docs: tidy README badge layout
+- v2.2.5 — docs: sync README/design/ARCHITECTURE/PUBLISH to project (lexical fuzzy matching, 25 suites, benchmark viewer for 3 versions, result versioning) + SECURITY.md + package files; keep v2.2.3 security hardening
