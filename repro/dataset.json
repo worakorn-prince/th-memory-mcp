@@ -1,0 +1,1237 @@
+{
+  "records": [
+    {
+      "importance": 0.8,
+      "content": "TK0 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK0 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK0 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK0 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK0 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK1 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK1 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK1 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK1 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK1 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK2 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK2 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK2 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK2 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK2 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK3 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK3 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK3 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK3 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK3 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK4 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK4 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK4 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK4 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK4 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK5 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK5 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK5 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK5 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK5 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK6 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK6 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK6 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK6 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK6 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK7 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK7 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK7 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK7 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK7 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK8 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK8 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK8 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK8 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK8 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK9 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK9 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK9 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK9 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK9 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK10 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK10 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK10 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK10 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK10 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK11 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK11 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK11 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK11 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK11 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK12 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK12 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK12 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK12 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK12 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK13 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK13 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK13 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK13 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK13 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK14 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK14 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK14 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK14 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK14 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK15 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK15 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK15 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK15 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK15 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK16 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK16 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK16 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK16 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK16 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK17 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK17 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK17 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK17 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK17 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK18 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK18 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK18 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK18 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK18 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK19 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK19 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK19 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK19 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK19 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK20 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK20 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK20 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK20 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK20 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK21 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK21 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK21 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK21 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK21 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK22 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK22 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK22 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK22 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK22 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK23 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK23 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK23 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK23 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK23 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK24 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK24 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK24 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK24 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK24 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK25 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK25 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK25 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK25 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK25 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK26 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK26 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK26 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK26 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK26 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK27 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK27 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK27 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK27 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK27 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK28 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK28 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK28 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK28 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK28 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.8,
+      "content": "TK29 recommended approach is option A with flag enabled",
+      "confidence": 0.9,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK29 recommended approach is option A with flag enabled",
+      "confidence": 0.8,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.6,
+      "content": "TK29 recommended approach is option B not A",
+      "confidence": 0.7,
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.5,
+      "content": "TK29 legacy approach was option C",
+      "confidence": 0.6,
+      "validUntil": "2020-01-01T00:00:00Z",
+      "type": "PREFERENCE"
+    },
+    {
+      "importance": 0.7,
+      "content": "TK29 note: team agreed on approach A",
+      "confidence": 0.8,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 0 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 1 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 2 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 3 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 4 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 5 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 6 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 7 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 8 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 9 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 10 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 11 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 12 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 13 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 14 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 15 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 16 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 17 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 18 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 19 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 20 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 21 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 22 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 23 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 24 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 25 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 26 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 27 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 28 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    },
+    {
+      "importance": 0.3,
+      "content": "Distractor note 29 about an unrelated subject matter",
+      "confidence": 0.4,
+      "type": "FACT"
+    }
+  ],
+  "datasetVersion": "1.0",
+  "topics": [
+    {
+      "query": "TK0 approach",
+      "token": "TK0"
+    },
+    {
+      "query": "TK1 approach",
+      "token": "TK1"
+    },
+    {
+      "query": "TK2 approach",
+      "token": "TK2"
+    },
+    {
+      "query": "TK3 approach",
+      "token": "TK3"
+    },
+    {
+      "query": "TK4 approach",
+      "token": "TK4"
+    },
+    {
+      "query": "TK5 approach",
+      "token": "TK5"
+    },
+    {
+      "query": "TK6 approach",
+      "token": "TK6"
+    },
+    {
+      "query": "TK7 approach",
+      "token": "TK7"
+    },
+    {
+      "query": "TK8 approach",
+      "token": "TK8"
+    },
+    {
+      "query": "TK9 approach",
+      "token": "TK9"
+    },
+    {
+      "query": "TK10 approach",
+      "token": "TK10"
+    },
+    {
+      "query": "TK11 approach",
+      "token": "TK11"
+    },
+    {
+      "query": "TK12 approach",
+      "token": "TK12"
+    },
+    {
+      "query": "TK13 approach",
+      "token": "TK13"
+    },
+    {
+      "query": "TK14 approach",
+      "token": "TK14"
+    },
+    {
+      "query": "TK15 approach",
+      "token": "TK15"
+    },
+    {
+      "query": "TK16 approach",
+      "token": "TK16"
+    },
+    {
+      "query": "TK17 approach",
+      "token": "TK17"
+    },
+    {
+      "query": "TK18 approach",
+      "token": "TK18"
+    },
+    {
+      "query": "TK19 approach",
+      "token": "TK19"
+    },
+    {
+      "query": "TK20 approach",
+      "token": "TK20"
+    },
+    {
+      "query": "TK21 approach",
+      "token": "TK21"
+    },
+    {
+      "query": "TK22 approach",
+      "token": "TK22"
+    },
+    {
+      "query": "TK23 approach",
+      "token": "TK23"
+    },
+    {
+      "query": "TK24 approach",
+      "token": "TK24"
+    },
+    {
+      "query": "TK25 approach",
+      "token": "TK25"
+    },
+    {
+      "query": "TK26 approach",
+      "token": "TK26"
+    },
+    {
+      "query": "TK27 approach",
+      "token": "TK27"
+    },
+    {
+      "query": "TK28 approach",
+      "token": "TK28"
+    },
+    {
+      "query": "TK29 approach",
+      "token": "TK29"
+    }
+  ]
+}

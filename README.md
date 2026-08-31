@@ -215,6 +215,28 @@ data/
 - DB path can be overridden via the `MEMORY_DB_PATH` env var
 - everything in `data/` is git-ignored
 
+## Benchmark — internal self-reported (not third-party)
+
+> **⚠️ Internal self-reported benchmark — not third-party benchmark**
+> - **internal small-N**: **180 records/30 topics** (B.retrieval: 30 topics × 5 relevant + 30 distractors = 180; full run also uses small-N storage/temporal/context subsets)
+> - **single-machine self-run**: single developer machine, single OS/Node/better-sqlite3 build — not cross-machine, not independently verified
+> - **not third-party benchmark**: self-reported, not independently verified; do not compare as if from an external evaluator
+> - Dataset and harness are in `repro/` (commitable). `benchmark/` is gitignored (full framework, see `TH_MEMORY_MCP_BENCHMARK_SPEC.md` and `benchmark/README.md`) — local only.
+
+Reproduce (small-N retrieval, 180 records/30 topics, single-machine self-run):
+
+```powershell
+npm run build
+node repro/run.mjs
+# options:
+node repro/run.mjs --k 10
+node repro/run.mjs --out repro/results
+# full framework if local benchmark/ exists:
+node benchmark/run.mjs --suite all --out benchmark/results
+```
+
+Last internal run (v2.2.4, warm, same dataset — not third-party): Recall@5=0.92, Precision@5=0.92, MRR=1.00, NDCG@5=0.94 over 30 topics/180 records. See `result/v2.2.4_benchmark_result.md` and `repro/README.md` for details and caveats (internal small-N, single-machine self-run).
+
 ## License
 
 [MIT](LICENSE) © 2026 worakorn-prince
