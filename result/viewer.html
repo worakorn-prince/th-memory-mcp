@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>th-memory-mcp Benchmark Viewer — 3 latest versions</title>
+<title>th-memory-mcp Benchmark Viewer — 3 latest versions · Normal & Heavy</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -25,35 +25,45 @@
   @media(max-width:900px){.grid{grid-template-columns:1fr}}
   a{color:#6ea8fe}
   .scroll{overflow:auto;max-height:520px}
-  button{padding:6px 12px;border-radius:8px;border:1px solid #2a3448;background:#1a2333;color:#e6e8eb;cursor:pointer}
-  button:hover{background:#222a38}
+  button,select{padding:6px 12px;border-radius:8px;border:1px solid #2a3448;background:#1a2333;color:#e6e8eb;cursor:pointer}
+  button:hover,select:hover{background:#222a38}
+  .modeTabs{display:flex;gap:8px;margin-bottom:12px}
+  .modeTabs button.active{background:#6ea8fe;color:#0f1115;border-color:#6ea8fe}
 </style>
-<h1>Benchmark Viewer — 3 Latest Versions</h1>
-<div class="sub">Comparing latest run per version — every benchmark metric with units — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
+<h1>Benchmark Viewer — 3 Latest Versions · Normal & Heavy</h1>
+<div class="sub">Comparing latest run per version for <b>Normal (180 rec/30 topics)</b> and <b>Heavy (600 rec/100 topics + 2k scale)</b> — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
 
 <div class="card">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <button id="reload">Reload</button>
-    <button id="exportCsv">Export CSV</button>
-    <button id="exportXlsx">Export Excel</button>
+    <button id="exportCsv">Export CSV (current mode)</button>
+    <button id="exportXlsx">Export Excel (current mode)</button>
     <span id="status" class="badge">loading…</span>
     <span class="badge">Open via http://localhost:3000/benchmark/viewer/ or http://localhost:3000/result/viewer.html</span>
   </div>
 </div>
 
 <div class="card">
-  <h3 style="margin:0 0 8px">Comparison — Latest Run of 3 Latest Versions — All Metrics (green best / red worst) — Units shown</h3>
+  <div class="modeTabs">
+    <button id="modeNormal" class="active">Normal (180 rec)</button>
+    <button id="modeHeavy">Heavy (600 rec)</button>
+    <button id="modeBoth">Both — side by side</button>
+  </div>
   <div id="tableWrap" class="scroll"></div>
-  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Row highlight: green = latest version, blue = second, orange = oldest. Cell highlight: <span style="background:#0f3d0f;color:#b6f7b6;padding:1px 4px;border-radius:4px">green = best</span> <span style="background:#4d1a1a;color:#ffb3b3;padding:1px 4px;border-radius:4px">red = worst</span> per metric (higher is better except latency/noise/contamination/tokens where lower is better). Units in header.</div>
+  <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Row highlight: green = latest version, blue = second, orange = oldest. Cell highlight: <span style="background:#0f3d0f;color:#b6f7b6;padding:1px 4px;border-radius:4px">green = best</span> <span style="background:#4d1a1a;color:#ffb3b3;padding:1px 4px;border-radius:4px">red = worst</span> per metric (higher is better except latency/noise/contamination where lower is better). Units in header.</div>
   <div id="perSuite" style="margin-top:16px"></div>
 </div>
 
 <div class="grid">
-  <div class="card"><h3>Recall@5 / MRR / NDCG@5 — Across 3 Versions</h3><canvas id="chartRecall" height="240"></canvas></div>
-  <div class="card"><h3>Latency p95 (ms) — retrieve / get_context / recall</h3><canvas id="chartLatency" height="240"></canvas></div>
+  <div class="card"><h3>Recall@5 / MRR / NDCG@5 — Across 3 Versions (current mode)</h3><canvas id="chartRecall" height="240"></canvas></div>
+  <div class="card"><h3>Latency p95 (ms) — retrieve / get_context / recall (current mode)</h3><canvas id="chartLatency" height="240"></canvas></div>
 </div>
 
 <script>
+let currentMode = "normal";
+let perVerMetricsByMode = {normal:[], heavy:[]};
+let sortedPathsByMode = {normal:[], heavy:[]};
+
 async function fetchText(url){ const r=await fetch(url); if(!r.ok) throw new Error(url+" "+r.status); return r.text(); }
 async function loadHistory(){
   const candidates = ["../results/history.jsonl","../../benchmark/results/history.jsonl","benchmark/results/history.jsonl","../benchmark/results/history.jsonl","./benchmark/results/history.jsonl"];
@@ -113,168 +123,236 @@ function getUnit(path){
   if(p.includes("cpu")) return "ms";
   return "";
 }
-let perVerMetricsGlobal = [];
-let sortedPathsGlobal = [];
+function detectMode(row){
+  // Infer mode from dataset size or scale
+  const flat = flattenSuites(row.suites);
+  const ds = flat["B.retrieval.metrics.dataset"];
+  if(ds!=null) return ds>=400 ? "heavy" : "normal";
+  // Fallback: heavy runs have F.scalability
+  if("F.scalability.metrics.memoriesPerSec" in flat || "F.scalability.metrics.dbSizeMB" in flat) return "heavy";
+  // Fallback by suite count: heavy has many suites
+  const keys = Object.keys(row.suites||{});
+  if(keys.includes("F.scalability") || keys.includes("E.cold")) return "heavy";
+  return "normal";
+}
 async function main(){
   const status=document.getElementById("status");
   try{
     const {txt}=await loadHistory();
     const rows=parseHistory(txt);
-    const byVer=new Map();
+    const byVerMode = new Map(); // ver -> {normal:[], heavy:[]}
     for(const r of rows){
       const v=r.projectVersion||r.environment?.projectVersion||"unknown";
-      if(!byVer.has(v)) byVer.set(v,[]);
-      byVer.get(v).push(r);
+      const mode = detectMode(r);
+      if(!byVerMode.has(v)) byVerMode.set(v, {normal:[], heavy:[]});
+      byVerMode.get(v)[mode].push(r);
     }
-    for(const arr of byVer.values()) arr.sort((a,b)=> new Date(a.ts||a.environment?.timestamp) - new Date(b.ts||b.environment?.timestamp));
-    let perVer = [...byVer.entries()].map(([ver,arr])=>({ver, arr, latest: arr[arr.length-1]}));
-    perVer.sort((a,b)=> verCompare(a.ver,b.ver));
-    perVer = perVer.slice(-3);
-    perVer.sort((a,b)=> verCompare(a.ver,b.ver));
-
-    const allPaths = new Set();
-    for(const r of rows){ const flat = flattenSuites(r.suites); for(const k of Object.keys(flat)) allPaths.add(k); }
-    const sortedPaths = [...allPaths].sort();
-    sortedPathsGlobal = sortedPaths;
-    const perVerMetrics = perVer.map(({ver, arr})=>{
-      const flatLatest = flattenSuites(arr[arr.length-1].suites);
-      const resolved = {};
-      for(const p of sortedPaths){
-        if(p in flatLatest) resolved[p]=flatLatest[p];
-        else{
-          for(let i=arr.length-2;i>=0;i--){
-            const f=flattenSuites(arr[i].suites);
-            if(p in f){ resolved[p]=f[p]; break; }
+    for(const obj of byVerMode.values()){
+      for(const k of ["normal","heavy"]) obj[k].sort((a,b)=> new Date(a.ts||a.environment?.timestamp) - new Date(b.ts||b.environment?.timestamp));
+    }
+    let versions = [...byVerMode.keys()].sort(verCompare).slice(-3);
+    // Build per-mode latest 3 versions data
+    for(const mode of ["normal","heavy"]){
+      let perVer = versions.map(ver=>{
+        const arr = byVerMode.get(ver)[mode];
+        if(arr.length===0) return null;
+        return {ver, latest: arr[arr.length-1], arr};
+      }).filter(Boolean);
+      // Collect all paths for this mode
+      const allPaths = new Set();
+      for(const r of rows.filter(r=> detectMode(r)===mode)){
+        const flat = flattenSuites(r.suites);
+        for(const k of Object.keys(flat)) allPaths.add(k);
+      }
+      const sortedPaths = [...allPaths].sort();
+      sortedPathsByMode[mode]=sortedPaths;
+      const perVerMetrics = perVer.map(({ver, arr})=>{
+        const flatLatest = flattenSuites(arr[arr.length-1].suites);
+        const resolved = {};
+        for(const p of sortedPaths){
+          if(p in flatLatest) resolved[p]=flatLatest[p];
+          else{
+            for(let i=arr.length-2;i>=0;i--){
+              const f=flattenSuites(arr[i].suites);
+              if(p in f){ resolved[p]=f[p]; break; }
+            }
           }
         }
-      }
-      return {ver, latest: arr[arr.length-1], resolved, count: arr.length};
-    });
-    perVerMetricsGlobal = perVerMetrics;
-
-    const bestWorst = {};
-    for(const p of sortedPaths){
-      const vals = perVerMetrics.map(m=>m.resolved[p]).filter(v=>v!=null);
-      if(vals.length<2) continue;
-      const higherBetter = isHigherBetter(p);
-      const best = higherBetter ? Math.max(...vals) : Math.min(...vals);
-      const worst = higherBetter ? Math.min(...vals) : Math.max(...vals);
-      if(best===worst) continue;
-      bestWorst[p] = {best, worst};
+        return {ver, latest: arr[arr.length-1], resolved, count: arr.length};
+      });
+      perVerMetricsByMode[mode]=perVerMetrics;
     }
-
-    const shortCol = c => c.replace(".metrics.",".").replace(".latency.",".").replace("B.retrieval.","R.").replace("E.performance.","P.").replace("E.cold.","C.").replace("B.ablation.","A.").replace("D.context.","D.").replace("F.scalability.","F.").replace("C.temporal.","T.").replace("C.conflict.","Cf.").replace("C.scope.","S.").replace("A.storage.","S.").slice(0,22);
-    let html="<table><thead><tr><th>version</th><th>ts</th><th>commit</th>";
+    render();
+    const totalVers = byVerMode.size;
+    status.textContent = `Showing ${versions.join(", ")} — ${rows.length} runs total (${[...byVerMode.values()].reduce((a,b)=>a+b.normal.length+b.heavy.length,0)} counted)`;
+  }catch(e){
+    status.textContent="error: "+e.message;
+    document.getElementById("tableWrap").innerHTML=`<pre style="white-space:pre-wrap;color:#ff8b8b">${e.stack||e.message}</pre>`;
+  }
+}
+function render(){
+  const mode = currentMode;
+  const tableWrap = document.getElementById("tableWrap");
+  const perSuiteEl = document.getElementById("perSuite");
+  if(mode==="both"){
+    // Render two tables side by side
+    let html='<div class="grid"><div><h4>Normal (180 rec)</h4>'+renderTable("normal")+'</div><div><h4>Heavy (600 rec)</h4>'+renderTable("heavy")+'</div></div>';
+    tableWrap.innerHTML = html;
+    perSuiteEl.innerHTML = renderPerSuite("normal") + "<hr style='border-color:#222a38;margin:16px 0'>" + renderPerSuite("heavy");
+  } else {
+    tableWrap.innerHTML = renderTable(mode);
+    perSuiteEl.innerHTML = renderPerSuite(mode);
+  }
+  renderCharts(mode==="both" ? "normal" : mode);
+}
+function renderTable(mode){
+  const perVerMetrics = perVerMetricsByMode[mode];
+  const sortedPaths = sortedPathsByMode[mode];
+  if(!perVerMetrics || perVerMetrics.length===0) return `<div>No data for ${mode} mode</div>`;
+  const bestWorst={};
+  for(const p of sortedPaths){
+    const vals = perVerMetrics.map(m=>m.resolved[p]).filter(v=>v!=null);
+    if(vals.length<2) continue;
+    const higherBetter=isHigherBetter(p);
+    const best=higherBetter?Math.max(...vals):Math.min(...vals);
+    const worst=higherBetter?Math.min(...vals):Math.max(...vals);
+    if(best===worst) continue;
+    bestWorst[p]={best, worst};
+  }
+  const shortCol = c => c.replace(".metrics.",".").replace(".latency.",".").replace("B.retrieval.","R.").replace("E.performance.","P.").replace("E.cold.","C.").replace("B.ablation.","A.").replace("D.context.","D.").replace("F.scalability.","F.").replace("C.temporal.","T.").replace("C.conflict.","Cf.").replace("C.scope.","S.").replace("A.storage.","S.").slice(0,22);
+  let html="<table><thead><tr><th>version</th><th>ts</th><th>commit</th>";
+  for(const c of sortedPaths){
+    const unit=getUnit(c);
+    html+=`<th title="${c}">${shortCol(c)}${unit?`<br><span style="font-weight:400;color:#9aa3b2">(${unit})</span>`:""}</th>`;
+  }
+  html+="<th>runs</th></tr></thead><tbody>";
+  perVerMetrics.forEach(({ver, latest, resolved, count}, idx)=>{
+    const cls = idx===perVerMetrics.length-1 ? "hl1" : idx===perVerMetrics.length-2 ? "hl2" : "hl3";
+    const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
+    const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
+    html+=`<tr class="${cls}"><td><b>${ver}</b></td><td>${ts}</td><td>${commit}</td>`;
     for(const c of sortedPaths){
-      const unit = getUnit(c);
-      html+=`<th title="${c}">${shortCol(c)}${unit?`<br><span style="font-weight:400;color:#9aa3b2">(${unit})</span>`:""}</th>`;
+      const v=resolved[c];
+      let cls2="";
+      if(v!=null && bestWorst[c]){
+        if(v===bestWorst[c].best) cls2="best";
+        else if(v===bestWorst[c].worst) cls2="worst";
+      }
+      html+=`<td class="${cls2}">${v==null?"-": (Math.abs(v)>=100? v.toFixed(1): v.toFixed(4))}</td>`;
     }
-    html+="<th>runs</th></tr></thead><tbody>";
-    perVerMetrics.forEach(({ver, latest, resolved, count}, idx)=>{
-      const cls = idx===perVerMetrics.length-1 ? "hl1" : idx===perVerMetrics.length-2 ? "hl2" : "hl3";
-      const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
-      const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
-      html+=`<tr class="${cls}"><td><b>${ver}</b></td><td>${ts}</td><td>${commit}</td>`;
-      for(const c of sortedPaths){
+    html+=`<td>${count}</td></tr>`;
+  });
+  html+="</tbody></table>";
+  return html;
+}
+function renderPerSuite(mode){
+  const perVerMetrics = perVerMetricsByMode[mode];
+  const sortedPaths = sortedPathsByMode[mode];
+  if(!perVerMetrics || perVerMetrics.length===0) return "";
+  const bestWorst={};
+  for(const p of sortedPaths){
+    const vals = perVerMetrics.map(m=>m.resolved[p]).filter(v=>v!=null);
+    if(vals.length<2) continue;
+    const higherBetter=isHigherBetter(p);
+    const best=higherBetter?Math.max(...vals):Math.min(...vals);
+    const worst=higherBetter?Math.min(...vals):Math.max(...vals);
+    if(best===worst) continue;
+    bestWorst[p]={best, worst};
+  }
+  let html="";
+  const suites = [...new Set(sortedPaths.map(p=>p.split(".")[0]))].sort();
+  for(const s of suites){
+    const cols = sortedPaths.filter(p=>p.startsWith(s+"."));
+    if(cols.length===0) continue;
+    html+=`<h4 style="margin:12px 0 6px;color:#9aa3b2">${s} — ${mode}</h4><table><thead><tr><th>metric</th><th>unit</th>`;
+    for(const {ver} of perVerMetrics) html+=`<th>${ver}</th>`;
+    html+="</tr></thead><tbody>";
+    for(const c of cols){
+      const short = c.replace(s+".metrics.","").replace(s+".latency.","");
+      const unit=getUnit(c);
+      html+="<tr><td>"+short+"</td><td>"+unit+"</td>";
+      for(const {resolved} of perVerMetrics){
         const v=resolved[c];
         let cls2="";
         if(v!=null && bestWorst[c]){
           if(v===bestWorst[c].best) cls2="best";
           else if(v===bestWorst[c].worst) cls2="worst";
         }
-        html+=`<td class="${cls2}">${v==null?"-": (Math.abs(v)>=100? v.toFixed(1): v.toFixed(4))}</td>`;
+        html+=`<td class="${cls2}">${v==null?"-": v.toFixed(4)}</td>`;
       }
-      html+=`<td>${count}</td></tr>`;
-    });
-    if(perVer.length===0) html="<div>No data</div>";
-    else html+="</tbody></table>";
-    document.getElementById("tableWrap").innerHTML = html;
-
-    let perSuiteHtml="";
-    const suites = [...new Set(sortedPaths.map(p=>p.split(".")[0]))].sort();
-    for(const s of suites){
-      const cols = sortedPaths.filter(p=>p.startsWith(s+"."));
-      if(cols.length===0) continue;
-      perSuiteHtml+=`<h4 style="margin:12px 0 6px;color:#9aa3b2">${s}</h4><table><thead><tr><th>metric</th><th>unit</th>`;
-      for(const {ver} of perVerMetrics) perSuiteHtml+=`<th>${ver}</th>`;
-      perSuiteHtml+="</tr></thead><tbody>";
-      for(const c of cols){
-        const short = c.replace(s+".metrics.","").replace(s+".latency.","");
-        const unit = getUnit(c);
-        perSuiteHtml+="<tr><td>"+short+"</td><td>"+unit+"</td>";
-        for(const {resolved} of perVerMetrics){
-          const v=resolved[c];
-          let cls2="";
-          if(v!=null && bestWorst[c]){
-            if(v===bestWorst[c].best) cls2="best";
-            else if(v===bestWorst[c].worst) cls2="worst";
-          }
-          perSuiteHtml+=`<td class="${cls2}">${v==null?"-": v.toFixed(4)}</td>`;
-        }
-        perSuiteHtml+="</tr>";
-      }
-      perSuiteHtml+="</tbody></table>";
+      html+="</tr>";
     }
-    document.getElementById("perSuite").innerHTML = perSuiteHtml;
-
-    const labels = perVerMetrics.map(p=>p.ver);
-    function get(p, path){ return p.resolved[path] ?? null; }
-    new Chart(document.getElementById("chartRecall"),{
-      type:"bar",
-      data:{ labels, datasets:[
-        {label:"Recall@5 (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.recallAt5")), backgroundColor:"#6ea8fe"},
-        {label:"MRR (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.mrr")), backgroundColor:"#7ee787"},
-        {label:"NDCG@5 (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.ndcgAt5")), backgroundColor:"#ffce6e"},
-      ]},
-      options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}, min:0, max:1}} }
-    });
-    new Chart(document.getElementById("chartLatency"),{
-      type:"bar",
-      data:{ labels, datasets:[
-        {label:"retrieve p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.retrieve.p95")), backgroundColor:"#6ea8fe"},
-        {label:"getContext p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.getContext.p95")), backgroundColor:"#ff8b8b"},
-        {label:"recall p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.recall.p95")), backgroundColor:"#d2a8ff"},
-      ]},
-      options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
-    });
-
-    status.textContent = `Showing ${perVer.length} latest versions: ${perVer.map(p=>p.ver).join(", ")} (from ${byVer.size} versions, ${rows.length} runs) — ${sortedPaths.length} metrics`;
-  }catch(e){
-    status.textContent="error: "+e.message;
-    document.getElementById("tableWrap").innerHTML=`<pre style="white-space:pre-wrap;color:#ff8b8b">${e.stack||e.message}</pre>`;
+    html+="</tbody></table>";
   }
+  return html;
+}
+let chartRecall=null, chartLatency=null;
+function renderCharts(mode){
+  const labelsPerMode = perVerMetricsByMode[mode].map(p=>p.ver);
+  const get = (p, path)=> p.resolved[path] ?? null;
+  if(chartRecall) chartRecall.destroy();
+  if(chartLatency) chartLatency.destroy();
+  const perVerMetrics = perVerMetricsByMode[mode];
+  if(!perVerMetrics.length) return;
+  const labels = labelsPerMode;
+  chartRecall = new Chart(document.getElementById("chartRecall"),{
+    type:"bar",
+    data:{ labels, datasets:[
+      {label:"Recall@5 (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.recallAt5")), backgroundColor:"#6ea8fe"},
+      {label:"MRR (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.mrr")), backgroundColor:"#7ee787"},
+      {label:"NDCG@5 (0-1)", data: perVerMetrics.map(p=> get(p,"B.retrieval.metrics.ndcgAt5")), backgroundColor:"#ffce6e"},
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}, min:0, max:1}} }
+  });
+  chartLatency = new Chart(document.getElementById("chartLatency"),{
+    type:"bar",
+    data:{ labels, datasets:[
+      {label:"retrieve p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.retrieve.p95")), backgroundColor:"#6ea8fe"},
+      {label:"getContext p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.getContext.p95")), backgroundColor:"#ff8b8b"},
+      {label:"recall p95 (ms)", data: perVerMetrics.map(p=> get(p,"E.performance.latency.recall.p95")), backgroundColor:"#d2a8ff"},
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
+  });
 }
 function exportCsv(){
-  if(!perVerMetricsGlobal.length) return;
-  const header = ["version","ts","commit", ...sortedPathsGlobal.map(p=>`${p} (${getUnit(p)})`), "runs"];
-  const rows = perVerMetricsGlobal.map(({ver, latest, resolved, count})=>{
+  const mode = currentMode==="both" ? "normal" : currentMode;
+  const perVerMetrics = perVerMetricsByMode[mode];
+  const sortedPaths = sortedPathsByMode[mode];
+  if(!perVerMetrics.length) return;
+  const header = ["version","ts","commit", ...sortedPaths.map(p=>`${p} (${getUnit(p)})`), "runs"];
+  const rows = perVerMetrics.map(({ver, latest, resolved, count})=>{
     const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
     const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
-    return [ver, ts, commit, ...sortedPathsGlobal.map(p=> resolved[p]==null?"":resolved[p]), count];
+    return [ver, ts, commit, ...sortedPaths.map(p=> resolved[p]==null?"":resolved[p]), count];
   });
   const csv = [header, ...rows].map(r=> r.map(v=> `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href=url; a.download=`benchmark_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+  const a = document.createElement("a"); a.href=url; a.download=`benchmark_${mode}_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
 }
 function exportXlsx(){
-  if(!perVerMetricsGlobal.length) return;
-  const header = ["version","ts","commit", ...sortedPathsGlobal, "runs"];
-  const rows = perVerMetricsGlobal.map(({ver, latest, resolved, count})=>{
+  const mode = currentMode==="both" ? "normal" : currentMode;
+  const perVerMetrics = perVerMetricsByMode[mode];
+  const sortedPaths = sortedPathsByMode[mode];
+  if(!perVerMetrics.length) return;
+  const header = ["version","ts","commit", ...sortedPaths, "runs"];
+  const rows = perVerMetrics.map(({ver, latest, resolved, count})=>{
     const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
     const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
-    return [ver, ts, commit, ...sortedPathsGlobal.map(p=> resolved[p]??""), count];
+    return [ver, ts, commit, ...sortedPaths.map(p=> resolved[p]??""), count];
   });
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "benchmark");
-  // Also add units row
-  const units = ["", "", "", ...sortedPathsGlobal.map(getUnit), ""];
+  const units = ["", "", "", ...sortedPaths.map(getUnit), ""];
   XLSX.utils.sheet_add_aoa(ws, [units], {origin: 1});
-  XLSX.writeFile(wb, `benchmark_${new Date().toISOString().slice(0,10)}.xlsx`);
+  XLSX.writeFile(wb, `benchmark_${mode}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 document.getElementById("reload").onclick=()=>location.reload();
 document.getElementById("exportCsv").onclick=exportCsv;
 document.getElementById("exportXlsx").onclick=exportXlsx;
+document.getElementById("modeNormal").onclick=()=>{ currentMode="normal"; document.querySelectorAll(".modeTabs button").forEach(b=>b.classList.remove("active")); document.getElementById("modeNormal").classList.add("active"); render(); };
+document.getElementById("modeHeavy").onclick=()=>{ currentMode="heavy"; document.querySelectorAll(".modeTabs button").forEach(b=>b.classList.remove("active")); document.getElementById("modeHeavy").classList.add("active"); render(); };
+document.getElementById("modeBoth").onclick=()=>{ currentMode="both"; document.querySelectorAll(".modeTabs button").forEach(b=>b.classList.remove("active")); document.getElementById("modeBoth").classList.add("active"); render(); };
 main();
 </script>
