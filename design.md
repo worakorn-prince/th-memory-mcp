@@ -4,7 +4,7 @@
 สเปคฉบับเต็มอยู่ที่ `ARCHITECTURE_v2.md` (canonical spec) ไฟล์นี้สรุปภาพรวมและสถานะปัจจุบันเพื่อความสะดวก
 
 ## สถานะปัจจุบัน
-- **เวอร์ชัน:** `package.json` = `2.2.3`
+- **เวอร์ชัน:** `package.json` = `2.2.4`
 - **MCP tools:** 16 tools (`remember`, `recall`, `get_context`, `link_memory`, `merge_memory`, `update_memory`, `import_memory`, `extract_memories`, `consolidate`, `forget`, `history`, `recent_interactions`, `profile`, `lesson`, `memory_stats`, `export_memory`)
 - **ชุดเทสต์:** 25 suites ผ่านหมด (0 fail) — รันผ่าน `npm test` (มี CI บน GitHub Actions)
 
@@ -58,3 +58,4 @@
 - v2.2.0 — ปล่อยครบ: tag + GitHub Release, **npm publish เรียบร้อย**, Official MCP Registry ดึงจาก npm อัตโนมัติ (ไม่ต้องรัน mcp-publisher แยก), Glama Sync เรียบร้อย
 - v2.2.1 — แก้ Glama quality: เพิ่ม `pnpm.onlyBuiltDependencies: ["better-sqlite3"]` ให้ pnpm รันสคริปต์ดาวน์โหลด native binary สำหรับ Node 24, ขยับ better-sqlite3 เป็น `^12.9.0`, เพิ่ม override `ip-address@^10.2.0` (npm+pnpm) อุดช่องโหว่ XSS ผ่าน MCP SDK ไม่มีการเปลี่ยนโค้ด รอ `npm publish` + Glama ทดสอบใหม่
 - v2.2.3 — ชุดแก้ความปลอดภัย + ประสิทธิภาพตาม `report_checkup.md`: บังคับ scope filtering (ไม่คืน foreign USER/SESSION), กรอง graph ไม่ข้าม scope, ห้าม link ข้าม scope, export/import แบบ round-trip, ใช้ `realpath` กัน symlink, ตรวจ import เข้มงวด (enum/0..1/ISO), เลิก N+1 query (vector JOIN, bulk fetch, cap consolidation), benchmark cold/ablation และสวิตช์ `MEMORY_RETRIEVAL_MODE`, เพิ่ม 5 เทสต์ใหม่เป็น 25/25, benchmark รันครบทุก suite
+- v2.2.4 — docs: จัดหน้า badge ใน README ให้เป็นระเบียบ
