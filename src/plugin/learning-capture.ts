@@ -34,7 +34,15 @@ const DEFAULT_DB_PATH = fileURLToPath(
 );
 
 // --- sync with src/lib/capture-core.ts ---
-const SECRET_LINE = /(api[_-]?key|secret|token|password)\s*[=:]/i;
+const SECRET_PATTERNS = [
+  /(api[_-]?key|secret|token|password|auth|bearer|credential|private[_-]?key|access[_-]?key|database[_-]?url|connection[_-]?string)\s*[=:]\s*\S+/i,
+  /(sk-[a-zA-Z0-9]{20,})/i,
+  /(ghp_[a-zA-Z0-9]{36})/i,
+  /(glpat-[a-zA-Z0-9\-]{20,})/i,
+  /(Bearer\s+[a-zA-Z0-9\-_]+)/i,
+  /(-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)/i,
+];
+const SECRET_LINE = SECRET_PATTERNS[0]!;
 type CaptureKind = "prompt" | "tool_call" | "error";
 const LIMITS: Record<CaptureKind, number> = { prompt: 4000, tool_call: 500, error: 500 };
 const INSERT_SQL =
@@ -52,7 +60,12 @@ CREATE TABLE IF NOT EXISTS interactions (
 function filterSecrets(text: string): string {
   return text
     .split("\n")
-    .filter((line) => !SECRET_LINE.test(line))
+    .map((line) => {
+      for (const p of SECRET_PATTERNS) {
+        if (p.test(line)) return line.replace(p, "[REDACTED]");
+      }
+      return line;
+    })
     .join("\n");
 }
 
@@ -125,8 +138,6 @@ function textFromParts(parts: unknown): string | null {
 }
 
 // --- profile injection (Phase 3) ---
-const PROFILE_MAX_CHARS = 3000;
-
 function fmtConfidence(c: unknown): string {
   const n = Number(c);
   if (!Number.isFinite(n)) return "(0)";
@@ -144,7 +155,7 @@ function buildProfileText(dbi: InstanceType<typeof Database> | null): string {
       for (const r of rows) {
         const section = typeof r.section === "string" ? r.section : "";
         const content = typeof r.content === "string" ? r.content : "";
-        if (section || content) parts.push(`${section}: ${content}`);
+        if (section || content) parts.push(`${truncate(section,200)}: ${truncate(content,200)}`);
       }
     }
 
@@ -157,7 +168,7 @@ function buildProfileText(dbi: InstanceType<typeof Database> | null): string {
       parts.push("## Preferences");
       for (const r of rows) {
         parts.push(
-          `- ${r.category}/${r.key}: ${r.value} (${fmtConfidence(r.confidence)})`
+          `- ${r.category}/${r.key}: ${truncate(r.value,200)} (${fmtConfidence(r.confidence)})`
         );
       }
     }
@@ -170,15 +181,11 @@ function buildProfileText(dbi: InstanceType<typeof Database> | null): string {
     if (rows.length > 0) {
       parts.push("## Recent Lessons");
       for (const r of rows) {
-        parts.push(`- situation=${r.situation}; mistake=${r.mistake}; correction=${r.correction}`);
+        parts.push(`- situation=${truncate(r.situation,200)}; mistake=${truncate(r.mistake,200)}; correction=${truncate(r.correction,200)}`);
       }
     }
 
-    let text = parts.join("\n");
-    if (text.length > PROFILE_MAX_CHARS) {
-      text = text.slice(0, PROFILE_MAX_CHARS - 1) + "\u2026";
-    }
-    return text;
+    return parts.join("\n");
   } catch {
     return "";
   }

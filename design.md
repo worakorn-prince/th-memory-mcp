@@ -9,8 +9,8 @@ This document is up-to-date with the actual codebase state (after completing all
 
 ## Core Components (src/)
 - `db/` — better-sqlite3 (WAL mode), linear migrations (M001–M007), repositories (`memories`, `users`, `preferences`, `lessons`)
-- `lib/embed.ts` — hashing-trick semantic vector (no LLM/network dependency)
-- `retrieval/` — FTS5 + vector → RRF fusion → scorer (confidence × importance × recency × scope)
+- `lib/embed.ts` — hashing-trick lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) (no LLM/network dependency)
+- `retrieval/` — FTS5 + lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) → RRF fusion → scorer (confidence × importance × recency × scope)
 - `memory/` — types, lifecycle-engine (decay/source-weights), conflict-resolver, deduplicator
 - `core/` — retrieval-engine, context-engine, graph-engine, consolidation-engine, entity-extractor
 - `tools/` — 16 MCP tool handlers
@@ -19,7 +19,7 @@ This document is up-to-date with the actual codebase state (after completing all
 ## Completed Features
 - ✅ Temporal model — validity intervals, point-in-time retrieval, supersession chains, change detection
 - ✅ Conflict/dedup — normalize → exact → similar → classify (duplicate/update/contradiction/unrelated); ambiguous conflicts are kept (link `contradicts`) instead of silently overwriting
-- ✅ Hybrid retrieval (FTS + vector, RRF)
+- ✅ Hybrid retrieval (FTS + lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a), RRF)
 - ✅ Memory graph — entities/relations + bounded traversal (`link_memory`)
 - ✅ Context engine — `get_context` with token budgeting, temporal filtering, graph expansion
 - ✅ Consolidation — clustering + derived memories (`derived_from` provenance)
@@ -49,8 +49,9 @@ This document is up-to-date with the actual codebase state (after completing all
 ## Known Limitations
 - **Trust model:** No user authentication — `userId` is client-declared. Suitable for local single-user deployment where the SQLite file is owned by a single user. For multi-user separation, use one DB file per user instead of adding auth to the engine.
 - `preferences` / `lessons` are not partitioned by user (still global) — acceptable for single-user.
-- Semantic embedding uses hashing-trick (deterministic, offline) — not LLM-level embedding, so there are limits on distant paraphrases.
+- Lexical fuzzy matching uses hashing-trick (hashed n-gram similarity, 512-dim FNV-1a, deterministic, offline) — not LLM-level / concept-level embedding, so distant paraphrases without shared tokens or 3-grams will not be linked (affects RRF vector signal and conflict-resolver threshold).
 - **AI-assisted extraction discontinued** — the owner decided to remove this; `extract_memories` is therefore deterministic heuristic only (no LLM), per the design principle that the core engine must not depend on an external LLM API.
+- **No encryption at rest (plaintext-at-rest) — Md-4:** `data/memory.db` (WAL mode, `better-sqlite3`) is a plain, unencrypted SQLite file. `100% local & private` means no cloud or network exfiltration — it does **not** mean encrypted at rest. Anyone with filesystem access (shared machine, backup, malware, stolen device) can read preferences/lessons/interactions in plaintext. For sensitive data, use OS-level full-disk encryption (BitLocker / FileVault / LUKS) or an opt-in SQLCipher build (requires native rebuild and key management). No SQLCipher/in-code encryption is applied by default and `src/db/index.ts` documents this explicitly.
 
 ## Release
 - v2.0.0 released (npm, GitHub Release, Official MCP Registry, Glama)

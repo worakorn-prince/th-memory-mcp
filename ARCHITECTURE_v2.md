@@ -16,7 +16,7 @@ The project must retain these v1 properties:
 
 - Local-first and offline by default.
 - SQLite as the primary persistence layer.
-- FTS5 and local semantic search.
+- FTS5 and lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a).
 - Thai/English support.
 - Auto-capture and cross-harness compatibility.
 - Secret filtering and safe export.
@@ -69,7 +69,7 @@ Core operations must work without an LLM:
 
 - persistence
 - FTS search
-- semantic search
+- lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a)
 - metadata filtering
 - scoring
 - RRF fusion
@@ -373,7 +373,9 @@ project_id
 
 The implementation may use a maintained FTS5 virtual table or separate indexes, but every mutation of searchable memory must keep indexes synchronized transactionally where possible.
 
-Local semantic search remains supported. The implementation must preserve the dependency-light/offline property of v1.
+Lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) remains supported. The implementation must preserve the dependency-light/offline property of v1.
+
+> **Caveat — lexical fuzzy, not concept-level:** The vector signal is lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) — hashed word tokens + character 3-grams via FNV-1a into 512 dimensions — not transformer / concept-level semantic search. It tolerates minor lexical variation (typos, small edits) but paraphrases that share no token or 3-gram overlap will not be linked by the vector signal (FTS also requires token overlap). Distant paraphrases may therefore remain `unrelated` rather than being classified as `duplicate`/`contradiction`.
 
 ---
 
@@ -591,6 +593,8 @@ final_score =
 
 The exact formula must be benchmarked.
 
+> **Caveat — lexical fuzzy, not concept-level:** The vector signal in this hybrid pipeline is lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) — hashed word tokens + character 3-grams via FNV-1a into 512 dimensions — not transformer / concept-level semantic search. It tolerates minor lexical variation (typos, small edits) but paraphrases that share no token or 3-gram overlap will not be linked by the vector signal (FTS also requires token overlap), so RRF cannot recover concept-level matches from the vector side alone. The `conflict-resolver` similarity threshold also operates on this lexical signal, so distant paraphrases may be classified as `unrelated` rather than `duplicate`/`contradiction`.
+
 ---
 
 # 14. Graph Retrieval
@@ -705,7 +709,7 @@ Do not expand to dozens of tools. v2.1.0 ships **16 tools** (the original spec t
 
 ### Core / compatibility (carried from v1)
 1. `remember` — store a memory using the unified model (type + metadata)
-2. `recall` — hybrid FTS + semantic search (v1 behavior preserved)
+2. `recall` — hybrid FTS + lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) (v1 behavior preserved)
 3. `forget` — soft delete by default
 4. `get_profile` — compact profile projection/cache
 5. `search_history` — search raw interactions
