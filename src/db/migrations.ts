@@ -1,5 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
-import { copyFileSync } from "node:fs";
+import { copyFileSync, readdirSync, unlinkSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { embed, serialize } from "../lib/embed.js";
 
 type DB = BetterSqlite3.Database;
@@ -233,27 +234,61 @@ export const MIGRATIONS: Migration[] = [
   M007_user,
 ];
 
-export function runMigrations(db: DB): void {
+const KEEP_BACKUPS = 5;
+
+function pruneOldBackups(dbPath: string): void {
   try {
-    const dbPath = (db as unknown as { name: string }).name;
-    if (dbPath && dbPath !== ":memory:") {
-      const backupPath = `${dbPath}.backup-${Date.now()}`;
-      try {
-        copyFileSync(dbPath, backupPath);
-      } catch {
-        console.error("[migrations] failed to create backup, aborting");
-        return;
+    const dir = dirname(dbPath);
+    const base = basename(dbPath);
+    const prefix = `${base}.backup-`;
+    const entries = readdirSync(dir);
+    const backups = entries.filter((n) => n.startsWith(prefix)).sort();
+    if (backups.length > KEEP_BACKUPS) {
+      for (const name of backups.slice(0, backups.length - KEEP_BACKUPS)) {
+        try {
+          unlinkSync(join(dir, name));
+        } catch {}
       }
     }
   } catch {}
+}
+
+export function runMigrations(db: DB): void {
   db.exec(
     `CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`
   );
-  for (const m of MIGRATIONS) {
+  const pending = MIGRATIONS.filter((m) => {
     const applied = db
       .prepare("SELECT value FROM schema_meta WHERE key = ?")
       .get(m.id) as { value: string } | undefined;
-    if (applied) continue;
+    return !applied;
+  });
+  if (pending.length === 0) {
+    try {
+      const dbPath = (db as unknown as { name: string }).name;
+      if (dbPath && dbPath !== ":memory:") pruneOldBackups(dbPath);
+    } catch {}
+    return;
+  }
+  const shouldBackup =
+    process.env.MEMORY_BACKUP_ON_MIGRATE !== "0" &&
+    process.env.MEMORY_BACKUP_ON_MIGRATE !== "false";
+  if (shouldBackup) {
+    try {
+      const dbPath = (db as unknown as { name: string }).name;
+      if (dbPath && dbPath !== ":memory:") {
+        const backupPath = `${dbPath}.backup-${Date.now()}`;
+        try {
+          copyFileSync(dbPath, backupPath);
+        } catch {
+          console.error("[migrations] failed to create backup, aborting");
+          return;
+        }
+        pruneOldBackups(dbPath);
+      }
+    } catch {}
+  }
+  for (const m of pending) {
     const tx = db.transaction(() => {
       m.up(db);
       db.prepare(

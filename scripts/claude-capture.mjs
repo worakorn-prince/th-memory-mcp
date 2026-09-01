@@ -13,7 +13,7 @@
 // Hooks MUST never block Claude Code, so every failure is swallowed and the
 // process always exits 0 with valid JSON on stdout.
 import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath as urlPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -21,9 +21,19 @@ import { spawn } from "node:child_process";
 const DEFAULT_DB_PATH = urlPath(
   new URL("../../data/memory.db", import.meta.url)
 );
+const HOOK_LOG_PATH = urlPath(
+  new URL("../../data/hook-errors.log", import.meta.url)
+);
 
-// --- sync with src/lib/capture-core.ts ---
-const SECRET_LINE = /(api[_-]?key|secret|token|password)\s*[=:]/i;
+// --- sync with src/lib/capture-core.ts (do not drift — keep SECRET_PATTERNS + filterSecrets identical) ---
+const SECRET_PATTERNS = [
+  /(api[_-]?key|secret|token|password|auth|bearer|credential|private[_-]?key|access[_-]?key|database[_-]?url|connection[_-]?string)\s*[=:]\s*\S+/i,
+  /(sk-[a-zA-Z0-9]{20,})/i,
+  /(ghp_[a-zA-Z0-9]{36})/i,
+  /(glpat-[a-zA-Z0-9\-]{20,})/i,
+  /(Bearer\s+[a-zA-Z0-9\-_]+)/i,
+  /(-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)/i,
+];
 const LIMITS = { prompt: 4000, tool_call: 500, error: 500 };
 const INSERT_SQL =
   "INSERT INTO interactions (ts, session_id, kind, content, meta) VALUES (?, ?, ?, ?, ?)";
@@ -42,13 +52,27 @@ const PROFILE_MAX_CHARS = 3000;
 function filterSecrets(text) {
   return text
     .split("\n")
-    .filter((line) => !SECRET_LINE.test(line))
+    .map((line) => {
+      for (const p of SECRET_PATTERNS) {
+        if (p.test(line)) return line.replace(p, "[REDACTED]");
+      }
+      return line;
+    })
     .join("\n");
 }
 
 function truncate(text, max) {
+  if (max <= 0) return "";
   if (text.length <= max) return text;
-  return text.slice(0, max - 1) + "…";
+  return text.slice(0, Math.max(0, max - 1)) + "…";
+}
+
+function logHookError(msg) {
+  try {
+    mkdirSync(dirname(HOOK_LOG_PATH), { recursive: true });
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    appendFileSync(HOOK_LOG_PATH, line, "utf8");
+  } catch {}
 }
 
 function readStdin() {
@@ -198,9 +222,6 @@ function main() {
           return;
         }
       } else if (ev.hook_event_name === "SessionEnd") {
-        // Best-effort rule-based distill so learnings persist after the
-        // session ends (mirrors rekal's detached session-end save). Run
-        // detached so the hook returns immediately while Claude Code tears down.
         try {
           const distill = urlPath(new URL("../../dist/distill.js", import.meta.url));
           const child = spawn(process.execPath, [distill], {
@@ -208,8 +229,20 @@ function main() {
             stdio: "ignore",
             detached: true,
           });
+          child.on("error", (e) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            logHookError(`SessionEnd distill spawn error: ${msg} (dist=${distill})`);
+          });
+          child.on("exit", (code) => {
+            if (code !== 0 && code !== null) {
+              logHookError(`SessionEnd distill exited with code ${code} (dist=${distill})`);
+            }
+          });
           child.unref();
-        } catch {}
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          logHookError(`SessionEnd distill setup error: ${msg}`);
+        }
       }
     } catch {
       // swallow — never break Claude Code

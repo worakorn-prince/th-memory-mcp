@@ -1,6 +1,7 @@
 node_modules/
 dist/
 data/
+review/
 *.log
 
 # Thai-language documentation — kept local only, not pushed to GitHub
