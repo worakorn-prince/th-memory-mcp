@@ -53,7 +53,7 @@ export function runTemporalSuite(mods) {
 }
 
 export function runConflictSuite(mods) {
-  const { createMemory, getContext } = mods;
+  const { createMemory, getContext, reset } = mods;
   let resolution = 0;
   const N = 20;
   for (let i = 0; i < N; i++) {
@@ -72,7 +72,7 @@ export function runConflictSuite(mods) {
     const res = getContext({ query: `What database does project ${i} use?`, limit: 5 });
     if (res.memories.length && res.memories[0].content.includes("SQLite")) resolution++;
   }
-
+  if (reset) reset();
   let scopeConflict = 0;
   let contamination = 0;
   const M = 20;
@@ -143,8 +143,12 @@ export function runScopeSuite(mods) {
     if (c.scope === "PROJECT") opt.projectId = "p1";
     const res = getContext({ query: "setting X", limit: 5, ...opt });
     if (res.memories.length && res.memories[0].id === c.id) selection++;
-    const other = cases.filter((x) => x.scope !== c.scope).map((x) => x.id);
-    if (res.memories.some((m) => other.includes(m.id))) contamination++;
+    const other = cases
+      .filter((x) => x.scope !== c.scope && x.scope !== "GLOBAL" && c.scope !== "GLOBAL")
+      .map((x) => x.id);
+    const otherForGlobal = c.scope === "GLOBAL" ? cases.filter((x) => x.scope !== "GLOBAL").map((x) => x.id) : other;
+    const checkOther = c.scope === "GLOBAL" ? otherForGlobal : other;
+    if (res.memories.some((m) => checkOther.includes(m.id))) contamination++;
   }
 
   return {

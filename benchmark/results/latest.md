@@ -1,14 +1,14 @@
 # th-memory-mcp Benchmark Report
 
-- Project: v2.2.7 (40eb7e3)
+- Project: v2.2.7 (e30e7a9)
 - Benchmark spec: v2.3.0-draft
 - Dataset: smoke-1.0/semantic-hard-1.0/graph-1.0/scope-1.0 seed=42 | Seed: 42 | Retrieval: rrf
-- Run mode: warm | Profile: heavy
-- Timestamp: 2026-09-01T17:16:50.651Z
+- Run mode: warm | Profile: quick
+- Timestamp: 2026-09-01T18:46:59.637Z
 - Node: v26.1.0 | OS: Windows_NT 10.0.19045
 - CPU: AMD Ryzen 7 2700U with Radeon Vega Mobile Gfx   (x8) | RAM: 15261MB
 - better-sqlite3: 12.11.1
-- Args: {"suite":"all","warmup":20,"iterations":100,"k":10,"topics":100,"distractors":100,"scale":20000,"queries":10000,"scenarios":100,"seed":42,"profile":"heavy"}
+- Args: {"suite":"all","warmup":20,"iterations":100,"k":10,"topics":100,"distractors":100,"scale":10000,"queries":1000,"scenarios":100,"seed":42,"profile":"quick"}
 
 ## A.storage
 - preferenceInsertSuccess: 1
@@ -42,13 +42,13 @@
 
 ## C.conflict
 - conflictResolutionAccuracy: 1
-- falseConflictScopeAccuracy: 0
+- falseConflictScopeAccuracy: 1
 - crossScopeContaminationRate: 0
 - notes: true conflict (20) + false conflict by scope (20) via get_context §8
 
 ## C.scope
 - scopeSelectionAccuracy: 1
-- crossScopeContaminationRate: 0.7500
+- crossScopeContaminationRate: 0
 - notes: 4 scopes (USER/SESSION/PROJECT/GLOBAL) + 40 distractors via get_context §9
 
 ## D.context
@@ -119,51 +119,51 @@
 
 ## E.performance
 - operations: 9
-- latency[remember](ms): min=0 mean=1.6000 p95=1 p99=52.1400 max=66
-- latency[recall](ms): min=0 mean=1.5000 p95=2 p99=3 max=3
-- latency[getContext](ms): min=0 mean=0.6200 p95=1 p99=1 max=1
-- latency[retrieve](ms): min=0 mean=0.2900 p95=1 p99=1 max=1
-- latency[createMemory](ms): min=0 mean=1.6400 p95=1.0500 p99=41.0600 max=47
-- latency[updateMemory](ms): min=1 mean=5.5200 p95=46.0500 p99=55.1800 max=73
-- latency[mergeMemory](ms): min=1 mean=5.6400 p95=45.0500 p99=52.1800 max=70
-- latency[linkMemory](ms): min=1 mean=5.3500 p95=6.4500 p99=68.0200 max=70
-- latency[forget](ms): min=1 mean=3.0700 p95=3.2500 p99=44.0500 max=49
+- latency[remember](ms): min=0 mean=1.5300 p95=1 p99=49.0600 max=55
+- latency[recall](ms): min=1 mean=1.5700 p95=2.0500 p99=3.0500 max=8
+- latency[getContext](ms): min=0 mean=0.7900 p95=1 p99=2 max=2
+- latency[retrieve](ms): min=0 mean=0.4200 p95=1 p99=1 max=1
+- latency[createMemory](ms): min=0 mean=1.8500 p95=2 p99=42.1300 max=55
+- latency[updateMemory](ms): min=2 mean=5.5400 p95=46.1000 p99=58.0700 max=65
+- latency[mergeMemory](ms): min=2 mean=5.2600 p95=6.9500 p99=60.0300 max=63
+- latency[linkMemory](ms): min=2 mean=5.1000 p95=5.2500 p99=65.0700 max=72
+- latency[forget](ms): min=1 mean=3.3200 p95=3.2500 p99=50.1000 max=60
 - notes: warmup=20 iterations=100 (warm only; cold not yet implemented)
 
 ## F.scalability
-- profile: heavy
-- memoriesInserted: 20000
-- queries: 10000
-- memoriesPerSec: 163.3320
-- dbSizeMB: 92.4609
-- indexSizeMB: 92.4648
-- mbPer1kMemories: 4.6230
-- peakRssMB: 101.2383
-- rssMB: 280.1094
-- rssGrowthMB: 18.5000
-- cpuUserMs: 93156
-- cpuSysMs: 8968
-- wallClockInsertMs: 122450
-- retrieveLatencyMs: 367.9300
-- getContextLatencyMs: 355.4000
-- ftsLatencyMs: 39.7000
-- vectorLatencyMs: 321.1000
+- profile: quick
+- memoriesInserted: 10000
+- queries: 1000
+- memoriesPerSec: 234.3951
+- dbSizeMB: 48.3396
+- indexSizeMB: 48.3435
+- mbPer1kMemories: 4.8340
+- peakRssMB: 107.9258
+- rssMB: 229.0313
+- rssGrowthMB: 15.6133
+- cpuUserMs: 26422
+- cpuSysMs: 5407
+- wallClockInsertMs: 42663
+- retrieveLatencyMs: 201.0900
+- getContextLatencyMs: 201.9500
+- ftsLatencyMs: 19
+- vectorLatencyMs: 172.7500
 - resumable: false
-- notes: scalability §24-26 v2.3: profile=heavy N=20000 Q=10000 throughput+DB/index+CPU/RAM+latency, resumable via th-bench-1788282760118-472579.db.scalability-state.json
+- notes: scalability §24-26 v2.3: profile=quick N=10000 Q=1000 throughput+DB/index+CPU/RAM+latency, resumable via th-bench-1788288290250-78401.db.scalability-state.json
 
 ## E.cold
 - operations: 9
-- samples: 10
-- latency[remember](ms): min=0 mean=0.8000 p95=1 p99=1 max=1
-- latency[recall](ms): min=4 mean=5.5000 p95=6.5500 p99=6.9100 max=7
-- latency[getContext](ms): min=8 mean=10.2000 p95=12 p99=12 max=12
-- latency[retrieve](ms): min=7 mean=9.3000 p95=10.5500 p99=10.9100 max=11
-- latency[createMemory](ms): min=1 mean=1.1000 p95=1.5500 p99=1.9100 max=2
-- latency[updateMemory](ms): min=2 mean=3.4000 p95=4.5500 p99=4.9100 max=5
-- latency[mergeMemory](ms): min=2 mean=3.5000 p95=4 p99=4 max=4
-- latency[linkMemory](ms): min=2 mean=2.6000 p95=3 p99=3 max=3
-- latency[forget](ms): min=1 mean=2.1000 p95=3 p99=3 max=3
-- notes: cold = fresh process + fresh DB per call; reports min/mean/p95/max over 10 spawns (§12.2)
+- samples: 5
+- latency[remember](ms): min=1 mean=1.2000 p95=1.8000 p99=1.9600 max=2
+- latency[recall](ms): min=4 mean=4.8000 p95=5 p99=5 max=5
+- latency[getContext](ms): min=7 mean=8.6000 p95=10 p99=10 max=10
+- latency[retrieve](ms): min=7 mean=8.2000 p95=9 p99=9 max=9
+- latency[createMemory](ms): min=0 mean=0.8000 p95=1.8000 p99=1.9600 max=2
+- latency[updateMemory](ms): min=2 mean=3 p95=3.8000 p99=3.9600 max=4
+- latency[mergeMemory](ms): min=2 mean=3.8000 p95=5 p99=5 max=5
+- latency[linkMemory](ms): min=2 mean=2.8000 p95=3.8000 p99=3.9600 max=4
+- latency[forget](ms): min=1 mean=1.8000 p95=2 p99=2 max=2
+- notes: cold = fresh process + fresh DB per call; reports min/mean/p95/max over 5 spawns (§12.2)
 
 ## B.ablation
 - fts_only:
@@ -231,14 +231,14 @@
   - ndcgAt5: 0.9515
   - ndcgAt10: 0.9678
 - latencyMs:
-  - fts_only: 1312ms
-  - vec_only: 1313ms
-  - fts_vec: 1360ms
-  - fts_vec_sumrank: 1309ms
-  - fts_vec_rrf: 1336ms
-  - fts_vec_rrf_graph: 1335ms
-  - fts_vec_rrf_graph_scope: 1406ms
-  - full: 1400ms
+  - fts_only: 1457ms
+  - vec_only: 1387ms
+  - fts_vec: 1437ms
+  - fts_vec_sumrank: 1501ms
+  - fts_vec_rrf: 1462ms
+  - fts_vec_rrf_graph: 1544ms
+  - fts_vec_rrf_graph_scope: 1403ms
+  - full: 1421ms
 - notes: retrieval ablation §6 + §30 v2.3: FTS / Vector / FTS+Vec / +RRF / +Graph / +Graph+Scope / Full over 100 topics (§30 L.Ablation); +Graph equals RRF when dataset has no links — add graph suite for linked data
 
 ## C.semantic-hard
@@ -361,10 +361,10 @@
 - mrr: 1
 - ndcgAt5: 0.6021
 - ndcgAt10: 0.6860
-- hop1Accuracy: 0.5200
-- hop2Accuracy: 0.3281
+- hop1Accuracy: 1
+- hop2Accuracy: 0.5469
 - hop3Accuracy: 0.9375
-- graphNoiseRatio: 0.7970
+- graphNoiseRatio: 0.8264
 - notes: graph §10 (§15-17 v2.3): 100 scenarios 5-20 nodes 1-3 hops over 7 relations, via get_context with graph expansion
 
 ## M.reliability

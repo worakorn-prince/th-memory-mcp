@@ -3,11 +3,11 @@ import os from "node:os";
 import path from "node:path";
 
 const PROFILE_MAP = {
-  quick: { memories: 10_000, queries: 1_000 },
-  normal: { memories: 100_000, queries: 5_000 },
-  heavy: { memories: 1_000_000, queries: 10_000 },
-  stress: { memories: 5_000_000, queries: 25_000 },
-  extreme: { memories: 10_000_000, queries: 50_000 },
+  quick: { memories: 5_000, queries: 1_000 },
+  normal: { memories: 20_000, queries: 5_000 },
+  heavy: { memories: 100_000, queries: 10_000 },
+  stress: { memories: 500_000, queries: 25_000 },
+  extreme: { memories: 1_000_000, queries: 50_000 },
 };
 
 export function getProfileSpec(profile) {

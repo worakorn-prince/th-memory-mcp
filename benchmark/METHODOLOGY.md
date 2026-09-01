@@ -23,7 +23,7 @@ Methodology for the benchmark per `TH_MEMORY_MCP_BENCHMARK_SPEC.md` (v1.0 baseli
 | E.performance | suites/performance.mjs | v1 §12 + v2.3 §21-23 | latency per operation warm (remember/recall/get_context/...), p50/p95/p99 |
 | E.cold | suites/cold.mjs | v1 §12.2 + v2.3 §23 | cold fresh process+DB via subprocess, 30 samples, startup + first op |
 | B.ablation | suites/ablation.mjs | v1 §6 + v2.3 §30 | FTS / Vector / FTS+Vector / +RRF / +Graph / +Graph+Scope / Full + latency trade-off |
-| F.scalability | suites/scalability.mjs | v1 §13-15 + v2.3 §24-29 | 5 profiles quick(10K)→extreme(10M) + queries, throughput/DB/index/RSS/CPU, resumable |
+| F.scalability | suites/scalability.mjs | v1 §13-15 + v2.3 §24-29 | 5 profiles quick(5K)→extreme(1M) + queries, throughput/DB/index/RSS/CPU, resumable |
 | G.graph | suites/graph.mjs | v2.3 §15-17 | 100 scenarios 5-20 nodes 1-3 hops 7 relations, Graph Recall/Precision/MRR/NDCG/1-3hop accuracy/noise |
 | M.reliability | suites/reliability.mjs | v2.3 §28 + §29 | graceful degradation, secret filtering, host non-fatal |
 
@@ -69,17 +69,17 @@ Can be switched instantly to find the balance for a specific workload without co
 - Add suite: create `suites/<name>.mjs` exporting `runXSuite(mods)` then register in `run.mjs`
 - `mods` passed to suites: `createMemory, retrieve, getContext, ftsSearch, vectorSearch, rrfFuse, rememberHandler, recallHandler, contextHandler, saveLessonHandler, forgetHandler, updateMemoryHandler, mergeMemoryHandler, linkMemoryHandler, reset, dbPath`
 
-## Profiles (v2.3 §24 §27)
+## Profiles (v2.3 §24 §27) — rescaled 5K/20K/100K/500K/1M (dev machine friendly)
 
 | Profile | Memories | Queries | Purpose | Frequency |
 |---------|---------:|--------:|---------|-----------|
-| quick   | 10K | 1K | Development fast regression | Every change |
-| normal  | 100K | 5K | Routine regression | Regular |
-| heavy   | 1M | 10K | Large workload | Major changes |
-| stress  | 5M | 25K | Stress / degradation | Pre-release |
-| extreme | 10M | 50K | Maximum validation | Release |
+| quick   | 5K | 1K | Development fast regression | Every change |
+| normal  | 20K | 5K | Routine regression | Every commit (2 profiles before commit: quick+normal) |
+| heavy   | 100K | 10K | Large workload | Major changes |
+| stress  | 500K | 25K | Stress / degradation | Pre-release |
+| extreme | 1M | 50K | Maximum validation | Release |
 
-Official v2.3 max is 10M; 50M intentionally excluded. Large generation is resumable via `*.scalability-state.json`.
+Official v2.3 max is 1M (rescaled from 10M for dev); large generation is resumable via `*.scalability-state.json`. Pre-commit runs only quick+normal (heavy/stress/extreme run separately when machine allows).
 
 ## System notes (baseline v2.2.6 → v2.2.7)
 

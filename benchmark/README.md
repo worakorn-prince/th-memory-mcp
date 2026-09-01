@@ -10,8 +10,8 @@ Methodology, metrics, suite-to-spec mapping and interpretation are in **[METHODO
 cd D:\Coding_Project\mcp
 npm run build
 node benchmark/run.mjs --suite all --out benchmark/results
-node benchmark/run.mjs --profile quick --out benchmark/results   # 10K/1K quick (dev)
-node benchmark/run.mjs --profile normal --out benchmark/results  # 100K/5K routine
+node benchmark/run.mjs --profile quick --out benchmark/results   # 5K/1K quick (dev) — 2 profiles before commit
+node benchmark/run.mjs --profile normal --out benchmark/results  # 20K/5K normal
 ```
 
 Run specific suites:
@@ -26,8 +26,8 @@ node benchmark/run.mjs --suite graph --scenarios 100
 node benchmark/run.mjs --suite performance --warmup 20 --iterations 100
 node benchmark/run.mjs --suite cold --iterations 30
 node benchmark/run.mjs --suite ablation --topics 50 --distractors 50
-node benchmark/run.mjs --suite scalability --scale 10000
-node benchmark/run.mjs --suite scalability --profile stress   # 5M/25K (resumable)
+node benchmark/run.mjs --suite scalability --scale 5000
+node benchmark/run.mjs --suite scalability --profile stress   # 500K/25K (resumable)
 node benchmark/run.mjs --suite reliability
 ```
 

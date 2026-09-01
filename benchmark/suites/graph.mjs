@@ -43,7 +43,7 @@ export function runGraphSuite(mods, opts = {}) {
   for (const { sc, ids } of chainIdsList) {
     const relevant = new Set(ids);
     const query = sc.query;
-    const res = getContext({ query, limit: K, maxTokens: 2048 });
+    const res = getContext({ query, limit: K, maxTokens: 2048, includeGraph: true });
     const retrieved = res.memories.map((m) => m.id);
     r1.push(recallAtK(retrieved, relevant, 1));
     r3.push(recallAtK(retrieved, relevant, 3));

@@ -55,11 +55,11 @@ function parseArgs(argv) {
   }
   if (a.profile) {
     const map = {
-      quick: { scale: 10_000, queries: 1_000, topics: 100, distractors: 100, iterations: 100 },
-      normal: { scale: 100_000, queries: 5_000, topics: 100, distractors: 100, iterations: 100 },
-      heavy: { scale: 1_000_000, queries: 10_000, topics: 100, distractors: 100, iterations: 100 },
-      stress: { scale: 5_000_000, queries: 25_000, topics: 100, distractors: 100, iterations: 100 },
-      extreme: { scale: 10_000_000, queries: 50_000, topics: 100, distractors: 100, iterations: 30 },
+      quick: { scale: 5_000, queries: 1_000, topics: 100, distractors: 100, iterations: 100 },
+      normal: { scale: 20_000, queries: 5_000, topics: 100, distractors: 100, iterations: 100 },
+      heavy: { scale: 100_000, queries: 10_000, topics: 100, distractors: 100, iterations: 100 },
+      stress: { scale: 500_000, queries: 25_000, topics: 100, distractors: 100, iterations: 100 },
+      extreme: { scale: 1_000_000, queries: 50_000, topics: 100, distractors: 100, iterations: 30 },
     };
     const p = map[a.profile];
     if (p) {

@@ -33,7 +33,7 @@
   .profileTabs button.active{background:#7ee787;color:#0f1115;border-color:#7ee787}
 </style>
 <h1>Benchmark Viewer — v2.3 · Quick / Normal / Heavy · Profiles & Versions</h1>
-<div class="sub">Comparing latest run per version for <b>Quick (10K/1K)</b>, <b>Normal (100K/5K)</b>, <b>Heavy (1M/10K)</b> and <b>Profiles within version</b> — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file — <code>benchmarkVersion 2.3.0-draft</code></div>
+<div class="sub">Comparing latest run per version for <b>Quick (5K/1K)</b>, <b>Normal (20K/5K)</b>, <b>Heavy (100K/10K)</b> and <b>Profiles within version</b> — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file — <code>benchmarkVersion 2.3.0-draft</code></div>
 
 <div class="card">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -235,7 +235,7 @@ function render(){
     return;
   } else if(mode==="both"){
     profSel.style.display="none";
-    let html='<div class="grid" style="grid-template-columns:1fr"><div><h4>Quick (10K)</h4>'+renderTable("quick")+'</div><div><h4>Normal (100K)</h4>'+renderTable("normal")+'</div><div><h4>Heavy (1M)</h4>'+renderTable("heavy")+'</div></div>';
+    let html='<div class="grid" style="grid-template-columns:1fr"><div><h4>Quick (5K)</h4>'+renderTable("quick")+'</div><div><h4>Normal (20K)</h4>'+renderTable("normal")+'</div><div><h4>Heavy (100K)</h4>'+renderTable("heavy")+'</div></div>';
     tableWrap.innerHTML = html;
     perSuiteEl.innerHTML = renderPerSuite("quick") + "<hr style='border-color:#222a38;margin:16px 0'>" + renderPerSuite("normal") + "<hr style='border-color:#222a38;margin:16px 0'>" + renderPerSuite("heavy");
     renderCharts("normal");
