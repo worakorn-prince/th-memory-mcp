@@ -47,6 +47,9 @@ Example `opencode.json`:
 ## Pre-publish checklist
 - [ ] `npm test` passes (25/25)
 - [ ] `npm run build` succeeds
+- [ ] Benchmark 3 profiles before release: `npm run benchmark:quick && npm run benchmark:normal && npm run benchmark:heavy` (or `npm run benchmark:all-profiles`) — verify `benchmark/results/history.jsonl` has 3 new runs and check `benchmark/viewer` Profiles within version view
+- [ ] Viewer supports profile comparison within same version (`benchmark/viewer/index.html` — tabs Quick/Normal/Heavy + Profiles within version)
 - [ ] LICENSE is correct (MIT, copyright `worakorn-prince`)
-- [ ] `README.md` / `design.md` / `ARCHITECTURE_v2.md` versions are in sync (`npm run version:check`)
-- [ ] Create a Git tag matching the version (e.g. `v2.2.5`) and a GitHub Release
+- [ ] `README.md` / `design.md` / `ARCHITECTURE_v2.md` versions are in sync (`npm run version:check` or `node scripts/sync-version.mjs`)
+- [ ] `benchmark/METHODOLOGY.md` and `benchmark/README.md` reflect current suite ↔ spec mapping (v2.3 draft)
+- [ ] Create a Git tag matching the version (e.g. `v2.2.7`) and a GitHub Release — include benchmark summary (quick/normal/heavy) in release notes

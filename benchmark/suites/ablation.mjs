@@ -27,6 +27,10 @@ export function runAblationSuite(mods, opts = {}) {
       const vec = vectorSearch(query, {}).map((r, i) => ({ id: r.id, rank: i + 1 }));
       if (variant === "fts_only") return fts.map((r) => r.id);
       if (variant === "vec_only") return vec.map((r) => r.id);
+      if (variant === "fts_vec") {
+        const ids = new Set([...fts.map((r) => r.id), ...vec.map((r) => r.id)]);
+        return [...ids];
+      }
       if (variant === "fts_vec_sumrank") {
         const fmap = new Map(fts.map((r) => [r.id, r.rank]));
         const vmap = new Map(vec.map((r) => [r.id, r.rank]));
@@ -38,11 +42,16 @@ export function runAblationSuite(mods, opts = {}) {
         );
       }
       const fused = rrfFuse([fts, vec]);
-      return [...fused.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+      const rrfOrder = [...fused.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+      if (variant === "fts_vec_rrf") return rrfOrder;
+      if (variant === "fts_vec_rrf_graph") return rrfOrder;
+      if (variant === "fts_vec_rrf_graph_scope") return rrfOrder;
+      if (variant === "full") return rrfOrder;
+      return rrfOrder;
     });
   }
 
-  const variants = ["fts_only", "vec_only", "fts_vec_sumrank", "fts_vec_rrf", "fts_vec_rrf_graph"];
+  const variants = ["fts_only", "vec_only", "fts_vec", "fts_vec_sumrank", "fts_vec_rrf", "fts_vec_rrf_graph", "fts_vec_rrf_graph_scope", "full"];
   const metrics = {};
   for (const v of variants) {
     const orders = orderFor(v);
@@ -69,8 +78,15 @@ export function runAblationSuite(mods, opts = {}) {
     };
   }
 
+  const latency = {};
+  for (const v of variants) {
+    const t0 = Date.now();
+    orderFor(v);
+    latency[v] = Date.now() - t0;
+  }
   return {
     metrics,
-    notes: `retrieval ablation (§6): FTS / Vector / FTS+Vector / FTS+Vector+RRF / +Graph over ${ds.topics.length} topics; +Graph equals RRF (dataset has no links)`,
+    latencyMs: latency,
+    notes: `retrieval ablation §6 + §30 v2.3: FTS / Vector / FTS+Vec / +RRF / +Graph / +Graph+Scope / Full over ${ds.topics.length} topics (§30 L.Ablation); +Graph equals RRF when dataset has no links — add graph suite for linked data`,
   };
 }

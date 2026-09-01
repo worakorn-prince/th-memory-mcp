@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>th-memory-mcp Benchmark Viewer — 3 latest versions · Normal & Heavy</title>
+<title>th-memory-mcp Benchmark Viewer — v2.3 (quick / normal / heavy) · Profiles & Versions</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -27,17 +27,19 @@
   .scroll{overflow:auto;max-height:520px}
   button,select{padding:6px 12px;border-radius:8px;border:1px solid #2a3448;background:#1a2333;color:#e6e8eb;cursor:pointer}
   button:hover,select:hover{background:#222a38}
-  .modeTabs{display:flex;gap:8px;margin-bottom:12px}
+  .modeTabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
   .modeTabs button.active{background:#6ea8fe;color:#0f1115;border-color:#6ea8fe}
+  .profileTabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .profileTabs button.active{background:#7ee787;color:#0f1115;border-color:#7ee787}
 </style>
-<h1>Benchmark Viewer — 3 Latest Versions · Normal & Heavy</h1>
-<div class="sub">Comparing latest run per version for <b>Normal (180 rec/30 topics)</b> and <b>Heavy (600 rec/100 topics + 2k scale)</b> — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file</div>
+<h1>Benchmark Viewer — v2.3 · Quick / Normal / Heavy · Profiles & Versions</h1>
+<div class="sub">Comparing latest run per version for <b>Quick (10K/1K)</b>, <b>Normal (100K/5K)</b>, <b>Heavy (1M/10K)</b> and <b>Profiles within version</b> — green = best, red = worst per metric — loads from <code>benchmark/results/history.jsonl</code> — run <code>npx serve .</code> then open this file — <code>benchmarkVersion 2.3.0-draft</code></div>
 
 <div class="card">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <button id="reload">Reload</button>
-    <button id="exportCsv">Export CSV (current mode)</button>
-    <button id="exportXlsx">Export Excel (current mode)</button>
+    <button id="exportCsv">Export CSV (current view)</button>
+    <button id="exportXlsx">Export Excel (current view)</button>
     <span id="status" class="badge">loading…</span>
     <span class="badge">Open via http://localhost:3000/benchmark/viewer/ or http://localhost:3000/result/viewer.html</span>
   </div>
@@ -45,9 +47,16 @@
 
 <div class="card">
   <div class="modeTabs">
-    <button id="modeNormal" class="active">Normal (180 rec)</button>
-    <button id="modeHeavy">Heavy (600 rec)</button>
-    <button id="modeBoth">Both — side by side</button>
+    <button id="modeQuick">Quick (10K)</button>
+    <button id="modeNormal" class="active">Normal (100K)</button>
+    <button id="modeHeavy">Heavy (1M)</button>
+    <button id="modeBoth">All profiles — side by side</button>
+    <button id="modeProfiles" title="Compare quick vs normal vs heavy within a single version">Profiles within version</button>
+  </div>
+  <div id="profileSelector" style="display:none;gap:8px;align-items:center;margin-bottom:12px">
+    <label for="versionSelect" style="color:#9aa3b2;font-size:13px">Version:</label>
+    <select id="versionSelect"></select>
+    <span class="badge">Shows quick / normal / heavy for selected version</span>
   </div>
   <div id="tableWrap" class="scroll"></div>
   <div style="color:#9aa3b2;font-size:12px;margin-top:8px">Row highlight: green = latest version, blue = second, orange = oldest. Cell highlight: <span style="background:#0f3d0f;color:#b6f7b6;padding:1px 4px;border-radius:4px">green = best</span> <span style="background:#4d1a1a;color:#ffb3b3;padding:1px 4px;border-radius:4px">red = worst</span> per metric (higher is better except latency/noise/contamination where lower is better). Units in header.</div>
@@ -55,14 +64,20 @@
 </div>
 
 <div class="grid">
-  <div class="card"><h3>Recall@5 / MRR / NDCG@5 — Across 3 Versions (current mode)</h3><canvas id="chartRecall" height="240"></canvas></div>
-  <div class="card"><h3>Latency p95 (ms) — retrieve / get_context / recall (current mode)</h3><canvas id="chartLatency" height="240"></canvas></div>
+  <div class="card"><h3>Recall@5 / MRR / NDCG@5 — Across 3 Versions (current profile)</h3><canvas id="chartRecall" height="240"></canvas></div>
+  <div class="card"><h3>Latency p95 (ms) — retrieve / get_context / recall (current profile)</h3><canvas id="chartLatency" height="240"></canvas></div>
+</div>
+<div class="grid">
+  <div class="card"><h3>Token efficiency — criticalCoverage vs accuracyPerToken (current profile)</h3><canvas id="chartToken" height="240"></canvas></div>
+  <div class="card"><h3>Scalability — dbSizeMB & peakRssMB (current profile)</h3><canvas id="chartScale" height="240"></canvas></div>
 </div>
 
 <script>
 let currentMode = "normal";
-let perVerMetricsByMode = {normal:[], heavy:[]};
-let sortedPathsByMode = {normal:[], heavy:[]};
+let perVerMetricsByMode = {quick:[], normal:[], heavy:[], stress:[], extreme:[]};
+let sortedPathsByMode = {quick:[], normal:[], heavy:[], stress:[], extreme:[]};
+let byVersionProfile = new Map();
+let selectedVersion = null;
 
 async function fetchText(url){ const r=await fetch(url); if(!r.ok) throw new Error(url+" "+r.status); return r.text(); }
 async function loadHistory(){
@@ -87,12 +102,20 @@ function flattenSuites(suites, out={}, prefix=""){
         }
       }
     }
+    if(suite && suite.byCategory && typeof suite.byCategory==="object"){
+      for(const [cat, vals] of Object.entries(suite.byCategory)){
+        for(const [k2,v2] of Object.entries(vals)) if(typeof v2==="number") out[`${name}.byCategory.${cat}.${k2}`]=v2;
+      }
+    }
     if(suite && suite.latency && typeof suite.latency==="object"){
       for(const [op, lat] of Object.entries(suite.latency)){
         if(lat && typeof lat==="object"){
           for(const [k,v] of Object.entries(lat)) if(typeof v==="number") out[`${name}.latency.${op}.${k}`]=v;
         }
       }
+    }
+    if(suite && suite.latencyMs && typeof suite.latencyMs==="object"){
+      for(const [k,v] of Object.entries(suite.latencyMs)) if(typeof v==="number") out[`${name}.latencyMs.${k}`]=v;
     }
   }
   return out;
@@ -104,7 +127,7 @@ function verCompare(a,b){
 }
 function isHigherBetter(path){
   const lower = path.toLowerCase();
-  if(lower.includes("latency") || lower.includes("noise") || lower.includes("contamination") || lower.includes("tokensused") || lower.includes("truncated")) return false;
+  if(lower.includes("latency") || lower.includes("noise") || lower.includes("contamination") || lower.includes("tokensused") || lower.includes("truncated") || lower.includes("graphnoiseratio") || lower.includes("crash") || lower.includes("rss") || lower.includes("dbsize") || lower.includes("indexsize") || lower.includes("cpu") || lower.includes("wallclock")) return false;
   return true;
 }
 function getUnit(path){
@@ -114,25 +137,28 @@ function getUnit(path){
   if(p.includes("infodensity")) return "per 1k tokens";
   if(p.includes("accuracypertoken")) return "per token";
   if(p.includes("recall") || p.includes("precision") || p.includes("mrr") || p.includes("ndcg") || p.includes("criticalcoverage") || p.includes("contextrelevance") || p.includes("relevanttokenratio")) return "0-1";
-  if(p.includes("noiseratio") || p.includes("contamination")) return "0-1 (lower better)";
-  if(p.includes("dataset")) return "records";
+  if(p.includes("noiseratio") || p.includes("contamination") || p.includes("graphnoiseratio")) return "0-1 (lower better)";
+  if(p.includes("dataset") || p.includes("memoriesinserted") || p.includes("scenarios") || p.includes("topics")) return "count";
   if(p.includes("operations") || p.includes("runs")) return "count";
-  if(p.includes("dbsize") || p.includes("mbper")) return "MB";
+  if(p.includes("dbsize") || p.includes("indexsize") || p.includes("mbper") || p.includes("peakrss") || p.includes("rss")) return "MB";
   if(p.includes("memoriespersec")) return "mem/s";
-  if(p.includes("peakrss") || p.includes("rssgrowth")) return "MB";
-  if(p.includes("cpu")) return "ms";
+  if(p.includes("cpu") || p.includes("wallclock")) return "ms";
   return "";
 }
-function detectMode(row){
-  // Infer mode from dataset size or scale
+function detectProfile(row){
+  const p = row.profile || row.environment?.profile || row.environment?.profileName || null;
+  if(p && ["quick","normal","heavy","stress","extreme"].includes(p)) return p;
   const flat = flattenSuites(row.suites);
+  const mems = flat["F.scalability.metrics.memoriesInserted"] ?? flat["F.scalability.metrics.dataset"] ?? flat["B.retrieval.metrics.dataset"];
+  if(mems!=null){
+    if(mems>=5_000_000) return "stress";
+    if(mems>=1_000_000) return "heavy";
+    if(mems>=100_000) return "normal";
+    if(mems>=10_000) return "quick";
+  }
   const ds = flat["B.retrieval.metrics.dataset"];
   if(ds!=null) return ds>=400 ? "heavy" : "normal";
-  // Fallback: heavy runs have F.scalability
-  if("F.scalability.metrics.memoriesPerSec" in flat || "F.scalability.metrics.dbSizeMB" in flat) return "heavy";
-  // Fallback by suite count: heavy has many suites
-  const keys = Object.keys(row.suites||{});
-  if(keys.includes("F.scalability") || keys.includes("E.cold")) return "heavy";
+  if(row.args?.profile) return row.args.profile;
   return "normal";
 }
 async function main(){
@@ -140,27 +166,31 @@ async function main(){
   try{
     const {txt}=await loadHistory();
     const rows=parseHistory(txt);
-    const byVerMode = new Map(); // ver -> {normal:[], heavy:[]}
+    byVersionProfile = new Map();
     for(const r of rows){
       const v=r.projectVersion||r.environment?.projectVersion||"unknown";
-      const mode = detectMode(r);
-      if(!byVerMode.has(v)) byVerMode.set(v, {normal:[], heavy:[]});
-      byVerMode.get(v)[mode].push(r);
+      const prof = detectProfile(r);
+      if(!byVersionProfile.has(v)) byVersionProfile.set(v, {quick:[], normal:[], heavy:[], stress:[], extreme:[]});
+      const bucket = byVersionProfile.get(v)[prof];
+      if(bucket) bucket.push(r); else byVersionProfile.get(v).normal.push(r);
     }
-    for(const obj of byVerMode.values()){
-      for(const k of ["normal","heavy"]) obj[k].sort((a,b)=> new Date(a.ts||a.environment?.timestamp) - new Date(b.ts||b.environment?.timestamp));
+    for(const obj of byVersionProfile.values()){
+      for(const k of ["quick","normal","heavy","stress","extreme"]) obj[k].sort((a,b)=> new Date(a.ts||a.environment?.timestamp) - new Date(b.ts||b.environment?.timestamp));
     }
-    let versions = [...byVerMode.keys()].sort(verCompare).slice(-3);
-    // Build per-mode latest 3 versions data
-    for(const mode of ["normal","heavy"]){
+    let versions = [...byVersionProfile.keys()].sort(verCompare).slice(-3);
+    if(versions.length===0) versions=[...byVersionProfile.keys()].sort(verCompare).slice(-3);
+    selectedVersion = versions[versions.length-1] || [...byVersionProfile.keys()].sort(verCompare).pop();
+    const selEl=document.getElementById("versionSelect");
+    selEl.innerHTML = [...byVersionProfile.keys()].sort(verCompare).map(v=>`<option value="${v}" ${v===selectedVersion?"selected":""}>${v}</option>`).join("");
+    selEl.onchange=(e)=>{ selectedVersion=e.target.value; render(); };
+    for(const mode of ["quick","normal","heavy","stress","extreme"]){
       let perVer = versions.map(ver=>{
-        const arr = byVerMode.get(ver)[mode];
-        if(arr.length===0) return null;
+        const arr = byVersionProfile.get(ver)[mode];
+        if(!arr || arr.length===0) return null;
         return {ver, latest: arr[arr.length-1], arr};
       }).filter(Boolean);
-      // Collect all paths for this mode
       const allPaths = new Set();
-      for(const r of rows.filter(r=> detectMode(r)===mode)){
+      for(const r of rows.filter(r=> detectProfile(r)===mode)){
         const flat = flattenSuites(r.suites);
         for(const k of Object.keys(flat)) allPaths.add(k);
       }
@@ -183,8 +213,10 @@ async function main(){
       perVerMetricsByMode[mode]=perVerMetrics;
     }
     render();
-    const totalVers = byVerMode.size;
-    status.textContent = `Showing ${versions.join(", ")} — ${rows.length} runs total (${[...byVerMode.values()].reduce((a,b)=>a+b.normal.length+b.heavy.length,0)} counted)`;
+    const totalVers = byVersionProfile.size;
+    const totalRuns = rows.length;
+    const counts = [...byVersionProfile.values()].reduce((a,b)=>a+b.quick.length+b.normal.length+b.heavy.length+b.stress.length+b.extreme.length,0);
+    status.textContent = `Showing ${versions.join(", ")} — ${totalRuns} runs total (${counts} profile-counted) — use tabs to switch quick/normal/heavy or Profiles within version`;
   }catch(e){
     status.textContent="error: "+e.message;
     document.getElementById("tableWrap").innerHTML=`<pre style="white-space:pre-wrap;color:#ff8b8b">${e.stack||e.message}</pre>`;
@@ -194,21 +226,31 @@ function render(){
   const mode = currentMode;
   const tableWrap = document.getElementById("tableWrap");
   const perSuiteEl = document.getElementById("perSuite");
-  if(mode==="both"){
-    // Render two tables side by side
-    let html='<div class="grid"><div><h4>Normal (180 rec)</h4>'+renderTable("normal")+'</div><div><h4>Heavy (600 rec)</h4>'+renderTable("heavy")+'</div></div>';
+  const profSel = document.getElementById("profileSelector");
+  if(mode==="profiles"){
+    profSel.style.display="flex";
+    tableWrap.innerHTML = renderProfilesWithinVersion(selectedVersion);
+    perSuiteEl.innerHTML = renderProfilesPerSuiteWithinVersion(selectedVersion);
+    renderChartsForProfiles(selectedVersion);
+    return;
+  } else if(mode==="both"){
+    profSel.style.display="none";
+    let html='<div class="grid" style="grid-template-columns:1fr"><div><h4>Quick (10K)</h4>'+renderTable("quick")+'</div><div><h4>Normal (100K)</h4>'+renderTable("normal")+'</div><div><h4>Heavy (1M)</h4>'+renderTable("heavy")+'</div></div>';
     tableWrap.innerHTML = html;
-    perSuiteEl.innerHTML = renderPerSuite("normal") + "<hr style='border-color:#222a38;margin:16px 0'>" + renderPerSuite("heavy");
+    perSuiteEl.innerHTML = renderPerSuite("quick") + "<hr style='border-color:#222a38;margin:16px 0'>" + renderPerSuite("normal") + "<hr style='border-color:#222a38;margin:16px 0'>" + renderPerSuite("heavy");
+    renderCharts("normal");
+    return;
   } else {
+    profSel.style.display="none";
     tableWrap.innerHTML = renderTable(mode);
     perSuiteEl.innerHTML = renderPerSuite(mode);
+    renderCharts(mode);
   }
-  renderCharts(mode==="both" ? "normal" : mode);
 }
 function renderTable(mode){
   const perVerMetrics = perVerMetricsByMode[mode];
   const sortedPaths = sortedPathsByMode[mode];
-  if(!perVerMetrics || perVerMetrics.length===0) return `<div>No data for ${mode} mode</div>`;
+  if(!perVerMetrics || perVerMetrics.length===0) return `<div>No data for ${mode} mode — run <code>node benchmark/run.mjs --profile ${mode} --out benchmark/results</code></div>`;
   const bestWorst={};
   for(const p of sortedPaths){
     const vals = perVerMetrics.map(m=>m.resolved[p]).filter(v=>v!=null);
@@ -219,7 +261,7 @@ function renderTable(mode){
     if(best===worst) continue;
     bestWorst[p]={best, worst};
   }
-  const shortCol = c => c.replace(".metrics.",".").replace(".latency.",".").replace("B.retrieval.","R.").replace("E.performance.","P.").replace("E.cold.","C.").replace("B.ablation.","A.").replace("D.context.","D.").replace("F.scalability.","F.").replace("C.temporal.","T.").replace("C.conflict.","Cf.").replace("C.scope.","S.").replace("A.storage.","S.").slice(0,22);
+  const shortCol = c => c.replace(".metrics.",".").replace(".latency.",".").replace(".byCategory.",".").replace("B.retrieval.","R.").replace("C.semantic-hard.","S.").replace("E.performance.","P.").replace("E.cold.","C.").replace("B.ablation.","A.").replace("D.context.","D.").replace("F.scalability.","F.").replace("C.temporal.","T.").replace("C.conflict.","Cf.").replace("C.scope.","Sc.").replace("G.graph.","G.").replace("M.reliability.","M.").replace("A.storage.","S.").slice(0,24);
   let html="<table><thead><tr><th>version</th><th>ts</th><th>commit</th>";
   for(const c of sortedPaths){
     const unit=getUnit(c);
@@ -245,6 +287,105 @@ function renderTable(mode){
   html+="</tbody></table>";
   return html;
 }
+function renderProfilesWithinVersion(version){
+  if(!version || !byVersionProfile.has(version)) return `<div>No data for version ${version}</div>`;
+  const profiles = ["quick","normal","heavy"];
+  const rowsByProfile = profiles.map(p=>{
+    const arr = byVersionProfile.get(version)[p];
+    if(!arr || arr.length===0) return {profile:p, flat:{}, latest:null};
+    const latest = arr[arr.length-1];
+    const flat = flattenSuites(latest.suites);
+    return {profile:p, flat, latest, count: arr.length};
+  });
+  const allPaths = new Set();
+  for(const r of rowsByProfile) for(const k of Object.keys(r.flat)) allPaths.add(k);
+  const sortedPaths = [...allPaths].sort();
+  if(sortedPaths.length===0) return `<div>No metrics for ${version} — run quick/normal/heavy for this version</div>`;
+  const bestWorst={};
+  for(const p of sortedPaths){
+    const vals = rowsByProfile.map(r=>r.flat[p]).filter(v=>v!=null);
+    if(vals.length<2) continue;
+    const higherBetter=isHigherBetter(p);
+    const best=higherBetter?Math.max(...vals):Math.min(...vals);
+    const worst=higherBetter?Math.min(...vals):Math.max(...vals);
+    if(best===worst) continue;
+    bestWorst[p]={best, worst};
+  }
+  const shortCol = c => c.replace(".metrics.",".").replace(".latency.",".").replace(".byCategory.",".").replace("B.retrieval.","R.").replace("C.semantic-hard.","S.").replace("E.performance.","P.").replace("E.cold.","C.").replace("B.ablation.","A.").replace("D.context.","D.").replace("F.scalability.","F.").replace("C.temporal.","T.").replace("C.conflict.","Cf.").replace("C.scope.","Sc.").replace("G.graph.","G.").replace("M.reliability.","M.").replace("A.storage.","S.").slice(0,28);
+  let html=`<h4 style="margin:0 0 8px">Profiles within <b>${version}</b> — quick vs normal vs heavy</h4><table><thead><tr><th>profile</th><th>ts</th><th>commit</th>`;
+  for(const c of sortedPaths){
+    const unit=getUnit(c);
+    html+=`<th title="${c}">${shortCol(c)}${unit?`<br><span style="font-weight:400;color:#9aa3b2">(${unit})</span>`:""}</th>`;
+  }
+  html+="<th>runs</th></tr></thead><tbody>";
+  for(const {profile, flat, latest, count} of rowsByProfile){
+    const ts = latest ? (latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ") : "-";
+    const commit = latest ? (latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7) : "-";
+    const cls = profile==="quick"?"hl3":profile==="normal"?"hl2":"hl1";
+    html+=`<tr class="${cls}"><td><b>${profile}</b></td><td>${ts}</td><td>${commit}</td>`;
+    for(const c of sortedPaths){
+      const v=flat[c];
+      let cls2="";
+      if(v!=null && bestWorst[c]){
+        if(v===bestWorst[c].best) cls2="best";
+        else if(v===bestWorst[c].worst) cls2="worst";
+      }
+      html+=`<td class="${cls2}">${v==null?"-": (Math.abs(v)>=100? v.toFixed(1): v.toFixed(4))}</td>`;
+    }
+    html+=`<td>${count??0}</td></tr>`;
+  }
+  html+="</tbody></table>";
+  return html;
+}
+function renderProfilesPerSuiteWithinVersion(version){
+  if(!byVersionProfile.has(version)) return "";
+  const profiles = ["quick","normal","heavy"];
+  const rowsByProfile = profiles.map(p=>{
+    const arr = byVersionProfile.get(version)[p];
+    if(!arr || arr.length===0) return {profile:p, flat:{}};
+    const flat = flattenSuites(arr[arr.length-1].suites);
+    return {profile:p, flat};
+  });
+  const allPaths = new Set();
+  for(const r of rowsByProfile) for(const k of Object.keys(r.flat)) allPaths.add(k);
+  const sortedPaths = [...allPaths].sort();
+  const bestWorst={};
+  for(const p of sortedPaths){
+    const vals = rowsByProfile.map(r=>r.flat[p]).filter(v=>v!=null);
+    if(vals.length<2) continue;
+    const higherBetter=isHigherBetter(p);
+    const best=higherBetter?Math.max(...vals):Math.min(...vals);
+    const worst=higherBetter?Math.min(...vals):Math.max(...vals);
+    if(best===worst) continue;
+    bestWorst[p]={best, worst};
+  }
+  let html="";
+  const suites = [...new Set(sortedPaths.map(p=>p.split(".")[0]))].sort();
+  for(const s of suites){
+    const cols = sortedPaths.filter(p=>p.startsWith(s+"."));
+    if(cols.length===0) continue;
+    html+=`<h4 style="margin:12px 0 6px;color:#9aa3b2">${s} — profiles within ${version}</h4><table><thead><tr><th>metric</th><th>unit</th>`;
+    for(const p of profiles) html+=`<th>${p}</th>`;
+    html+="</tr></thead><tbody>";
+    for(const c of cols){
+      const short = c.replace(s+".metrics.","").replace(s+".latency.","").replace(s+".byCategory.","");
+      const unit=getUnit(c);
+      html+="<tr><td>"+short+"</td><td>"+unit+"</td>";
+      for(const r of rowsByProfile){
+        const v=r.flat[c];
+        let cls2="";
+        if(v!=null && bestWorst[c]){
+          if(v===bestWorst[c].best) cls2="best";
+          else if(v===bestWorst[c].worst) cls2="worst";
+        }
+        html+=`<td class="${cls2}">${v==null?"-": v.toFixed(4)}</td>`;
+      }
+      html+="</tr>";
+    }
+    html+="</tbody></table>";
+  }
+  return html;
+}
 function renderPerSuite(mode){
   const perVerMetrics = perVerMetricsByMode[mode];
   const sortedPaths = sortedPathsByMode[mode];
@@ -268,7 +409,7 @@ function renderPerSuite(mode){
     for(const {ver} of perVerMetrics) html+=`<th>${ver}</th>`;
     html+="</tr></thead><tbody>";
     for(const c of cols){
-      const short = c.replace(s+".metrics.","").replace(s+".latency.","");
+      const short = c.replace(s+".metrics.","").replace(s+".latency.","").replace(s+".byCategory.","");
       const unit=getUnit(c);
       html+="<tr><td>"+short+"</td><td>"+unit+"</td>";
       for(const {resolved} of perVerMetrics){
@@ -286,12 +427,14 @@ function renderPerSuite(mode){
   }
   return html;
 }
-let chartRecall=null, chartLatency=null;
+let chartRecall=null, chartLatency=null, chartToken=null, chartScale=null;
 function renderCharts(mode){
   const labelsPerMode = perVerMetricsByMode[mode].map(p=>p.ver);
   const get = (p, path)=> p.resolved[path] ?? null;
   if(chartRecall) chartRecall.destroy();
   if(chartLatency) chartLatency.destroy();
+  if(chartToken) chartToken.destroy();
+  if(chartScale) chartScale.destroy();
   const perVerMetrics = perVerMetricsByMode[mode];
   if(!perVerMetrics.length) return;
   const labels = labelsPerMode;
@@ -313,9 +456,94 @@ function renderCharts(mode){
     ]},
     options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
   });
+  chartToken = new Chart(document.getElementById("chartToken"),{
+    type:"bar",
+    data:{ labels, datasets:[
+      {label:"criticalCoverage budget_1024", data: perVerMetrics.map(p=> get(p,"D.context.metrics.budget_1024.criticalCoverage")), backgroundColor:"#6ea8fe"},
+      {label:"accuracyPerToken b1024", data: perVerMetrics.map(p=> get(p,"D.context.metrics.budget_1024.accuracyPerToken")), backgroundColor:"#ffce6e"},
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
+  });
+  chartScale = new Chart(document.getElementById("chartScale"),{
+    type:"bar",
+    data:{ labels, datasets:[
+      {label:"dbSizeMB", data: perVerMetrics.map(p=> get(p,"F.scalability.metrics.dbSizeMB")), backgroundColor:"#6ea8fe"},
+      {label:"peakRssMB", data: perVerMetrics.map(p=> get(p,"F.scalability.metrics.peakRssMB")), backgroundColor:"#ff8b8b"},
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
+  });
+}
+function renderChartsForProfiles(version){
+  if(chartRecall) chartRecall.destroy();
+  if(chartLatency) chartLatency.destroy();
+  if(chartToken) chartToken.destroy();
+  if(chartScale) chartScale.destroy();
+  if(!version || !byVersionProfile.has(version)) return;
+  const profiles = ["quick","normal","heavy"];
+  const rows = profiles.map(p=>{
+    const arr = byVersionProfile.get(version)[p];
+    if(!arr || arr.length===0) return null;
+    return flattenSuites(arr[arr.length-1].suites);
+  });
+  if(rows.every(r=>r==null)) return;
+  const get = (flat, path)=> flat ? flat[path] ?? null : null;
+  chartRecall = new Chart(document.getElementById("chartRecall"),{
+    type:"bar",
+    data:{ labels: profiles, datasets:[
+      {label:"Recall@5", data: rows.map(f=> get(f,"B.retrieval.metrics.recallAt5")), backgroundColor:"#6ea8fe"},
+      {label:"MRR", data: rows.map(f=> get(f,"B.retrieval.metrics.mrr")), backgroundColor:"#7ee787"},
+      {label:"NDCG@5", data: rows.map(f=> get(f,"B.retrieval.metrics.ndcgAt5")), backgroundColor:"#ffce6e"},
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}, min:0, max:1}} }
+  });
+  chartLatency = new Chart(document.getElementById("chartLatency"),{
+    type:"bar",
+    data:{ labels: profiles, datasets:[
+      {label:"retrieve p95 (ms)", data: rows.map(f=> get(f,"E.performance.latency.retrieve.p95")), backgroundColor:"#6ea8fe"},
+      {label:"getContext p95 (ms)", data: rows.map(f=> get(f,"E.performance.latency.getContext.p95")), backgroundColor:"#ff8b8b"},
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
+  });
+  chartToken = new Chart(document.getElementById("chartToken"),{
+    type:"bar",
+    data:{ labels: profiles, datasets:[
+      {label:"criticalCoverage b1024", data: rows.map(f=> get(f,"D.context.metrics.budget_1024.criticalCoverage")), backgroundColor:"#6ea8fe"},
+      {label:"heavy dbSizeMB", data: rows.map(f=> get(f,"F.scalability.metrics.dbSizeMB")), backgroundColor:"#ff8b8b"},
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
+  });
+  chartScale = new Chart(document.getElementById("chartScale"),{
+    type:"bar",
+    data:{ labels: profiles, datasets:[
+      {label:"peakRssMB", data: rows.map(f=> get(f,"F.scalability.metrics.peakRssMB")), backgroundColor:"#6ea8fe"},
+      {label:"indexSizeMB", data: rows.map(f=> get(f,"F.scalability.metrics.indexSizeMB")), backgroundColor:"#d2a8ff"},
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{color:"#e6e8eb"}}}, scales:{x:{ticks:{color:"#9aa3b2"}}, y:{ticks:{color:"#9aa3b2"}}} }
+  });
 }
 function exportCsv(){
-  const mode = currentMode==="both" ? "normal" : currentMode;
+  let mode = currentMode;
+  if(mode==="profiles"){
+    const version=selectedVersion;
+    const profiles=["quick","normal","heavy"];
+    const rowsByProfile = profiles.map(p=>{
+      const arr = byVersionProfile.get(version)?.[p];
+      if(!arr || arr.length===0) return null;
+      const flat=flattenSuites(arr[arr.length-1].suites);
+      return {profile:p, flat, latest: arr[arr.length-1]};
+    }).filter(Boolean);
+    const allPaths=[...new Set(rowsByProfile.flatMap(r=>Object.keys(r.flat)))].sort();
+    const header=["profile","version","ts","commit", ...allPaths.map(p=>`${p} (${getUnit(p)})`)];
+    const rows = rowsByProfile.map(({profile, flat, latest})=>{
+      const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
+      const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
+      return [profile, version, ts, commit, ...allPaths.map(p=> flat[p]==null?"":flat[p])];
+    });
+    const csv=[header,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`benchmark_profiles_${version}_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+    return;
+  }
+  if(mode==="both") mode="normal";
   const perVerMetrics = perVerMetricsByMode[mode];
   const sortedPaths = sortedPathsByMode[mode];
   if(!perVerMetrics.length) return;
@@ -326,12 +554,30 @@ function exportCsv(){
     return [ver, ts, commit, ...sortedPaths.map(p=> resolved[p]==null?"":resolved[p]), count];
   });
   const csv = [header, ...rows].map(r=> r.map(v=> `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href=url; a.download=`benchmark_${mode}_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"}); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download=`benchmark_${mode}_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
 }
 function exportXlsx(){
-  const mode = currentMode==="both" ? "normal" : currentMode;
+  let mode = currentMode;
+  if(mode==="profiles"){
+    const version=selectedVersion;
+    const profiles=["quick","normal","heavy"];
+    const rowsByProfile = profiles.map(p=>{
+      const arr = byVersionProfile.get(version)?.[p];
+      if(!arr || arr.length===0) return null;
+      const flat=flattenSuites(arr[arr.length-1].suites);
+      return {profile:p, flat, latest: arr[arr.length-1]};
+    }).filter(Boolean);
+    const allPaths=[...new Set(rowsByProfile.flatMap(r=>Object.keys(r.flat)))].sort();
+    const header=["profile","version","ts","commit", ...allPaths];
+    const rows = rowsByProfile.map(({profile, flat, latest})=>{
+      const ts=(latest.ts||latest.environment?.timestamp||"").slice(0,19).replace("T"," ");
+      const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
+      return [profile, version, ts, commit, ...allPaths.map(p=> flat[p]??"")];
+    });
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "profiles"); XLSX.writeFile(wb, `benchmark_profiles_${version}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    return;
+  }
+  if(mode==="both") mode="normal";
   const perVerMetrics = perVerMetricsByMode[mode];
   const sortedPaths = sortedPathsByMode[mode];
   if(!perVerMetrics.length) return;
@@ -341,18 +587,15 @@ function exportXlsx(){
     const commit=(latest.gitCommit||latest.environment?.gitCommit||"").slice(0,7);
     return [ver, ts, commit, ...sortedPaths.map(p=> resolved[p]??""), count];
   });
-  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "benchmark");
-  const units = ["", "", "", ...sortedPaths.map(getUnit), ""];
-  XLSX.utils.sheet_add_aoa(ws, [units], {origin: 1});
-  XLSX.writeFile(wb, `benchmark_${mode}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "benchmark"); const units = ["", "", "", ...sortedPaths.map(getUnit), ""]; XLSX.utils.sheet_add_aoa(ws, [units], {origin: 1}); XLSX.writeFile(wb, `benchmark_${mode}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 document.getElementById("reload").onclick=()=>location.reload();
 document.getElementById("exportCsv").onclick=exportCsv;
 document.getElementById("exportXlsx").onclick=exportXlsx;
+document.getElementById("modeQuick").onclick=()=>{ currentMode="quick"; document.querySelectorAll(".modeTabs button").forEach(b=>b.classList.remove("active")); document.getElementById("modeQuick").classList.add("active"); render(); };
 document.getElementById("modeNormal").onclick=()=>{ currentMode="normal"; document.querySelectorAll(".modeTabs button").forEach(b=>b.classList.remove("active")); document.getElementById("modeNormal").classList.add("active"); render(); };
 document.getElementById("modeHeavy").onclick=()=>{ currentMode="heavy"; document.querySelectorAll(".modeTabs button").forEach(b=>b.classList.remove("active")); document.getElementById("modeHeavy").classList.add("active"); render(); };
 document.getElementById("modeBoth").onclick=()=>{ currentMode="both"; document.querySelectorAll(".modeTabs button").forEach(b=>b.classList.remove("active")); document.getElementById("modeBoth").classList.add("active"); render(); };
+document.getElementById("modeProfiles").onclick=()=>{ currentMode="profiles"; document.querySelectorAll(".modeTabs button").forEach(b=>b.classList.remove("active")); document.getElementById("modeProfiles").classList.add("active"); render(); };
 main();
 </script>

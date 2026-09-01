@@ -51,7 +51,7 @@ function sh(cmd, cwd) {
   }
 }
 
-export function envInfo() {
+export function envInfo(extra = {}) {
   let sqlite = "?";
   try {
     sqlite = JSON.parse(
@@ -62,7 +62,7 @@ export function envInfo() {
     ).version;
   } catch {}
   return {
-    benchmarkVersion: "1.0",
+    benchmarkVersion: "2.3.0-draft",
     projectVersion: JSON.parse(
       fs.readFileSync(path.resolve("package.json"), "utf8")
     ).version,
@@ -74,6 +74,11 @@ export function envInfo() {
     node: process.version,
     pnpm: sh("pnpm -v", path.resolve(".")),
     betterSqlite3: sqlite,
+    datasetVersion: extra.datasetVersion || "smoke-1.0/semantic-hard-1.0/graph-1.0/scope-1.0",
+    seed: extra.seed ?? null,
+    retrievalMode: process.env.MEMORY_RETRIEVAL_MODE || "rrf",
+    runMode: extra.runMode || null,
+    profile: extra.profile || null,
     timestamp: new Date().toISOString(),
   };
 }

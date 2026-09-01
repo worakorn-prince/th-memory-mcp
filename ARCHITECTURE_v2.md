@@ -1,7 +1,7 @@
 # th-memory-mcp v2 — Architecture & Implementation Specification
 
 **Status:** ✅ Released — `th-memory-mcp v2.0.0` is published (npm + Official MCP Registry + Glama).  
-**Baseline:** v1.2.2 → **Current:** v2.2.6  
+**Baseline:** v1.2.2 → **Current:** v2.2.7  
 **Primary goal:** evolve th-memory-mcp from a structured local memory MCP into a durable, temporal, conflict-aware, hybrid-retrieval memory engine for AI agents.
 
 > **Audience guide:** End users should read [README.md](README.md) (install, tools, usage). This document is the **canonical architecture & agent-rules spec** for developers and AI coding agents — the single source of truth for structure and behavior. The former `design.md` build log has been folded into §40 Implementation Status.
@@ -1597,5 +1597,11 @@ All previously-deferred future features are implemented. AI-assisted extraction 
 - v2.1.0: implemented and tested locally; publish skipped (superseded by v2.2.0).
 - v2.2.0: fully released — tag + GitHub Release, **npm published** (`th-memory-mcp@2.2.0`), Official MCP Registry auto-ingested from npm (manual `mcp-publisher publish` is redundant and errors `duplicate version`), Glama synced. Only `npm publish` + Glama Sync are required.
 - v2.2.1: Glama quality fix (server failed to start — better-sqlite3 native binding missing under pnpm 10 on Node 24). Added `pnpm.onlyBuiltDependencies: ["better-sqlite3"]` so pnpm runs the install script that downloads the Node 24 prebuild; bumped better-sqlite3 to `^12.9.0`; added `ip-address@^10.2.0` overrides (npm + pnpm) to clear transitive XSS via `@modelcontextprotocol/sdk`. No code changes. Pending `npm publish` + Glama re-test.
+- v2.2.2: baseline for benchmark spec v1.0 (retrieval quality harness initial).
+- v2.2.3: security + performance hardening per `report_checkup.md` (scope-enforced retrieval, graph scope isolation, export/import round-trip, realpath symlink protection, strict import validation, N+1 elimination, cold/ablation benchmark, `MEMORY_RETRIEVAL_MODE` switch — 25/25 tests).
+- v2.2.4: docs — tidy README badge layout.
+- v2.2.5: docs — sync README/design/ARCHITECTURE/PUBLISH to project (lexical fuzzy matching, 25 suites, benchmark viewer, result versioning) + SECURITY.md.
+- v2.2.6: docs — translate all docs to English except `README.th.md` (benchmark/README, METHODOLOGY, repro/README, viewer HTML, PUBLISH checklist).
+- v2.2.7: bugfix — synced secret filter (6-pattern redact) between Claude hook (`scripts/claude-capture.mjs`) and `capture-core.ts`, fixed `err()` to return `isError:true` per MCP spec (`src/db/index.ts`), fixed backup rotation to backup only when migrations pending + prune to 5 (`src/db/migrations.ts`), added `data/hook-errors.log` logging for SessionEnd distill failures; benchmark — upgraded to v2.3 spec draft (semantic-hard 8 categories, enhanced scope contamination, graph effectiveness, token efficiency @128 budget, scalability profiles quick→extreme up to 10M with resumable generation, ablation with scope+graph, reliability suite).
 
 **Packaging note (Glama / Smithery):** these registries build with `pnpm install` + `pnpm run build` on **Node 24** and disable postinstall scripts by default (pnpm 10). Any native dependency (e.g. `better-sqlite3`) MUST be listed in `pnpm.onlyBuiltDependencies` in `package.json`, otherwise its native binary is never fetched and the server crashes at startup with `Could not locate the bindings file`.

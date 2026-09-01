@@ -271,5 +271,5 @@ export function ok(text: string): ToolResult {
 }
 
 export function err(text: string): ToolResult {
-  return ok(`error: ${truncate(text, 300)}`);
+  return { content: [{ type: "text", text: `error: ${truncate(text, 300)}` }], isError: true };
 }

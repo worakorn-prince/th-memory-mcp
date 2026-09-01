@@ -25,7 +25,7 @@ export function runContextSuite(mods) {
   }
   const criticalSet = new Set(critical);
 
-  const budgets = [256, 512, 1024, 2048, 4096, 8192];
+  const budgets = [128, 256, 512, 1024, 2048, 4096, 8192];
   const metrics = {};
   for (const b of budgets) {
     const res = getContext({
@@ -61,6 +61,6 @@ export function runContextSuite(mods) {
 
   return {
     metrics,
-    notes: `token-budget sweep (§11,§16,§17): 12 critical + 60 irrelevant memories`,
+    notes: `token-budget sweep (§11,§16,§17,§18-20 v2.3): 12 critical + 60 irrelevant memories, budgets 128→8192, reports criticalCoverage/relevantTokenRatio/noiseRatio/contextRelevance/infoDensity/tokensUsed/truncated/accuracyPerToken`,
   };
 }

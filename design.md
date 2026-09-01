@@ -3,7 +3,7 @@
 This document is up-to-date with the actual codebase state (after completing all future feature plans except AI-assisted extraction, which was removed). The full specification is at `ARCHITECTURE_v2.md` (canonical spec); this file summarizes the overview and current status for convenience.
 
 ## Current Status
-- **Version:** `package.json` = `2.2.6`
+- **Version:** `package.json` = `2.2.7`
 - **MCP tools:** 16 tools (`remember`, `recall`, `get_context`, `link_memory`, `merge_memory`, `update_memory`, `import_memory`, `extract_memories`, `consolidate`, `forget`, `history`, `recent_interactions`, `profile`, `lesson`, `memory_stats`, `export_memory`)
 - **Test suites:** 25 suites passing (0 fail) — run via `npm test` (CI on GitHub Actions)
 
@@ -62,3 +62,4 @@ This document is up-to-date with the actual codebase state (after completing all
 - v2.2.4 — docs: tidy README badge layout
 - v2.2.5 — docs: sync README/design/ARCHITECTURE/PUBLISH to project (lexical fuzzy matching, 25 suites, benchmark viewer for 3 versions, result versioning) + SECURITY.md + package files; keep v2.2.3 security hardening
 - v2.2.6 — docs: translate all docs to English except readme.th.md (benchmark/README, benchmark/METHODOLOGY, repro/README, viewer HTML, PUBLISH checklist)
+- v2.2.7 — bugfix: synced secret filter (6-pattern redact) between Claude hook and capture-core, fixed `err()` to return `isError:true` per MCP spec, fixed backup rotation (backup only when migrations pending + prune to 5), added hook error logging for SessionEnd distill; benchmark: upgraded to v2.3 spec (semantic-hard dataset, scope safety, graph effectiveness, token efficiency @128 budget, scalability profiles quick→extreme up to 10M, ablation with scope+graph, resumable generation, resource reporting)

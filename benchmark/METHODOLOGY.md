@@ -1,6 +1,6 @@
 # th-memory-mcp Benchmark — Methodology
 
-Methodology for the benchmark per `TH_MEMORY_MCP_BENCHMARK_SPEC.md`.
+Methodology for the benchmark per `TH_MEMORY_MCP_BENCHMARK_SPEC.md` (v1.0 baseline v2.2.2) and `review/benchmark_v2.2.7.md` (v2.3 draft baseline v2.2.6 → target v2.3.x, upgraded in v2.2.7).
 
 ## Principles
 
@@ -13,16 +13,19 @@ Methodology for the benchmark per `TH_MEMORY_MCP_BENCHMARK_SPEC.md`.
 
 | Suite | File | Spec | Measures |
 |-------|------|------|----------|
-| A.storage | suites/storage.mjs | §4 | insertion / round-trip / forget correctness |
-| B.retrieval | suites/retrieval.mjs | §5 | Recall@K / Precision@K / MRR / NDCG@K |
-| C.temporal | suites/temporal.mjs | §7 | current / historical / supersession |
-| C.conflict | suites/temporal.mjs | §8 | true conflict + false conflict by scope |
-| C.scope | suites/temporal.mjs | §9 | USER/SESSION/PROJECT/GLOBAL selection + contamination |
-| D.context | suites/context.mjs | §11,§16,§17 | token-budget sweep, critical coverage, noise, info density |
-| E.performance | suites/performance.mjs | §12 | latency per operation (warm) |
-| E.cold | suites/cold.mjs | §12.2 | latency from fresh process + fresh DB |
-| B.ablation | suites/ablation.mjs | §6 | FTS / Vector / FTS+Vector / FTS+Vector+RRF / +Graph |
-| F.scalability | suites/scalability.mjs | §13,§14,§15 | throughput, DB size, CPU/RAM |
+| A.storage | suites/storage.mjs | v1 §4 + v2.3 §5 | insertion / round-trip / forget correctness, scope/type/timestamp/provenance |
+| B.retrieval | suites/retrieval.mjs | v1 §5 + v2.3 §6 | Recall@K / Precision@K / MRR / NDCG@K (standard lexical) |
+| C.semantic-hard | suites/semantic-hard.mjs | v2.3 §7-9 | 8 categories: exact/variation/typo/thai_paraphrase/synonym/thai_english/indirect/conceptual, per-category Recall/MRR/NDCG |
+| C.temporal | suites/temporal.mjs | v1 §7 + v2.3 §10 | current / historical / supersession, valid_from/until, stale/archived |
+| C.conflict | suites/temporal.mjs | v1 §8 + v2.3 §11 | true/false/scope-separated/temporal conflicts, unsafe merge rate |
+| C.scope | suites/temporal.mjs | v1 §9 + v2.3 §12-14 | USER/SESSION/PROJECT/GLOBAL selection, retrieval vs context contamination |
+| D.context | suites/context.mjs | v1 §11,§16,§17 + v2.3 §18-20 | token-budget sweep 128→8192, criticalCoverage/relevantTokenRatio/noiseRatio/contextRelevance/infoDensity/accuracyPerToken |
+| E.performance | suites/performance.mjs | v1 §12 + v2.3 §21-23 | latency per operation warm (remember/recall/get_context/...), p50/p95/p99 |
+| E.cold | suites/cold.mjs | v1 §12.2 + v2.3 §23 | cold fresh process+DB via subprocess, 30 samples, startup + first op |
+| B.ablation | suites/ablation.mjs | v1 §6 + v2.3 §30 | FTS / Vector / FTS+Vector / +RRF / +Graph / +Graph+Scope / Full + latency trade-off |
+| F.scalability | suites/scalability.mjs | v1 §13-15 + v2.3 §24-29 | 5 profiles quick(10K)→extreme(10M) + queries, throughput/DB/index/RSS/CPU, resumable |
+| G.graph | suites/graph.mjs | v2.3 §15-17 | 100 scenarios 5-20 nodes 1-3 hops 7 relations, Graph Recall/Precision/MRR/NDCG/1-3hop accuracy/noise |
+| M.reliability | suites/reliability.mjs | v2.3 §28 + §29 | graceful degradation, secret filtering, host non-fatal |
 
 ## Metric definitions
 
@@ -66,9 +69,23 @@ Can be switched instantly to find the balance for a specific workload without co
 - Add suite: create `suites/<name>.mjs` exporting `runXSuite(mods)` then register in `run.mjs`
 - `mods` passed to suites: `createMemory, retrieve, getContext, ftsSearch, vectorSearch, rrfFuse, rememberHandler, recallHandler, contextHandler, saveLessonHandler, forgetHandler, updateMemoryHandler, mergeMemoryHandler, linkMemoryHandler, reset, dbPath`
 
-## System notes (baseline v2.2.2)
+## Profiles (v2.3 §24 §27)
 
-1. `retrieve` does not filter `valid_until` (only `get_context` does) and does not filter `superseded` memories → stale data may leak (low supersession accuracy)
-2. Cold-state is significantly heavier than warm (recall ~4ms vs <1ms, get_context ~10ms vs <1ms) due to process + embedding load
-3. Ablation: FTS-only Recall@5 = 1.0 beats Vector-only (0.62); RRF is close to sum-rank but stronger semantically
-4. `+Graph` in ablation equals RRF because the dataset has no memory links yet
+| Profile | Memories | Queries | Purpose | Frequency |
+|---------|---------:|--------:|---------|-----------|
+| quick   | 10K | 1K | Development fast regression | Every change |
+| normal  | 100K | 5K | Routine regression | Regular |
+| heavy   | 1M | 10K | Large workload | Major changes |
+| stress  | 5M | 25K | Stress / degradation | Pre-release |
+| extreme | 10M | 50K | Maximum validation | Release |
+
+Official v2.3 max is 10M; 50M intentionally excluded. Large generation is resumable via `*.scalability-state.json`.
+
+## System notes (baseline v2.2.6 → v2.2.7)
+
+1. `retrieve` does not filter `valid_until` (only `get_context` does) and does not filter `superseded` memories → stale data may leak (low supersession accuracy) — unchanged from v2.2.2
+2. Cold-state is significantly heavier than warm (recall ~4ms vs <1ms, get_context ~10ms vs <1ms) due to process + embedding load — warmup 20/100, cold 30 samples
+3. Ablation v2.2.6: FTS-only Recall@5 = 1.0 beats Vector-only (0.62); RRF is close to sum-rank but stronger semantically — v2.2.7 adds +Graph+Scope/Full variants and reports latency trade-off
+4. `+Graph` in ablation equals RRF on standard dataset (no links) — use `G.graph` suite (100 linked scenarios) for real graph benefit
+5. v2.2.7 scope contamination baseline 75% (before hardening) → target 0% after hard filtering (§14)
+6. BenchmarkVersion bumped `1.0 → 2.3.0-draft` in `benchmark/lib/harness.mjs`; datasetVersion now `smoke-1.0/semantic-hard-1.0/graph-1.0/scope-1.0`

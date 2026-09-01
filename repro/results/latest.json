@@ -1,0 +1,17 @@
+{
+  "metrics": {
+    "recallAt1": 0.2000000000000001,
+    "recallAt3": 0.6,
+    "recallAt5": 0.9200000000000002,
+    "recallAt10": 0.9733333333333334,
+    "precisionAt1": 1,
+    "precisionAt3": 1,
+    "precisionAt5": 0.9200000000000002,
+    "precisionAt10": 0.4866666666666667,
+    "mrr": 1,
+    "ndcgAt5": 0.9445453145289904,
+    "ndcgAt10": 0.976503065217468
+  },
+  "datasetVersion": "1.0",
+  "timestamp": "2026-08-31T17:13:13.275Z"
+}

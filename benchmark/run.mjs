@@ -17,6 +17,9 @@ import { runContextSuite } from "./suites/context.mjs";
 import { runScalabilitySuite } from "./suites/scalability.mjs";
 import { runColdSuite } from "./suites/cold.mjs";
 import { runAblationSuite } from "./suites/ablation.mjs";
+import { runSemanticHardSuite } from "./suites/semantic-hard.mjs";
+import { runGraphSuite } from "./suites/graph.mjs";
+import { runReliabilitySuite } from "./suites/reliability.mjs";
 
 function parseArgs(argv) {
   const a = {
@@ -29,6 +32,10 @@ function parseArgs(argv) {
     out: path.join(process.cwd(), "results"),
     runMode: "warm",
     scale: 1000,
+    profile: null,
+    seed: 42,
+    queries: null,
+    scenarios: 100,
   };
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
@@ -41,6 +48,27 @@ function parseArgs(argv) {
     else if (arg === "--scale") a.scale = Number(argv[++i]);
     else if (arg === "--out") a.out = path.resolve(argv[++i]);
     else if (arg === "--cold") a.runMode = "cold";
+    else if (arg === "--profile") a.profile = argv[++i];
+    else if (arg === "--seed") a.seed = Number(argv[++i]);
+    else if (arg === "--queries") a.queries = Number(argv[++i]);
+    else if (arg === "--scenarios") a.scenarios = Number(argv[++i]);
+  }
+  if (a.profile) {
+    const map = {
+      quick: { scale: 10_000, queries: 1_000, topics: 100, distractors: 100, iterations: 100 },
+      normal: { scale: 100_000, queries: 5_000, topics: 100, distractors: 100, iterations: 100 },
+      heavy: { scale: 1_000_000, queries: 10_000, topics: 100, distractors: 100, iterations: 100 },
+      stress: { scale: 5_000_000, queries: 25_000, topics: 100, distractors: 100, iterations: 100 },
+      extreme: { scale: 10_000_000, queries: 50_000, topics: 100, distractors: 100, iterations: 30 },
+    };
+    const p = map[a.profile];
+    if (p) {
+      if (!argv.includes("--scale")) a.scale = p.scale;
+      if (!argv.includes("--queries")) a.queries = p.queries;
+      if (!argv.includes("--topics") && p.topics) a.topics = p.topics;
+      if (!argv.includes("--distractors") && p.distractors) a.distractors = p.distractors;
+      if (!argv.includes("--iterations") && p.iterations) a.iterations = p.iterations;
+    }
   }
   return a;
 }
@@ -118,12 +146,13 @@ async function main() {
   }
   if (args.suite === "all" || args.suite === "scalability") {
     console.error("[run] scalability suite...");
-    suites["F.scalability"] = runScalabilitySuite(mods, { scale: args.scale });
+    suites["F.scalability"] = runScalabilitySuite(mods, { scale: args.scale, profile: args.profile, queries: args.queries });
     reset();
   }
   if (args.suite === "all" || args.suite === "cold") {
     console.error("[run] cold-state suite...");
-    suites["E.cold"] = runColdSuite(mods, { coldSamples: args.iterations });
+    const coldSamples = args.profile === "quick" ? 5 : args.profile === "normal" ? 5 : args.profile === "heavy" ? 10 : Math.min(args.iterations, 10);
+    suites["E.cold"] = runColdSuite(mods, { coldSamples });
     reset();
   }
   if (args.suite === "all" || args.suite === "ablation") {
@@ -135,10 +164,31 @@ async function main() {
     });
     reset();
   }
+  if (args.suite === "all" || args.suite === "semantic-hard") {
+    console.error("[run] semantic-hard suite...");
+    suites["C.semantic-hard"] = runSemanticHardSuite(mods, {
+      k: args.k,
+      topics: Math.min(args.topics, 100),
+      distractors: Math.min(args.distractors, 20),
+      seed: args.seed,
+    });
+    reset();
+  }
+  if (args.suite === "all" || args.suite === "graph") {
+    console.error("[run] graph retrieval suite...");
+    suites["G.graph"] = runGraphSuite(mods, { k: args.k, scenarios: args.scenarios, seed: args.seed });
+    reset();
+  }
+  if (args.suite === "all" || args.suite === "reliability") {
+    console.error("[run] reliability suite...");
+    suites["M.reliability"] = runReliabilitySuite(mods);
+    reset();
+  }
 
   const results = {
-    environment: envInfo(),
+    environment: envInfo({ datasetVersion: `smoke-1.0/semantic-hard-1.0/graph-1.0/scope-1.0 seed=${args.seed}`, seed: args.seed, runMode: args.runMode, profile: args.profile }),
     runMode: args.runMode,
+    profile: args.profile,
     args: {
       suite: args.suite,
       warmup: args.warmup,
@@ -146,6 +196,11 @@ async function main() {
       k: args.k,
       topics: args.topics,
       distractors: args.distractors,
+      scale: args.scale,
+      queries: args.queries,
+      scenarios: args.scenarios,
+      seed: args.seed,
+      profile: args.profile,
     },
     suites,
   };

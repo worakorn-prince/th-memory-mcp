@@ -17,11 +17,13 @@ function toMarkdown(r) {
     "",
     `- Project: v${e.projectVersion} (${e.gitCommit})`,
     `- Benchmark spec: v${e.benchmarkVersion}`,
-    `- Run mode: ${r.runMode}`,
+    `- Dataset: ${e.datasetVersion || "n/a"} | Seed: ${e.seed ?? "n/a"} | Retrieval: ${e.retrievalMode || "n/a"}`,
+    `- Run mode: ${r.runMode}${r.profile ? ` | Profile: ${r.profile}` : ""}`,
     `- Timestamp: ${e.timestamp}`,
     `- Node: ${e.node} | OS: ${e.os}`,
     `- CPU: ${e.cpu} (x${e.cpuCount}) | RAM: ${e.ramMB}MB`,
     `- better-sqlite3: ${e.betterSqlite3}`,
+    `- Args: ${JSON.stringify(r.args || {})}`,
     "",
   ];
   for (const [name, suite] of Object.entries(r.suites || {})) {
@@ -36,6 +38,13 @@ function toMarkdown(r) {
         } else {
           lines.push(`- ${k}: ${fmt(v)}`);
         }
+      }
+    }
+    if (suite.byCategory) {
+      lines.push(`- byCategory:`);
+      for (const [cat, vals] of Object.entries(suite.byCategory)) {
+        lines.push(`  - ${cat}:`);
+        for (const [k2, v2] of Object.entries(vals)) lines.push(`    - ${k2}: ${fmt(v2)}`);
       }
     }
     if (suite.latency) {
@@ -57,9 +66,40 @@ function toMarkdown(r) {
         }
       }
     }
+    if (suite.latencyMs) {
+      lines.push(`- latencyMs:`);
+      for (const [k2, v2] of Object.entries(suite.latencyMs)) lines.push(`  - ${k2}: ${fmt(v2)}ms`);
+    }
+    if (suite.cases) {
+      lines.push(`- cases: ${suite.cases.length} total`);
+      for (const c of suite.cases.slice(0, 5)) lines.push(`  - ${c.label}: ok=${c.ok} crashed=${c.crashed}${c.error ? ` err=${c.error.slice(0,80)}` : ""}`);
+      if (suite.cases.length > 5) lines.push(`  - ... and ${suite.cases.length - 5} more`);
+    }
     if (suite.notes) lines.push(`- notes: ${suite.notes}`);
     lines.push("");
   }
+  const gates = [];
+  const scopeOk = Object.values(r.suites || {}).some((s) => s.metrics && s.metrics.crossScopeContaminationRate === 0);
+  if (scopeOk) gates.push("Scope contamination 0: PASS");
+  const temporal = r.suites?.["C.temporal"]?.metrics;
+  if (temporal && temporal.currentStateAccuracy === 1 && temporal.historicalStateAccuracy === 1) gates.push("Temporal 1.0: PASS");
+  const storage = r.suites?.["A.storage"]?.metrics;
+  if (storage && storage.storageCorrectness === 1) gates.push("Storage 1.0: PASS");
+  const reliability = r.suites?.["M.reliability"]?.metrics;
+  if (reliability && reliability.crashCount === 0) gates.push("Reliability no crash: PASS");
+  if (gates.length) {
+    lines.push("## Release Gates");
+    for (const g of gates) lines.push(`- ${g}`);
+    lines.push("");
+  }
+  lines.push("## Regression Summary");
+  lines.push("- Improved: (compare with previous version via `node benchmark/compare.mjs --a <old> --b <new>`)");
+  lines.push("- Unchanged: n/a");
+  lines.push("- Regressed: n/a");
+  lines.push("");
+  lines.push("## Engineering Recommendation");
+  lines.push("- See gates above; if all critical gates PASS → RELEASE, else DO NOT RELEASE");
+  lines.push("");
   return lines.join("\n");
 }
 
@@ -77,6 +117,7 @@ export function writeReport(results, outDir) {
       projectVersion: results.environment.projectVersion,
       gitCommit: results.environment.gitCommit,
       runMode: results.runMode,
+      profile: results.profile || null,
       suites: results.suites,
     }) + "\n"
   );
@@ -96,6 +137,7 @@ export function writeReport(results, outDir) {
       ts,
       gitCommit: git,
       runMode: results.runMode,
+      profile: results.profile || null,
       suites: results.suites,
     }) + "\n"
   );

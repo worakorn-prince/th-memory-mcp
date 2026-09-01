@@ -1,6 +1,6 @@
 {
   "name": "th-memory-mcp",
-  "version": "2.2.6",
+  "version": "2.2.7",
   "mcpName": "io.github.worakorn-prince/th-memory-mcp",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
   "author": "worakorn-prince",
@@ -35,7 +35,11 @@
     "distill": "node dist/distill.js",
     "quickstart": "npm run build && node scripts/quickstart.mjs",
     "benchmark": "node repro/run.mjs",
-    "benchmark:heavy": "node benchmark/run.mjs --suite all --topics 100 --distractors 100 --scale 2000 --out benchmark/results",
+    "benchmark:quick": "node benchmark/run.mjs --profile quick --out benchmark/results",
+    "benchmark:normal": "node benchmark/run.mjs --profile normal --out benchmark/results",
+    "benchmark:heavy": "node benchmark/run.mjs --profile heavy --out benchmark/results",
+    "benchmark:all-profiles": "npm run benchmark:quick && npm run benchmark:normal && npm run benchmark:heavy",
+    "benchmark:pre-release": "npm run build && npm test && npm run benchmark:all-profiles",
     "benchmark:viewer": "npx serve . -l 3000"
   },
   "engines": {
