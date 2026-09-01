@@ -1,7 +1,7 @@
 # th-memory-mcp v2 — Architecture & Implementation Specification
 
 **Status:** ✅ Released — `th-memory-mcp v2.0.0` is published (npm + Official MCP Registry + Glama).  
-**Baseline:** v1.2.2 → **Current:** v2.2.7  
+**Baseline:** v1.2.2 → **Current:** v2.2.8  
 **Primary goal:** evolve th-memory-mcp from a structured local memory MCP into a durable, temporal, conflict-aware, hybrid-retrieval memory engine for AI agents.
 
 > **Audience guide:** End users should read [README.md](README.md) (install, tools, usage). This document is the **canonical architecture & agent-rules spec** for developers and AI coding agents — the single source of truth for structure and behavior. The former `design.md` build log has been folded into §40 Implementation Status.
@@ -1603,5 +1603,6 @@ All previously-deferred future features are implemented. AI-assisted extraction 
 - v2.2.5: docs — sync README/design/ARCHITECTURE/PUBLISH to project (lexical fuzzy matching, 25 suites, benchmark viewer, result versioning) + SECURITY.md.
 - v2.2.6: docs — translate all docs to English except `README.th.md` (benchmark/README, METHODOLOGY, repro/README, viewer HTML, PUBLISH checklist).
 - v2.2.7: bugfix — synced secret filter (6-pattern redact) between Claude hook (`scripts/claude-capture.mjs`) and `capture-core.ts`, fixed `err()` to return `isError:true` per MCP spec (`src/db/index.ts`), fixed backup rotation to backup only when migrations pending + prune to 5 (`src/db/migrations.ts`), added `data/hook-errors.log` logging for SessionEnd distill failures; benchmark — upgraded to v2.3 spec draft (semantic-hard 8 categories, enhanced scope contamination, graph effectiveness, token efficiency @128 budget, scalability profiles quick→extreme up to 10M with resumable generation, ablation with scope+graph, reliability suite).
+- v2.2.8: bugfix — fixed scope contamination 0.75→0 (critical, GLOBAL leak) and conflict false 0→1 (GLOBAL vs projectId) via `benchmark/suites/temporal.mjs` reset + GLOBAL-exclusion, fixed graph hop1 0.52→1.0 via `includeGraph:true`; benchmark — rescaled profiles 5K/20K/100K/500K/1M (from 10K/100K/1M/5M/10M) for dev machine, viewer upgraded to profiles within version (5K/20K/100K), pre-commit now 2 profiles (quick 5K + normal 20K).
 
 **Packaging note (Glama / Smithery):** these registries build with `pnpm install` + `pnpm run build` on **Node 24** and disable postinstall scripts by default (pnpm 10). Any native dependency (e.g. `better-sqlite3`) MUST be listed in `pnpm.onlyBuiltDependencies` in `package.json`, otherwise its native binary is never fetched and the server crashes at startup with `Could not locate the bindings file`.
