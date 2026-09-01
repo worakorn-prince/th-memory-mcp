@@ -47,9 +47,9 @@
 
 <div class="card">
   <div class="modeTabs">
-    <button id="modeQuick">Quick (10K)</button>
-    <button id="modeNormal" class="active">Normal (100K)</button>
-    <button id="modeHeavy">Heavy (1M)</button>
+    <button id="modeQuick">Quick (5K/1K)</button>
+    <button id="modeNormal" class="active">Normal (20K/5K)</button>
+    <button id="modeHeavy">Heavy (100K/10K)</button>
     <button id="modeBoth">All profiles — side by side</button>
     <button id="modeProfiles" title="Compare quick vs normal vs heavy within a single version">Profiles within version</button>
   </div>
@@ -151,10 +151,11 @@ function detectProfile(row){
   const flat = flattenSuites(row.suites);
   const mems = flat["F.scalability.metrics.memoriesInserted"] ?? flat["F.scalability.metrics.dataset"] ?? flat["B.retrieval.metrics.dataset"];
   if(mems!=null){
-    if(mems>=5_000_000) return "stress";
-    if(mems>=1_000_000) return "heavy";
-    if(mems>=100_000) return "normal";
-    if(mems>=10_000) return "quick";
+    if(mems>=1_000_000) return "extreme";
+    if(mems>=500_000) return "stress";
+    if(mems>=100_000) return "heavy";
+    if(mems>=20_000) return "normal";
+    if(mems>=5_000) return "quick";
   }
   const ds = flat["B.retrieval.metrics.dataset"];
   if(ds!=null) return ds>=400 ? "heavy" : "normal";
