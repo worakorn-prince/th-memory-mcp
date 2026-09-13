@@ -52,4 +52,4 @@ Example `opencode.json`:
 - [ ] LICENSE is correct (MIT, copyright `worakorn-prince`)
 - [ ] `README.md` / `design.md` / `ARCHITECTURE_v2.md` versions are in sync (`npm run version:check` or `node scripts/sync-version.mjs`)
 - [ ] `benchmark/METHODOLOGY.md` and `benchmark/README.md` reflect current suite ↔ spec mapping (v2.3 draft)
-- [ ] Create a Git tag matching the version (e.g. `v2.2.7`) and a GitHub Release — include benchmark summary (quick 5K / normal 20K) in release notes (heavy/stress/extreme รวมแยกเมื่อรันเต็ม)
+- [ ] Create a Git tag matching the version (e.g. `v2.2.8`) and a GitHub Release — include benchmark summary (quick 5K / normal 20K) in release notes (heavy/stress/extreme รวมแยกเมื่อรันเต็ม)

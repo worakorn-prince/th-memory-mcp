@@ -1,6 +1,6 @@
 # repro — Reproducible benchmark (internal, small-N)
 
-Dataset and harness to reproduce the benchmark in `result/v2.2.4_benchmark_result.md` on your machine.
+Dataset and harness to reproduce the benchmark in `result/v2.2.8_benchmark_result.md` on your machine.
 
 - **Size:** 180 records (30 topics × 5 relevant + 30 distractors) — `datasetVersion: 1.0`
 - **Nature:** internal, small-N, single-machine self-run — **not a third-party benchmark**, do not compare as if from an external evaluator
