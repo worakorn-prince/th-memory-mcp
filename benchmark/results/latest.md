@@ -1,10 +1,10 @@
 # th-memory-mcp Benchmark Report
 
-- Project: v2.2.8 (a0f93b4)
+- Project: v2.2.8 (a2dcbce)
 - Benchmark spec: v2.3.0-draft
 - Dataset: smoke-1.0/semantic-hard-1.0/graph-1.0/scope-1.0 seed=42 | Seed: 42 | Retrieval: rrf
 - Run mode: warm | Profile: normal
-- Timestamp: 2026-09-01T19:39:24.104Z
+- Timestamp: 2026-09-13T06:25:31.063Z
 - Node: v26.1.0 | OS: Windows_NT 10.0.19045
 - CPU: AMD Ryzen 7 2700U with Radeon Vega Mobile Gfx   (x8) | RAM: 15261MB
 - better-sqlite3: 12.11.1
@@ -119,50 +119,50 @@
 
 ## E.performance
 - operations: 9
-- latency[remember](ms): min=0 mean=1.5200 p95=1 p99=50.0300 max=53
-- latency[recall](ms): min=1 mean=1.6600 p95=2 p99=3.0500 max=8
-- latency[getContext](ms): min=0 mean=0.7000 p95=1 p99=2 max=2
-- latency[retrieve](ms): min=0 mean=0.3500 p95=1 p99=1 max=1
-- latency[createMemory](ms): min=0 mean=1.7800 p95=2 p99=46.0200 max=48
-- latency[updateMemory](ms): min=1 mean=5.6900 p95=45.4500 p99=63.0600 max=69
-- latency[mergeMemory](ms): min=2 mean=5.8200 p95=8.3000 p99=62.0500 max=67
-- latency[linkMemory](ms): min=2 mean=6.3400 p95=13.1500 p99=70.0200 max=72
-- latency[forget](ms): min=1 mean=2.7400 p95=2 p99=55.1300 max=68
+- latency[remember](ms): min=0 mean=1.6200 p95=1 p99=47.2300 max=70
+- latency[recall](ms): min=1 mean=1.6500 p95=3 p99=5.0100 max=6
+- latency[getContext](ms): min=0 mean=0.7300 p95=1 p99=1.0100 max=2
+- latency[retrieve](ms): min=0 mean=0.3900 p95=1 p99=1 max=1
+- latency[createMemory](ms): min=0 mean=1.6500 p95=1.0500 p99=41.1000 max=51
+- latency[updateMemory](ms): min=1 mean=5.8600 p95=44.1500 p99=63.0200 max=65
+- latency[mergeMemory](ms): min=2 mean=5.6400 p95=7.2500 p99=61.0400 max=65
+- latency[linkMemory](ms): min=1 mean=4.5500 p95=3.0500 p99=70 max=70
+- latency[forget](ms): min=1 mean=2.6600 p95=2 p99=45.0100 max=46
 - notes: warmup=20 iterations=100 (warm only; cold not yet implemented)
 
 ## F.scalability
 - profile: normal
 - memoriesInserted: 20000
 - queries: 5000
-- memoriesPerSec: 154.5105
-- dbSizeMB: 92.6098
-- indexSizeMB: 92.6137
-- mbPer1kMemories: 4.6305
-- peakRssMB: 110.8516
-- rssMB: 284.7383
-- rssGrowthMB: 0.0117
-- cpuUserMs: 95000
-- cpuSysMs: 10141
-- wallClockInsertMs: 129441
-- retrieveLatencyMs: 377.9800
-- getContextLatencyMs: 364.9000
-- ftsLatencyMs: 35
-- vectorLatencyMs: 326.3500
+- memoriesPerSec: 132.5363
+- dbSizeMB: 92.9673
+- indexSizeMB: 93.0338
+- mbPer1kMemories: 4.6484
+- peakRssMB: 106.0664
+- rssMB: 272.8281
+- rssGrowthMB: 0.0039
+- cpuUserMs: 116656
+- cpuSysMs: 10688
+- wallClockInsertMs: 150902
+- retrieveLatencyMs: 512.0900
+- getContextLatencyMs: 525.3000
+- ftsLatencyMs: 63.3000
+- vectorLatencyMs: 462.2000
 - resumable: false
-- notes: scalability §24-26 v2.3: profile=normal N=20000 Q=5000 throughput+DB/index+CPU/RAM+latency, resumable via th-bench-1788291321661-415171.db.scalability-state.json
+- notes: scalability §24-26 v2.3: profile=normal N=20000 Q=5000 throughput+DB/index+CPU/RAM+latency, resumable via th-bench-1789280443329-28695.db.scalability-state.json
 
 ## E.cold
 - operations: 9
 - samples: 5
-- latency[remember](ms): min=0 mean=0.8000 p95=1 p99=1 max=1
-- latency[recall](ms): min=4 mean=4.2000 p95=4.8000 p99=4.9600 max=5
-- latency[getContext](ms): min=8 mean=8.8000 p95=10 p99=10 max=10
-- latency[retrieve](ms): min=6 mean=6.6000 p95=7 p99=7 max=7
-- latency[createMemory](ms): min=0 mean=0.8000 p95=1 p99=1 max=1
-- latency[updateMemory](ms): min=2 mean=3 p95=3.8000 p99=3.9600 max=4
-- latency[mergeMemory](ms): min=2 mean=3.2000 p95=4 p99=4 max=4
-- latency[linkMemory](ms): min=2 mean=2.2000 p95=2.8000 p99=2.9600 max=3
-- latency[forget](ms): min=2 mean=2.2000 p95=2.8000 p99=2.9600 max=3
+- latency[remember](ms): min=1 mean=1.4000 p95=2 p99=2 max=2
+- latency[recall](ms): min=4 mean=6.2000 p95=7.8000 p99=7.9600 max=8
+- latency[getContext](ms): min=8 mean=9.4000 p95=10.8000 p99=10.9600 max=11
+- latency[retrieve](ms): min=6 mean=7.6000 p95=8 p99=8 max=8
+- latency[createMemory](ms): min=0 mean=0.6000 p95=1 p99=1 max=1
+- latency[updateMemory](ms): min=2 mean=4.6000 p95=6 p99=6 max=6
+- latency[mergeMemory](ms): min=3 mean=4.6000 p95=5.8000 p99=5.9600 max=6
+- latency[linkMemory](ms): min=2 mean=3.8000 p95=5.6000 p99=5.9200 max=6
+- latency[forget](ms): min=2 mean=2.8000 p95=3 p99=3 max=3
 - notes: cold = fresh process + fresh DB per call; reports min/mean/p95/max over 5 spawns (§12.2)
 
 ## B.ablation
@@ -231,14 +231,14 @@
   - ndcgAt5: 0.9515
   - ndcgAt10: 0.9678
 - latencyMs:
-  - fts_only: 1455ms
-  - vec_only: 1346ms
-  - fts_vec: 1417ms
-  - fts_vec_sumrank: 1370ms
-  - fts_vec_rrf: 1432ms
-  - fts_vec_rrf_graph: 1555ms
-  - fts_vec_rrf_graph_scope: 1446ms
-  - full: 1454ms
+  - fts_only: 1207ms
+  - vec_only: 1284ms
+  - fts_vec: 1153ms
+  - fts_vec_sumrank: 1197ms
+  - fts_vec_rrf: 1107ms
+  - fts_vec_rrf_graph: 1075ms
+  - fts_vec_rrf_graph_scope: 1131ms
+  - full: 1144ms
 - notes: retrieval ablation §6 + §30 v2.3: FTS / Vector / FTS+Vec / +RRF / +Graph / +Graph+Scope / Full over 100 topics (§30 L.Ablation); +Graph equals RRF when dataset has no links — add graph suite for linked data
 
 ## C.semantic-hard
