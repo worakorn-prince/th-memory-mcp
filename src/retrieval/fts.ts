@@ -22,7 +22,7 @@ export function ftsSearch(
     : "AND m.status NOT IN ('deleted','archived','superseded')";
   const rows = db
     .prepare(
-      `SELECT m.id FROM memories m
+      `SELECT m.id, m.scope, m.project_id, m.session_id, m.user_id FROM memories m
        JOIN search_index ON search_index.ref_table = 'memories' AND search_index.ref_id = m.id
        WHERE search_index MATCH @match ${statusClause}
        ORDER BY rank
@@ -31,24 +31,17 @@ export function ftsSearch(
     .all({
       match: buildFtsMatch(query),
       limit,
-    }) as Array<{ id: number }>;
-  const filtered = rows.filter(({ id }) => {
-    const m = db
-      .prepare(
-        "SELECT scope, project_id, session_id, user_id FROM memories WHERE id = ?"
-      )
-      .get(id) as
-      | {
-          scope: string;
-          project_id: string | null;
-          session_id: string | null;
-          user_id: number | null;
-        }
-      | undefined;
-    if (!m) return false;
+    }) as Array<{
+      id: number;
+      scope: string;
+      project_id: string | null;
+      session_id: string | null;
+      user_id: number | null;
+    }>;
+  const uid = opts.userId == null ? null : resolveUserId(opts.userId);
+  const filtered = rows.filter((m) => {
     if (m.scope === "USER") {
       if (opts.userId == null) return false;
-      const uid = resolveUserId(opts.userId as string);
       return m.user_id === uid;
     }
     if (m.scope === "SESSION") {
