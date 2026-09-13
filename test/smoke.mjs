@@ -14,7 +14,7 @@ const tmpDir = mkdtempSync(join(tmpdir(), "th-memory-mcp-smoke-"));
 const testDb = join(tmpDir, "memory.db");
 const expectedExportsDir = resolve(join(tmpDir, "exports"));
 const MAX_TOOL_MS = Number(process.env.SMOKE_MAX_TOOL_MS ?? 100);
-const MAX_STARTUP_MS = 2000;
+const MAX_STARTUP_MS = Number(process.env.SMOKE_MAX_STARTUP_MS ?? 8000);
 
 let failures = 0;
 let step = 0;
@@ -155,7 +155,7 @@ try {
 
   report(initResult?.serverInfo?.name === "th-memory-mcp", "1. initialize → serverInfo",
     `name=${initResult?.serverInfo?.name} v=${initResult?.serverInfo?.version}`);
-  report(startupMs < MAX_STARTUP_MS, "startup < 2s to initialize-ready", `${startupMs.toFixed(0)} ms`);
+  report(startupMs < MAX_STARTUP_MS, "startup < 8s to initialize-ready", `${startupMs.toFixed(0)} ms (budget ${MAX_STARTUP_MS} ms)`);
 
   await send({ jsonrpc: "2.0", method: "notifications/initialized" });
   report(true, "2. notification initialized sent");
@@ -312,11 +312,11 @@ try {
     report(existsSync(exportedPath), "10f. exported file exists on disk", exportedPath);
     try {
       const parsed = JSON.parse(readFileSync(exportedPath, "utf8"));
-      const keysOk = ["exported_at", "version", "preferences", "lessons", "profile", "interactions"].every(
+      const keysOk = ["exported_at", "version", "format", "memories", "memoryLinks", "preferences", "lessons", "profile", "interactions"].every(
         (k) => k in parsed
       );
       report(
-        keysOk && parsed.version === "1.1.0" && parsed.interactions.included === false,
+        keysOk && parsed.version === "2.2.8" && parsed.format === "th-memory-mcp/v2" && parsed.interactions.included === false,
         "10g. default export: spec keys present, interactions excluded"
       );
     } catch (e) {

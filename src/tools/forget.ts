@@ -15,7 +15,7 @@ export const forgetInput = {
     .positive()
     .describe("Row id to delete (id returned by remember/save_lesson)"),
   type: z
-    .enum(["preference", "lesson", "interaction"])
+    .enum(["memory", "preference", "lesson", "interaction"])
     .optional()
     .describe(
       "Which table the id belongs to. Recommended whenever known, because numeric ids can coincide across tables."
@@ -28,13 +28,18 @@ const indexTables = db.prepare(
 const existsPreference = db.prepare("SELECT id FROM preferences WHERE id = ?");
 const existsLesson = db.prepare("SELECT id FROM lessons WHERE id = ?");
 const existsInteraction = db.prepare("SELECT id FROM interactions WHERE id = ?");
+const existsMemory = db.prepare("SELECT id FROM memories WHERE id = ? AND status <> 'deleted'");
 const delPreference = db.prepare("DELETE FROM preferences WHERE id = ?");
 const delLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
 const delInteraction = db.prepare("DELETE FROM interactions WHERE id = ?");
+const delMemoryLinks = db.prepare(
+  "DELETE FROM memory_links WHERE source_memory_id = ? OR target_memory_id = ?"
+);
 
-type Kind = "preferences" | "lessons" | "interactions";
+type Kind = "memories" | "preferences" | "lessons" | "interactions";
 
 function existsIn(kind: Kind, id: number): boolean {
+  if (kind === "memories") return !!existsMemory.get(id);
   if (kind === "preferences") {
     return !!existsPreference.get(id);
   }
@@ -46,11 +51,12 @@ function existsIn(kind: Kind, id: number): boolean {
 
 export async function forgetHandler(args: {
   target_id: number;
-  type?: "preference" | "lesson" | "interaction";
+  type?: "memory" | "preference" | "lesson" | "interaction";
 }): Promise<ToolResult> {
   try {
     const id = args.target_id;
     const kindOf: Record<string, Kind> = {
+      memory: "memories",
       preference: "preferences",
       lesson: "lessons",
       interaction: "interactions",
@@ -65,12 +71,12 @@ export async function forgetHandler(args: {
       const evidence = indexed
         .map((r) => r.ref_table)
         .filter((t): t is Kind =>
-          t === "preferences" || t === "lessons" || t === "interactions"
+          t === "memories" || t === "preferences" || t === "lessons" || t === "interactions"
         );
       const candidates =
         evidence.length > 0
           ? evidence
-          : (["preferences", "lessons", "interactions"] as Kind[]);
+          : (["memories", "preferences", "lessons", "interactions"] as Kind[]);
       targets = candidates.filter((k) => existsIn(k, id));
     }
 
@@ -79,10 +85,25 @@ export async function forgetHandler(args: {
     }
 
     const removed: string[] = [];
+    let linksRemoved = 0;
     db.transaction(() => {
       for (const kind of targets) {
         if (!existsIn(kind, id)) continue;
-        if (kind === "preferences") {
+        if (kind === "memories") {
+          db.prepare("UPDATE memories SET status = 'deleted' WHERE id = ?").run(id);
+          removeSearchIndex("memories", id);
+          removeEmbedding("memories", id);
+          // Batch A: cascade-delete memory_links referencing this id on BOTH sides
+          // in the same transaction so forget never leaves dangling graph edges.
+          // NOTE: entities/relations are intentionally NOT deleted here — they are
+          // shared graph nodes that may still be referenced by other memories;
+          // deleting them would corrupt the graph. Orphaned rows stay harmless
+          // and can be reclaimed by consolidate/GC later.
+          const info = delMemoryLinks.run(id, id) as unknown as { changes: number };
+          const n = Number(info.changes ?? 0);
+          linksRemoved += n;
+          removed.push(`memory #${id} (${n} link(s) removed)`);
+        } else if (kind === "preferences") {
           delPreference.run(id);
           removeSearchIndex("preferences", id);
           removeEmbedding("preferences", id);

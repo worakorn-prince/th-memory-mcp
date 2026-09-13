@@ -179,7 +179,7 @@ server.registerTool(
   {
     title: "Update a memory",
     description:
-      "Update mutable fields (summary/importance/confidence/valid_until/metadata) in place. If content changes, a superseding memory is created by default (set supersede=false to edit in place).",
+      "Update mutable fields (summary/importance/confidence/valid_from/valid_until/metadata) in place. If content changes, a superseding memory is created by default (set supersede=false to edit in place).",
     inputSchema: updateMemoryInput,
   },
   (args) => updateMemoryHandler(args)

@@ -274,19 +274,25 @@ export function runMigrations(db: DB): void {
     process.env.MEMORY_BACKUP_ON_MIGRATE !== "0" &&
     process.env.MEMORY_BACKUP_ON_MIGRATE !== "false";
   if (shouldBackup) {
-    try {
-      const dbPath = (db as unknown as { name: string }).name;
-      if (dbPath && dbPath !== ":memory:") {
-        const backupPath = `${dbPath}.backup-${Date.now()}`;
-        try {
-          copyFileSync(dbPath, backupPath);
-        } catch {
-          console.error("[migrations] failed to create backup, aborting");
-          return;
-        }
+    const dbPath = (db as unknown as { name: string }).name;
+    if (dbPath && dbPath !== ":memory:") {
+      try {
+        // A plain copy of the main file is not a valid snapshot while recent
+        // commits are still in the WAL. Checkpoint first, then fail closed.
+        db.pragma("wal_checkpoint(TRUNCATE)");
+        // NOTE: better-sqlite3 exposes .backup(dest) but it is async
+        // (Promise-based) while runMigrations is sync and runs inside the
+        // DB singleton init path. Awaiting it would require making the whole
+        // migration/startup chain async and risks a half-applied state, so we
+        // keep the synchronous copyFileSync snapshot here on purpose.
+        // No new dependency added.
+        copyFileSync(dbPath, `${dbPath}.backup-${Date.now()}`);
         pruneOldBackups(dbPath);
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        throw new Error(`migration backup failed for ${dbPath}: ${reason}`);
       }
-    } catch {}
+    }
   }
   for (const m of pending) {
     const tx = db.transaction(() => {

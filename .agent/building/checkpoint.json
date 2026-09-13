@@ -1,0 +1,173 @@
+{
+  "backup": "C:\\Users\\Prince\\AppData\\Local\\Temp\\opencode\\mcp-config-backup\\ (opencode.json 241B + .mcp.json 151B)",
+  "build": {
+    "cmd": "npm run build",
+    "result": "pass",
+    "note": "tsc clean, round2 after locked-file removal"
+  },
+  "deleted": [
+    {
+      "path": ".opencode",
+      "size_bytes": 55078871,
+      "note": "ทูลแคช"
+    },
+    {
+      "path": ".openvisio/graph.json",
+      "size_bytes": 144540,
+      "note": "แคชสแกน (export-verify สร้างใหม่ 142574B)"
+    },
+    {
+      "path": "dist (เก่า)",
+      "size_bytes": 153109,
+      "note": "บิลด์ใหม่ได้ (dist ใหม่ 149441B)"
+    },
+    {
+      "path": ".mcp.json",
+      "size_bytes": 151,
+      "note": "หลังแบคอัพแล้ว"
+    },
+    {
+      "path": ".agent/building/checkpoint.json (เก่า)",
+      "size_bytes": 1498,
+      "note": "ล็อกเก่า batch เก่า (ไฟล์นี้สร้างใหม่)"
+    },
+    {
+      "path": "mcp-publisher.exe",
+      "size_bytes": 20393472,
+      "note": "binary หมดอายุ ~20MB"
+    },
+    {
+      "path": "opencode.json",
+      "size_bytes": 241,
+      "note": "หลังแบคอัพแล้ว"
+    }
+  ],
+  "groupB_untouched": [
+    "CONTRIBUTING.md/.th.md",
+    "PUBLISH.md/.th.md",
+    "AGENTS.memory.example.th.md",
+    "design.md",
+    "MIGRATION_v2.md",
+    "benchmark/results",
+    "result/",
+    "repro/results",
+    "review/",
+    "data/memory.db (466944B ยังอยู่)",
+    "README.md",
+    "src/",
+    "test/",
+    "package.json",
+    "server.json",
+    "LICENSE"
+  ],
+  "prove": {
+    "mcp1": "135 files, 445 symbols, 437 edges",
+    "mcp2": "135 files, 445 symbols, 437 edges",
+    "payload_identical": true,
+    "status": "prove เทียบเท่าผ่าน"
+  },
+  "safety": {
+    "git_ls_files_groupA": "empty (ไม่มี tracked)",
+    "git_status_before": "M 10 files + ?? .agent/.mcp.json/.opencode/.openvisio/opencode.json/src/lib/iso.ts/test/export_v2.test.mjs",
+    "method": "Remove-Item -LiteralPath ทีละไฟล์ ห้าม rm -rf/ reset --hard/ commit"
+  },
+  "skipped_locked": [
+    {
+      "path": ".openvisio/cache/mcp/data.mdb",
+      "reason": "ถูกใช้โดยโปรเซสอื่น (openvisio LMDB lock) ลบไม่ได้",
+      "size_bytes": 786432
+    },
+    {
+      "path": ".openvisio/cache/mcp/lock.mdb",
+      "reason": "ถูกใช้โดยโปรเซสอื่น (openvisio LMDB lock) ลบไม่ได้",
+      "size_bytes": 8128
+    },
+    {
+      "path": "data/memory.db-shm",
+      "reason": "ถูกใช้โดยโปรเซสอื่น (SQLite memory-mcp ถือ DB อยู่) ลบไม่ได้",
+      "size_bytes": 32768
+    },
+    {
+      "path": "data/memory.db-wal",
+      "reason": "ถูกใช้โดยโปรเซสอื่น (SQLite memory-mcp ถือ DB อยู่) ลบไม่ได้",
+      "size_bytes": 0
+    }
+  ],
+  "status": "done - locked 4 files removed (round2 2026-09-13)",
+  "task": "clean group A (reviewer-confirmed safe)",
+  "test": {
+    "cmd": "npm test (npm run build + node --test test/*.test.mjs test/smoke.mjs)",
+    "pass": 30,
+    "fail": 0,
+    "result": "pass",
+    "note": "round2 full suite after locked-file removal"
+  },
+  "timestamp": "2026-09-13T06:20:00Z",
+  "locked_cleanup_round2": {
+    "processes_found": [
+      {
+        "pid": 15484,
+        "cmd": "node D:/Coding_Project/mcp/dist/index.js",
+        "repo": "this repo"
+      },
+      {
+        "pid": 5600,
+        "cmd": "node D:/Coding_Project/mcp/dist/index.js",
+        "repo": "this repo"
+      },
+      {
+        "pid": 17632,
+        "cmd": "openvisio mcp D:/Coding_Project/mcp --watch",
+        "repo": "this repo"
+      }
+    ],
+    "processes_untouched": [
+      {
+        "pid": 4256,
+        "cmd": "openvisio mcp D:/Coding_Project/Dashboard --watch",
+        "reason": "คนละรีโพ ห้ามฆ่า"
+      },
+      {
+        "pid": 17196,
+        "cmd": "empty (parent CCXProcess.exe Adobe)",
+        "reason": "โปรเซสระบบ/เธิร์ดปาร์ตี้ ห้ามฆ่า"
+      }
+    ],
+    "processes_stopped": [
+      15484,
+      5600,
+      17632
+    ],
+    "stop_method": "Stop-Process (graceful, no -Force) + wait 3s, verify gone",
+    "restore_point": "data/memory.db 466944B exists=True (ห้ามลบ, ไม่แตะ)",
+    "deleted": [
+      {
+        "path": "data/memory.db-shm",
+        "size_bytes": 32768
+      },
+      {
+        "path": "data/memory.db-wal",
+        "size_bytes": 0
+      },
+      {
+        "path": ".openvisio/cache/mcp/data.mdb",
+        "size_bytes": 786432
+      },
+      {
+        "path": ".openvisio/cache/mcp/lock.mdb",
+        "size_bytes": 8128
+      }
+    ],
+    "skipped": [],
+    "post_test_recreated": {
+      "data/memory.db-shm": false,
+      "data/memory.db-wal": false,
+      ".openvisio/cache/mcp/data.mdb": false,
+      ".openvisio/cache/mcp/lock.mdb": false,
+      "note": "shm/wal ไม่เกิดใหม่หลังเทสต์ (เทสต์ใช้ temp DB แยก) ถือว่าปกติ ไม่ต้องลบซ้ำ"
+    },
+    "build_result": "pass (tsc clean)",
+    "test_result": "pass 30/30 fail 0"
+  },
+  "skipped_locked_resolved": "round2 ลบได้ทั้ง 4 ไฟล์แล้ว (ดู locked_cleanup_round2)"
+}

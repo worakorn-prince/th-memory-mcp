@@ -12,6 +12,7 @@ import {
   syncMemoryIndex,
 } from "../db/repositories/memories.js";
 import { supersede } from "../core/lifecycle-engine.js";
+import { isoDateTimeSchema, isIsoDateString } from "../lib/iso.js";
 import type { MemoryType, SourceType } from "../memory/types.js";
 
 export const updateMemoryInput = {
@@ -26,9 +27,12 @@ export const updateMemoryInput = {
   summary: z.string().max(2000).nullable().optional().describe("New summary"),
   importance: z.number().min(0).max(1).optional(),
   confidence: z.number().min(0).max(1).optional(),
+  validFrom: z
+    .union([isoDateTimeSchema, z.null()])
+    .optional()
+    .describe("ISO timestamp or null to clear"),
   validUntil: z
-    .string()
-    .nullable()
+    .union([isoDateTimeSchema, z.null()])
     .optional()
     .describe("ISO timestamp or null to clear"),
   metadata: z.unknown().optional().describe("New metadata object (replaces)"),
@@ -46,6 +50,7 @@ export function updateMemoryHandler(args: {
   summary?: string | null;
   importance?: number;
   confidence?: number;
+  validFrom?: string | null;
   validUntil?: string | null;
   metadata?: unknown;
   supersede?: boolean;
@@ -55,6 +60,38 @@ export function updateMemoryHandler(args: {
     if (!mem) return err(`memory ${args.id} not found`);
     if (mem.status === "deleted")
       return err("cannot update a deleted memory");
+    if (
+      args.validFrom !== undefined &&
+      args.validFrom !== null &&
+      !isIsoDateString(args.validFrom)
+    ) {
+      return err(
+        `validFrom must be a full ISO datetime with timezone offset (e.g. 2024-01-01T00:00:00.000Z), got '${args.validFrom}'`
+      );
+    }
+    if (
+      args.validUntil !== undefined &&
+      args.validUntil !== null &&
+      !isIsoDateString(args.validUntil)
+    ) {
+      return err(
+        `validUntil must be a full ISO datetime with timezone offset (e.g. 2024-01-01T00:00:00.000Z), got '${args.validUntil}'`
+      );
+    }
+    // Effective range covers new values and values mixed with the existing row.
+    const effectiveValidFrom =
+      args.validFrom !== undefined ? args.validFrom : mem.valid_from;
+    const effectiveValidUntil =
+      args.validUntil !== undefined ? args.validUntil : mem.valid_until;
+    if (
+      effectiveValidFrom != null &&
+      effectiveValidUntil != null &&
+      new Date(effectiveValidFrom) > new Date(effectiveValidUntil)
+    ) {
+      return err(
+        `validFrom (${effectiveValidFrom}) must not be later than validUntil (${effectiveValidUntil})`
+      );
+    }
 
     const supersedeContent =
       args.content !== undefined && (args.supersede ?? true);
@@ -78,7 +115,8 @@ export function updateMemoryHandler(args: {
         projectId: mem.project_id,
         sessionId: mem.session_id,
         userId: externalId,
-        validFrom: mem.valid_from,
+        validFrom:
+          args.validFrom !== undefined ? args.validFrom : mem.valid_from,
         validUntil:
           args.validUntil !== undefined ? args.validUntil : mem.valid_until,
         metadata:
@@ -107,6 +145,10 @@ export function updateMemoryHandler(args: {
     if (args.confidence !== undefined) {
       sets.push("confidence = ?");
       vals.push(args.confidence);
+    }
+    if (args.validFrom !== undefined) {
+      sets.push("valid_from = ?");
+      vals.push(args.validFrom);
     }
     if (args.validUntil !== undefined) {
       sets.push("valid_until = ?");
