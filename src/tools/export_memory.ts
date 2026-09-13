@@ -55,6 +55,24 @@ interface ProfileRow {
   updated_at: string;
 }
 
+interface ExportMemoryRow {
+  id: number;
+  type: string;
+  content: string;
+  summary: string | null;
+  status: string;
+  source: string;
+  confidence: number;
+  importance: number;
+  salience: number;
+  projectId: string | null;
+  sessionId: string | null;
+  userId: string | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  metadata: unknown;
+}
+
 const selectPrefs = db.prepare(
   "SELECT id, category, key, value, confidence, source, updated_at FROM preferences ORDER BY id"
 );
@@ -67,6 +85,43 @@ const selectProfile = db.prepare(
 const selectInteractions = db.prepare(
   "SELECT id, ts, session_id, kind, content, meta FROM interactions ORDER BY id"
 );
+const selectMemories = db.prepare(`
+  SELECT m.id, m.type, m.content, m.summary, m.status, m.source,
+         m.confidence, m.importance, m.salience, m.project_id AS projectId,
+         m.session_id AS sessionId, u.external_id AS userId,
+         m.valid_from AS validFrom, m.valid_until AS validUntil, m.metadata
+  FROM memories m
+  LEFT JOIN users u ON u.id = m.user_id
+  ORDER BY m.id
+`);
+const selectMemoryLinks = db.prepare(
+  "SELECT source_memory_id AS sourceId, relation, target_memory_id AS targetId, confidence, created_at AS createdAt FROM memory_links ORDER BY source_memory_id, target_memory_id"
+);
+// Batch A gap-close: export users/entities/relations so backup/restore is complete.
+// FORMAT DECISION: keep `th-memory-mcp/v2` (do NOT bump to v3) and add the three
+// new top-level fields as additive/optional. Rationale: existing consumers and
+// test/export_v2.test.mjs assert format === v2 with a strict equality check; a v3
+// bump would break them and any downstream parser that allow-lists v2. Old v2
+// files simply lack these keys and import treats missing as empty (backward compat).
+const selectUsers = db.prepare(
+  "SELECT id, external_id AS externalId, name, created_at AS createdAt FROM users ORDER BY id"
+);
+const selectEntities = db.prepare(
+  "SELECT id, name, canonical_name AS canonicalName, type, metadata FROM entities ORDER BY id"
+);
+const selectRelations = db.prepare(
+  "SELECT id, source_entity_id AS sourceEntityId, relation, target_entity_id AS targetEntityId, confidence, valid_from AS validFrom, valid_until AS validUntil, source_memory_id AS sourceMemoryId, metadata FROM relations ORDER BY id"
+);
+
+function parseMetadata(raw: string | null): unknown {
+  if (raw == null) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Preserve malformed legacy values rather than making an export fail.
+    return raw;
+  }
+}
 
 function timestamp(d = new Date()): string {
   const p = (n: number): string => String(n).padStart(2, "0");
@@ -119,9 +174,42 @@ export async function exportMemoryHandler(args: {
       ? (selectInteractions.all() as InteractionRow[])
       : undefined;
 
+    const memories = (selectMemories.all() as Array<Omit<ExportMemoryRow, "metadata"> & { metadata: string | null }>)
+      .map((m) => ({ ...m, metadata: parseMetadata(m.metadata) }));
+    const users = selectUsers.all() as Array<{ id: number; externalId: string; name: string | null; createdAt: string }>;
+    const entities = (
+      selectEntities.all() as Array<{
+        id: number;
+        name: string;
+        canonicalName: string;
+        type: string | null;
+        metadata: string | null;
+      }>
+    ).map((e) => ({ ...e, metadata: parseMetadata(e.metadata) }));
+    const relations = (
+      selectRelations.all() as Array<{
+        id: number;
+        sourceEntityId: number;
+        relation: string;
+        targetEntityId: number;
+        confidence: number;
+        validFrom: string | null;
+        validUntil: string | null;
+        sourceMemoryId: number | null;
+        metadata: string | null;
+      }>
+    ).map((r) => ({ ...r, metadata: parseMetadata(r.metadata) }));
     const payload = {
       exported_at: nowISO(),
       version: VERSION,
+      format: "th-memory-mcp/v2",
+      memories,
+      memoryLinks: selectMemoryLinks.all(),
+      // Additive v2 fields (optional for backward compat): full backup of
+      // M007 users + M003 entities/relations. Old importers ignore unknown keys.
+      users,
+      entities,
+      relations,
       preferences: selectPrefs.all() as PreferenceRow[],
       lessons: selectLessons.all() as LessonRow[],
       profile: selectProfile.all() as ProfileRow[],
