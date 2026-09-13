@@ -6,12 +6,12 @@
     "url": "https://github.com/worakorn-prince/th-memory-mcp",
     "source": "github"
   },
-  "version": "2.2.8",
+  "version": "2.2.9",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "th-memory-mcp",
-      "version": "2.2.8",
+      "version": "2.2.9",
       "transport": {
         "type": "stdio"
       }
