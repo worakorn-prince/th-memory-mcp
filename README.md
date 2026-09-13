@@ -255,9 +255,9 @@ npm run benchmark:viewer
 # open http://localhost:3000/benchmark/viewer/  or  http://localhost:3000/result/viewer.html
 ```
 
-The viewer loads `benchmark/results/history.jsonl`, groups by version, takes the **latest run of the 3 most recent versions** (e.g. 2.2.2 / 2.2.3 / 2.2.4) and shows a highlighted table (1 row per version) + bar charts for `Recall@5 / MRR / NDCG@5` and `Latency p95`. Results are also saved per version in `result/v*_benchmark_result.md` and `benchmark/results/versions/<ver>/`.
+The viewer loads `benchmark/results/history.jsonl`, groups by version, takes the **latest run of the 3 most recent versions** (e.g. 2.2.6 / 2.2.7 / 2.2.8) and shows a highlighted table (1 row per version) + bar charts for `Recall@5 / MRR / NDCG@5` and `Latency p95`. Results are also saved per version in `result/v*_benchmark_result.md` and `benchmark/results/versions/<ver>/`.
 
-Last internal run (v2.2.4, warm, same dataset — not third-party): Recall@5=0.92, Precision@5=0.92, MRR=1.00, NDCG@5=0.94 over 30 topics/180 records. See `result/v2.2.4_benchmark_result.md` and `repro/README.md` for details and caveats (internal small-N, single-machine self-run).
+Last internal run (v2.2.8, warm, normal profile, a2dcbce — not third-party): Recall@5=0.9060, Precision@5=0.9060, MRR=1, NDCG@5=0.9347 over 100 topics/600 records. See `result/v2.2.8_benchmark_result.md` and `repro/README.md` for details and caveats (internal, single-machine self-run).
 
 ## Known Limitations
 
