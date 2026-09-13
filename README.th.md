@@ -25,6 +25,7 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 **ทางที่เร็วที่สุด:** หลัง clone ให้รัน `npm run quickstart` — มันจะ build, ต่อไฟล์ `opencode.json`, วาง plugin และตั้ง `MEMORY_DB_PATH` ให้ในคำสั่งเดียว ขั้นตอนด้านล่างคือสิ่งที่สคริปต์ทำ (ใช้ได้หากอยากควบคุมเองทีละขั้น)
 
 **ติดตั้งผ่าน npm (อีกทางเลือก):** ติดตั้ง server แบบ global ด้วย `npm install -g th-memory-mcp` (หรือรันทันทีด้วย `npx th-memory-mcp`) แล้วชี้ `command` ของ `mcp` ใน `opencode.json` ไปที่ `th-memory-mcp` แทน `dist/index.js` ที่ build แล้ว plugin auto-capture ยังคงมาจาก repo นี้ (คัดลอก `src/plugin/learning-capture.ts` ตามขั้นตอน 4 ด้านล่าง)
+> หมายเหตุ: ไม่พับลิชขึ้น GitHub Packages แล้ว — ติดตั้งจาก npmjs ด้วย `npm i -g th-memory-mcp` แทน
 
 ```bash
 # 1. Clone และ build
