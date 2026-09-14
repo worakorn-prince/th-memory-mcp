@@ -42,6 +42,26 @@ export function mergeMemoryHandler(args: {
       return err("cannot merge a memory into itself");
     if (src.status === "deleted" || tgt.status === "deleted")
       return err("cannot merge deleted memories");
+    // Batch B-3 (defense-in-depth, mirrors link_memory): refuse to merge
+    // across scope boundaries. Note: userId/sessionId/projectId are
+    // caller-supplied with no auth layer (single-user local process) — these
+    // checks are only as trustworthy as the caller (see README/SECURITY).
+    if (
+      (src.scope === "USER" || tgt.scope === "USER") &&
+      src.user_id !== tgt.user_id
+    )
+      return err("cannot merge memories across different users");
+    if (
+      (src.scope === "SESSION" || tgt.scope === "SESSION") &&
+      src.session_id !== tgt.session_id
+    )
+      return err("cannot merge memories across different sessions");
+    if (
+      src.scope === "PROJECT" &&
+      tgt.scope === "PROJECT" &&
+      src.project_id !== tgt.project_id
+    )
+      return err("cannot merge memories across different projects");
     db.prepare(
       "UPDATE memories SET metadata = ?, updated_at = ? WHERE id = ?"
     ).run(mergeMetadata(tgt.metadata, src.id), nowISO(), tgt.id);

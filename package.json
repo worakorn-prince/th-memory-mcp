@@ -1,6 +1,6 @@
 {
   "name": "th-memory-mcp",
-  "version": "2.2.9",
+  "version": "2.3.0",
   "mcpName": "io.github.worakorn-prince/th-memory-mcp",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
   "author": "worakorn-prince",
@@ -12,7 +12,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "th-memory-mcp": "dist/index.js"
+    "th-memory-mcp": "dist/index.js",
+    "th-memory": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -29,6 +30,7 @@
     "prepublishOnly": "npm run version:sync && npm run build",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/sync-version.mjs --check",
+    "check:capture-sync": "node scripts/check-capture-sync.mjs",
     "start": "node dist/index.js",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
     "test": "npm run build && node --test test/*.test.mjs test/smoke.mjs",

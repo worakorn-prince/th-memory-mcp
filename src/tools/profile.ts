@@ -5,6 +5,14 @@ import {
   err,
   type ToolResult,
 } from "../db/index.js";
+import {
+  MEMORY_REF_CLOSE,
+  MEMORY_REF_GUIDANCE,
+  MEMORY_REF_OPEN,
+  UNTRUSTED_NOTE,
+  UNTRUSTED_TAG,
+  isUntrustedMetadata,
+} from "../lib/memory-format.js";
 
 export const PROFILE_BUDGET = 3000;
 const PROFILE_SECTION_MAX = 400;
@@ -22,7 +30,7 @@ const recentLessons = db.prepare(
   "SELECT situation, mistake, correction FROM lessons ORDER BY created_at DESC, id DESC LIMIT 5"
 );
 const topMemories = db.prepare(
-  "SELECT type, content, importance, confidence FROM memories WHERE status = 'active' ORDER BY importance * confidence DESC, updated_at DESC LIMIT 15"
+  "SELECT type, content, importance, confidence, metadata FROM memories WHERE status = 'active' ORDER BY importance * confidence DESC, updated_at DESC LIMIT 15"
 );
 
 export function buildProfileText(): string {
@@ -68,16 +76,33 @@ export function buildProfileText(): string {
     content: string;
     importance: number;
     confidence: number;
+    metadata: string | null;
   }[];
   if (mems.length > 0) {
     let block = "[memories]";
     for (const m of mems) {
-      block += `\n- (${m.type} c${m.confidence.toFixed(2)}) ${truncate(m.content, 200)}`;
+      // Batch B-2: label untrusted imports (metadata.trusted=false) inline.
+      const tag = isUntrustedMetadata(m.metadata)
+        ? ` ${UNTRUSTED_TAG} (${UNTRUSTED_NOTE})`
+        : "";
+      block += `\n- (${m.type} c${m.confidence.toFixed(2)})${tag} ${truncate(m.content, 200)}`;
     }
     parts.push(block);
   }
 
-  return truncate(parts.join("\n\n"), PROFILE_BUDGET);
+  // Batch B-2: profile/memory text is reference data, not instructions —
+  // wrap with delimiters. Reserve wrapper overhead inside PROFILE_BUDGET so
+  // the wrapped output still fits the 3000-char contract.
+  const overhead =
+    MEMORY_REF_GUIDANCE.length +
+    MEMORY_REF_OPEN.length +
+    MEMORY_REF_CLOSE.length +
+    8;
+  const inner = truncate(
+    parts.join("\n\n"),
+    Math.max(0, PROFILE_BUDGET - overhead)
+  );
+  return `${MEMORY_REF_GUIDANCE}\n${MEMORY_REF_OPEN}\n${inner}\n${MEMORY_REF_CLOSE}`;
 }
 
 export async function getProfileHandler(): Promise<ToolResult> {

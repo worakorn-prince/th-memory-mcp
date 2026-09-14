@@ -11,7 +11,7 @@
 [![th-memory-mcp MCP server](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/card.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp)
 
 
-**Status:** v2.2.9 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 25 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2.2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`. New in v2.2.3: scope-enforced retrieval, graph scope isolation, export/import round-trip, hardened import path (realpath), strict import validation, N+1 query elimination, cold/ablation benchmark, and `MEMORY_RETRIEVAL_MODE` switch. New in v2.2.7: synced secret filter between Claude hook and capture-core (6-pattern redact instead of line-drop), fixed `err()` to return `isError:true` per MCP spec, fixed backup rotation (backup only when migrations pending + prune to 5 files), and added hook error logging for SessionEnd distill. New in v2.2.8: fixed scope contamination 0.75→0 (critical) and conflict false 0→1 (GLOBAL leak), fixed graph hop1 0.52→1.0 via includeGraph, and rescaled benchmark profiles to 5K/20K/100K/500K/1M (pre-commit now quick 5K + normal 20K only). New in v2.2.9: extended export to entities/users/relations, forget now removes associated links, fail-closed migration with shared ISO helper, eliminated FTS N+1, included smoke in test script, and synced viewer to rescaled profiles 5K/20K/100K/500K/1M.
+**Status:** v2.3.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 25 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2.2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`. New in v2.2.3: scope-enforced retrieval, graph scope isolation, export/import round-trip, hardened import path (realpath), strict import validation, N+1 query elimination, cold/ablation benchmark, and `MEMORY_RETRIEVAL_MODE` switch. New in v2.2.7: synced secret filter between Claude hook and capture-core (6-pattern redact instead of line-drop), fixed `err()` to return `isError:true` per MCP spec, fixed backup rotation (backup only when migrations pending + prune to 5 files), and added hook error logging for SessionEnd distill. New in v2.2.8: fixed scope contamination 0.75→0 (critical) and conflict false 0→1 (GLOBAL leak), fixed graph hop1 0.52→1.0 via includeGraph, and rescaled benchmark profiles to 5K/20K/100K/500K/1M (pre-commit now quick 5K + normal 20K only). New in v2.2.9: extended export to entities/users/relations, forget now removes associated links, fail-closed migration with shared ISO helper, eliminated FTS N+1, included smoke in test script, and synced viewer to rescaled profiles 5K/20K/100K/500K/1M. New in v2.3.0: CLI th-memory + highlight underline.
 
 ## Requirements
 
@@ -176,6 +176,55 @@ anywhere is readable everywhere.
 | `import_memory` | import memories from JSON (validates type, dedupes against existing, never overwrites blindly); dry-run by default, `apply=true` to insert |
 | `extract_memories` | scan recent captured interactions for memory-intent phrases and propose memory candidates (deterministic, no LLM); dry-run by default, `apply=true` to create (source=captured) |
 
+## CLI (`th-memory`)
+
+Two binaries ship in `package.json` (`bin`):
+
+| Binary | Entry | Purpose |
+|--------|-------|---------|
+| `th-memory-mcp` | `dist/index.js` | MCP server (stdio) — the 16 tools above |
+| `th-memory` | `dist/cli.js` | local memory CLI (zero-dep, shares the same DB via `MEMORY_DB_PATH`) |
+
+Usage: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — per-command help via `th-memory <command> --help`.
+
+Global flags (every command):
+
+| Flag | Effect |
+|------|--------|
+| `--db <path>` | use this SQLite file (sets `MEMORY_DB_PATH`) |
+| `--json` | print JSON `{ok,data}` instead of plain text |
+| `--plain` / `--no-color` | disable colors |
+| `-h, --help` | show help (global or per-command) |
+| `-V, --version` | print version |
+
+Commands:
+
+| Command | Usage |
+|---------|-------|
+| `remember` | `remember --category <c> --key <k> --value <v\|->` — save a preference (`--value -` reads from stdin) |
+| `recall` | `recall <topic> [--limit <n>] [--highlight]` — search memory |
+| `forget` | `forget <id> [--type <t>]` — delete by id (`t`: `memory\|preference\|lesson\|interaction`) |
+| `export` | `export [--include-interactions] [--filename <n>]` — export to `data/exports/*.json` |
+| `import` | `import (--file <p>\|--json <s>) [--apply] [--user-id <id>]` — import backup (dry-run by default) |
+| `stats` | `stats` — memory statistics |
+| `profile` | `profile` — distilled user profile |
+| `history` | `history [--query <q>] [--limit <n>]` — search past prompts (no query = recent prompts) |
+| `recent` | `recent [--limit <n>] [--kind <k>]` — recent interactions (`k`: `prompt\|tool_call\|error`) |
+| `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — highlight topic matches (empty text = stdin pipe) |
+
+Highlight behavior (`highlight` command and `recall --highlight`): matches are wrapped with an **underline** (`ESC[4m`…`ESC[24m`) when stdout is a TTY with colors enabled; when piped, with `--json`, or with `--plain`/`--no-color`, matches are wrapped with `[mem]`…`[/mem]` markers instead.
+
+Examples:
+
+```bash
+th-memory remember --category coding_pref --key package_manager --value pnpm
+th-memory recall pnpm --limit 5
+th-memory recall pnpm --highlight
+echo "I prefer pnpm for installs" | th-memory highlight -q pnpm
+```
+
+Note: `--value -` reads the value from stdin (e.g. `echo -n "pnpm" | th-memory remember --category coding_pref --key package_manager --value -`).
+
 ## Install with OpenCode
 
 1. Merge the `mcp` section from [`opencode.example.json`](opencode.example.json) into your `opencode.json` (global or project-level)
@@ -263,6 +312,7 @@ Last internal run (v2.2.8, warm, normal profile, a2dcbce — not third-party): R
 ## Known Limitations
 
 - **No encryption at rest (plaintext-at-rest)** — `data/memory.db` (WAL mode, `better-sqlite3`) is a plain, unencrypted SQLite file. `100% local & private` means no cloud or network exfiltration — it does **not** mean encrypted at rest. Anyone with filesystem access (shared machine, backup, malware, stolen device) can read preferences/lessons/interactions in plaintext. For sensitive data, use OS-level full-disk encryption (BitLocker / FileVault / LUKS) or an opt-in SQLCipher build (requires native rebuild and key management). No SQLCipher/in-code encryption is applied by default and `src/db/index.ts` documents this explicitly.
+- **Single-user local process — no auth layer (Batch B-3)** — `userId` / `sessionId` / `projectId` are caller-supplied strings with **no authentication or authorization check inside the server**. Scope isolation (retrieval, `get_context`, graph traversal/expansion, `consolidate`, `link_memory`, `merge_memory`) is enforced only against the values the caller sends, so a caller can read or write any scope by passing a different id. This is suitable for a **single-user local process** (one operator, local `data/memory.db`). Do **not** share one server/DB across mutually-untrusted users without an auth layer in front that authenticates each caller and forces the correct `userId` (and allowed `projectId` / `sessionId`). No new auth system is built into the server by design — that layer belongs in front of it.
 
 ## License
 

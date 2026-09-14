@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { getContext } from "../core/context-engine.js";
 import { ok } from "../db/index.js";
+import {
+  MEMORY_REF_GUIDANCE,
+  decorateMemoryLine,
+} from "../lib/memory-format.js";
 
 export const contextInput = {
   query: z
@@ -57,17 +61,23 @@ export function contextHandler(args: Record<string, unknown>) {
     includeGraph: args.includeGraph === true,
   });
 
+  // Batch B-2: memory text is reference data, not instructions — wrap each
+  // entry in <memory-reference> delimiters; untrusted imports
+  // (metadata.trusted=false) get an explicit label.
   const lines = res.memories.map((m) => {
     const meta = m.metadata ? ` meta=${m.metadata}` : "";
     const tag = m.viaGraph ? " [graph]" : "";
-    return `[${m.id}] (${m.type}/${m.status})${tag} ${m.content}${meta}`;
+    return decorateMemoryLine(
+      `[${m.id}] (${m.type}/${m.status})${tag} ${m.content}${meta}`,
+      m.metadata
+    );
   });
 
   const header = `Context for "${res.query || "<no query>"}" — ${
     res.memories.length
   } memories, ~${res.tokenEstimate} tokens${
     res.truncated ? " (truncated to budget)" : ""
-  }`;
+  }\n${MEMORY_REF_GUIDANCE}`;
 
   return ok(header + "\n\n" + (lines.join("\n") || "(no memories)"));
 }

@@ -7,7 +7,7 @@
 
 MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons, ประวัติการใช้งาน ลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) เพื่อให้ AI "จำและปรับตัว" กับผู้ใช้ผ่าน context-based learning
 
-**สถานะ:** v2.2.9 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval 16 MCP tools, 25 ชุดเทสผ่าน อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ฟีเจอร์ใหม่ใน v2.2: lifecycle states, temporal validity, การแก้ conflict/dedup พร้อม scope USER/SESSION/PROJECT/GLOBAL, hybrid FTS+vector retrieval (RRF), memory graph, ประกอบ `get_context`, consolidation, และ `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` ใหม่ใน v2.2.3: บังคับ scope ใน retrieval, แยก scope ใน graph, export/import แบบ round-trip, ป้องกัน symlink ด้วย realpath, ตรวจ import เข้มงวด, เลิก N+1 query, benchmark cold/ablation และสวิตช์ `MEMORY_RETRIEVAL_MODE` ใหม่ใน v2.2.7: ซิงค์ secret filter ระหว่าง Claude hook กับ capture-core (redact 6 patterns แทนทิ้งบรรทัด), แก้ `err()` ให้ส่ง `isError:true` ตาม MCP spec, แก้ backup rotation (backup เฉพาะเมื่อมี migration pending + prune เก็บ 5 ไฟล์ล่าสุด) และเพิ่ม hook error logging สำหรับ SessionEnd distill ใหม่ใน v2.2.8: แก้บัค scope contamination 0.75→0 (ร้ายแรง), แก้ conflict false 0→1, ปรับ benchmark rescale 5K/20K/100K/500K/1M และ viewer เทียบ profiles ภายใน version, workflow ก่อน commit เหลือ 2 profiles (quick 5K + normal 20K) ใหม่ใน v2.2.9: ขยาย export ให้ครอบคลุม entities/users/relations, forget ลบลิงก์ที่เกี่ยวข้อง, migration แบบ fail-closed พร้อม ISO helper กลาง, เลิก N+1 ใน FTS, รวม smoke ในสคริปต์เทส และซิงค์ viewer กับโปรไฟล์ rescale 5K/20K/100K/500K/1M
+**สถานะ:** v2.3.0 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval 16 MCP tools, 25 ชุดเทสผ่าน อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ฟีเจอร์ใหม่ใน v2.2: lifecycle states, temporal validity, การแก้ conflict/dedup พร้อม scope USER/SESSION/PROJECT/GLOBAL, hybrid FTS+vector retrieval (RRF), memory graph, ประกอบ `get_context`, consolidation, และ `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` ใหม่ใน v2.2.3: บังคับ scope ใน retrieval, แยก scope ใน graph, export/import แบบ round-trip, ป้องกัน symlink ด้วย realpath, ตรวจ import เข้มงวด, เลิก N+1 query, benchmark cold/ablation และสวิตช์ `MEMORY_RETRIEVAL_MODE` ใหม่ใน v2.2.7: ซิงค์ secret filter ระหว่าง Claude hook กับ capture-core (redact 6 patterns แทนทิ้งบรรทัด), แก้ `err()` ให้ส่ง `isError:true` ตาม MCP spec, แก้ backup rotation (backup เฉพาะเมื่อมี migration pending + prune เก็บ 5 ไฟล์ล่าสุด) และเพิ่ม hook error logging สำหรับ SessionEnd distill ใหม่ใน v2.2.8: แก้บัค scope contamination 0.75→0 (ร้ายแรง), แก้ conflict false 0→1, ปรับ benchmark rescale 5K/20K/100K/500K/1M และ viewer เทียบ profiles ภายใน version, workflow ก่อน commit เหลือ 2 profiles (quick 5K + normal 20K) ใหม่ใน v2.2.9: ขยาย export ให้ครอบคลุม entities/users/relations, forget ลบลิงก์ที่เกี่ยวข้อง, migration แบบ fail-closed พร้อม ISO helper กลาง, เลิก N+1 ใน FTS, รวม smoke ในสคริปต์เทส และซิงค์ viewer กับโปรไฟล์ rescale 5K/20K/100K/500K/1M ใหม่ใน v2.3.0: CLI th-memory + highlight underline
 
 > English: [README.md](README.md)
 
@@ -128,6 +128,55 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `update_memory` | อัปเดตฟิลด์ที่เปลี่ยนได้แบบไม่เปลี่ยนตัวตน หรือสร้างความจำแทนที่เมื่อ `content` เปลี่ยน (ตั้ง `supersede=false` เพื่อแก้ในที่) |
 | `import_memory` | นำเข้าความจำจาก JSON (ตรวจสอบ type, dedup กับของเดิม, ไม่เขียนทับแบบมืดบอด); ค่าเริ่มต้น dry-run, ตั้ง `apply=true` เพื่อเพิ่ม |
 | `extract_memories` | สแกน interactions ล่าสุดหาเจตนาบันทึกความจำ และเสนอ/สร้างความจำ (ไม่ใช้ LLM); ค่าเริ่มต้น dry-run, ตั้ง `apply=true` เพื่อสร้าง (source=captured) |
+
+## CLI (`th-memory`)
+
+ไบนารี 2 ตัวใน `package.json` (`bin`):
+
+| ไบนารี | Entry | ใช้ทำอะไร |
+|--------|-------|-----------|
+| `th-memory-mcp` | `dist/index.js` | MCP server (stdio) — tools 16 ตัวข้างบน |
+| `th-memory` | `dist/cli.js` | CLI ความจำภายในเครื่อง (zero-dep, ใช้ DB เดียวกันผ่าน `MEMORY_DB_PATH`) |
+
+วิธีใช้: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — ดูวิธีใช้รายคำสั่งด้วย `th-memory <command> --help`
+
+แฟล็กกลาง (ใช้ได้ทุกคำสั่ง):
+
+| แฟล็ก | ผล |
+|------|-----|
+| `--db <path>` | ใช้ไฟล์ SQLite นี้ (ตั้งค่า `MEMORY_DB_PATH`) |
+| `--json` | พิมพ์ JSON `{ok,data}` แทนข้อความธรรมดา |
+| `--plain` / `--no-color` | ปิดสี |
+| `-h, --help` | แสดงวิธีใช้ (รวม หรือรายคำสั่ง) |
+| `-V, --version` | แสดงเวอร์ชัน |
+
+ตารางคำสั่ง:
+
+| คำสั่ง | วิธีใช้ |
+|--------|---------|
+| `remember` | `remember --category <c> --key <k> --value <v\|->` — บันทึก preference (`--value -` อ่านจาก stdin) |
+| `recall` | `recall <topic> [--limit <n>] [--highlight]` — ค้นความจำ |
+| `forget` | `forget <id> [--type <t>]` — ลบตาม id (`t`: `memory\|preference\|lesson\|interaction`) |
+| `export` | `export [--include-interactions] [--filename <n>]` — export ไป `data/exports/*.json` |
+| `import` | `import (--file <p>\|--json <s>) [--apply] [--user-id <id>]` — นำเข้า backup (ค่าเริ่มต้น dry-run) |
+| `stats` | `stats` — สถิติความจำ |
+| `profile` | `profile` — ภาพรวมโปรไฟล์ผู้ใช้ |
+| `history` | `history [--query <q>] [--limit <n>]` — ค้น prompt เก่า (ไม่ใส่ query = prompt ล่าสุด) |
+| `recent` | `recent [--limit <n>] [--kind <k>]` — interactions ล่าสุด (`k`: `prompt\|tool_call\|error`) |
+| `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — ไฮไลต์ส่วนที่ตรง topic (ไม่ใส่ text = อ่านจาก stdin pipe) |
+
+พฤติกรรม highlight (คำสั่ง `highlight` และ `recall --highlight`): ส่วนที่ตรงจะถูกหุ้มด้วย**ขีดเส้นใต้** (`ESC[4m`…`ESC[24m`) เมื่อ stdout เป็น TTY และเปิดสีอยู่; เมื่อ pipe output, ใช้ `--json`, หรือใช้ `--plain`/`--no-color` จะหุ้มด้วยเครื่องหมาย `[mem]`…`[/mem]` แทน
+
+ตัวอย่าง:
+
+```bash
+th-memory remember --category coding_pref --key package_manager --value pnpm
+th-memory recall pnpm --limit 5
+th-memory recall pnpm --highlight
+echo "I prefer pnpm for installs" | th-memory highlight -q pnpm
+```
+
+หมายเหตุ: `--value -` อ่านค่าจาก stdin (เช่น `echo -n "pnpm" | th-memory remember --category coding_pref --key package_manager --value -`)
 
 ## ติดตั้งกับ OpenCode
 

@@ -316,7 +316,7 @@ try {
         (k) => k in parsed
       );
       report(
-        keysOk && parsed.version === "2.2.9" && parsed.format === "th-memory-mcp/v2" && parsed.interactions.included === false,
+        keysOk && parsed.version === "2.3.0" && parsed.format === "th-memory-mcp/v2" && parsed.interactions.included === false,
         "10g. default export: spec keys present, interactions excluded"
       );
     } catch (e) {

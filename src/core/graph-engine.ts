@@ -33,6 +33,23 @@ export function addRelation(input: {
   confidence?: number;
   sourceMemoryId?: number | null;
 }): number {
+  // Batch A-3: upsert against idx_relations_unique (source+relation+target+
+  // coalesced source_memory) so repeats return the existing row instead of
+  // accumulating duplicates. SELECT-first keeps lastInsertRowid semantics
+  // (INSERT OR IGNORE would report a stale rowid on conflict).
+  const existing = db
+    .prepare(
+      `SELECT id FROM relations
+       WHERE source_entity_id = ? AND relation = ? AND target_entity_id = ?
+         AND COALESCE(source_memory_id, -1) = COALESCE(?, -1)`
+    )
+    .get(
+      input.subjectId,
+      input.predicate,
+      input.objectId,
+      input.sourceMemoryId ?? null
+    ) as { id: number } | undefined;
+  if (existing) return existing.id;
   const info = db
     .prepare(
       `INSERT INTO relations

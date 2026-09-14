@@ -20,17 +20,32 @@ export function ftsSearch(
   const statusClause = opts.includeArchived
     ? ""
     : "AND m.status NOT IN ('deleted','archived','superseded')";
+  // Batch A-4: scope predicate lives INSIDE SQL (not JS post-filter), so
+  // LIMIT applies after scope filtering. The old code did LIMIT-then-filter:
+  // out-of-scope rows could fill the LIMIT window and starve in-scope hits.
+  const uid = opts.userId == null ? null : resolveUserId(opts.userId);
+  const sid = opts.sessionId ?? null;
+  const pid = opts.projectId ?? null;
   const rows = db
     .prepare(
       `SELECT m.id, m.scope, m.project_id, m.session_id, m.user_id FROM memories m
        JOIN search_index ON search_index.ref_table = 'memories' AND search_index.ref_id = m.id
        WHERE search_index MATCH @match ${statusClause}
+         AND (
+           m.scope = 'GLOBAL'
+           OR (m.scope = 'USER' AND @uid IS NOT NULL AND m.user_id = @uid)
+           OR (m.scope = 'SESSION' AND @sid IS NOT NULL AND m.session_id = @sid)
+           OR (m.scope = 'PROJECT' AND @pid IS NOT NULL AND m.project_id = @pid)
+         )
        ORDER BY rank
        LIMIT @limit`
     )
     .all({
       match: buildFtsMatch(query),
       limit,
+      uid,
+      sid,
+      pid,
     }) as Array<{
       id: number;
       scope: string;
@@ -38,21 +53,5 @@ export function ftsSearch(
       session_id: string | null;
       user_id: number | null;
     }>;
-  const uid = opts.userId == null ? null : resolveUserId(opts.userId);
-  const filtered = rows.filter((m) => {
-    if (m.scope === "USER") {
-      if (opts.userId == null) return false;
-      return m.user_id === uid;
-    }
-    if (m.scope === "SESSION") {
-      if (opts.sessionId == null) return false;
-      return m.session_id === opts.sessionId;
-    }
-    if (m.scope === "PROJECT") {
-      if (opts.projectId == null) return false;
-      return m.project_id === opts.projectId;
-    }
-    return true;
-  });
-  return filtered.map((r, i) => ({ id: r.id, rank: i + 1 }));
+  return rows.map((r, i) => ({ id: r.id, rank: i + 1 }));
 }
