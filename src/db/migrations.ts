@@ -224,6 +224,42 @@ const M007_user: Migration = {
   },
 };
 
+const M008_perf_indexes: Migration = {
+  id: "008_perf_indexes",
+  up(db) {
+    // Idempotent: IF NOT EXISTS only, never touches old migrations.
+    // Covers consolidation/dedup filters: memories(status,scope,project_id)
+    // and memory_links(source,target) lookups (forward + reverse).
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_memories_status_scope_project ON memories(status, scope, project_id);`
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_memory_links_source_target ON memory_links(source_memory_id, target_memory_id);`
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_memory_links_target ON memory_links(target_memory_id);`
+    );
+  },
+};
+
+// Batch A-3: unique guard for relations (M003 declared FKs but no uniqueness,
+// so re-imports / repeated extraction could accumulate identical rows).
+// Idempotent: dedupes legacy duplicates first (keep MIN(id) per group), then
+// creates the index with IF NOT EXISTS. Old migrations are NOT edited.
+const M009_relations_unique: Migration = {
+  id: "009_relations_unique",
+  up(db) {
+    db.exec(`
+      DELETE FROM relations WHERE id NOT IN (
+        SELECT MIN(id) FROM relations
+        GROUP BY source_entity_id, relation, target_entity_id, COALESCE(source_memory_id, -1)
+      );`);
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_unique
+      ON relations(source_entity_id, relation, target_entity_id, COALESCE(source_memory_id, -1));`);
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -232,6 +268,8 @@ export const MIGRATIONS: Migration[] = [
   M005_backfill_v1,
   M006_scope,
   M007_user,
+  M008_perf_indexes,
+  M009_relations_unique,
 ];
 
 const KEEP_BACKUPS = 5;

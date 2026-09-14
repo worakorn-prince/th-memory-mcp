@@ -27,6 +27,20 @@ const instructionsPath = join(repoRoot, "AGENTS.memory.example.md");
 
 const log = (m) => console.log(`[quickstart] ${m}`);
 const warn = (m) => console.warn(`[quickstart] WARNING: ${m}`);
+const ensureDir = (p) => {
+  if (dryRun) log(`(dry-run) would mkdir ${p}`);
+  else mkdirSync(p, { recursive: true });
+};
+const backupFile = (p) => {
+  if (!existsSync(p)) return;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const bak = `${p}.bak-${stamp}`;
+  if (dryRun) log(`(dry-run) would backup ${p} -> ${bak}`);
+  else {
+    copyFileSync(p, bak);
+    log(`backup ${p} -> ${bak}`);
+  }
+};
 const write = (p, c) => {
   if (dryRun) log(`(dry-run) would write ${p}`);
   else writeFileSync(p, c, "utf8");
@@ -36,8 +50,8 @@ const copy = (s, d) => {
   else copyFileSync(s, d);
 };
 
-// 1. ensure data dir exists so the DB path is valid
-mkdirSync(dirname(dbPath), { recursive: true });
+// 1. ensure data dir exists so the DB path is valid (no-op under --dry-run)
+ensureDir(dirname(dbPath));
 
 // 2. read / merge opencode.json
 let cfg = {};
@@ -69,12 +83,15 @@ if (!Array.isArray(instructions)) instructions = [];
 if (!instructions.includes(instructionsPath)) instructions.push(instructionsPath);
 cfg.instructions = instructions;
 
-mkdirSync(opencodeDir, { recursive: true });
+ensureDir(opencodeDir);
+// Backup existing config before overwrite (normal mode only; dry-run just logs).
+backupFile(opencodeCfg);
 write(opencodeCfg, JSON.stringify(cfg, null, 2) + "\n");
 log(`opencode.json ${dryRun ? "would be written" : "written"} at ${opencodeCfg}`);
 
-// 3. deploy plugin
-mkdirSync(dirname(pluginDst), { recursive: true });
+// 3. deploy plugin (backup existing hook first; no-op under --dry-run)
+ensureDir(dirname(pluginDst));
+backupFile(pluginDst);
 copy(pluginSrc, pluginDst);
 log(`plugin ${dryRun ? "would be deployed" : "deployed"} -> ${pluginDst}`);
 

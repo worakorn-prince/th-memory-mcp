@@ -84,6 +84,15 @@ export async function forgetHandler(args: {
       return ok(`nothing found with id=${id}`);
     }
 
+    // Batch A-1: never silently delete across tables. Without an explicit
+    // type, a numeric id can coincide in several tables (each AUTOINCREMENTs
+    // from 1). If it matches >1 table, fail closed and ask for `type`.
+    if (!typedKind && targets.length > 1) {
+      return err(
+        `ambiguous id=${id}: found in ${targets.join(", ")}. Specify type explicitly (one of memory, preference, lesson, interaction)`
+      );
+    }
+
     const removed: string[] = [];
     let linksRemoved = 0;
     db.transaction(() => {

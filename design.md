@@ -3,7 +3,7 @@
 This document is up-to-date with the actual codebase state (after completing all future feature plans except AI-assisted extraction, which was removed). The full specification is at `ARCHITECTURE_v2.md` (canonical spec); this file summarizes the overview and current status for convenience.
 
 ## Current Status
-- **Version:** `package.json` = `2.2.9`
+- **Version:** `package.json` = `2.3.0`
 - **MCP tools:** 16 tools (`remember`, `recall`, `get_context`, `link_memory`, `merge_memory`, `update_memory`, `import_memory`, `extract_memories`, `consolidate`, `forget`, `history`, `recent_interactions`, `profile`, `lesson`, `memory_stats`, `export_memory`)
 - **Test suites:** 25 suites passing (0 fail) — run via `npm test` (CI on GitHub Actions)
 

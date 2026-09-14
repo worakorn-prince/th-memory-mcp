@@ -8,12 +8,12 @@ Example of how to prepare and publish th-memory-mcp to npm and register it as an
 These fields are already set in `package.json`:
 ```json
 {
-  "bin": { "th-memory-mcp": "dist/index.js" },
+  "bin": { "th-memory-mcp": "dist/index.js", "th-memory": "dist/cli.js" },
   "files": ["dist", "README.md", "LICENSE", "SECURITY.md", "ARCHITECTURE_v2.md", "design.md", "opencode.example.json", "AGENTS.memory.example.md"],
   "engines": { "node": ">=20" }
 }
 ```
-- `bin` lets users run `npx th-memory-mcp` without cloning
+- `bin` lets users run `npx th-memory-mcp` (MCP server) and `npx th-memory` (CLI) without cloning
 - `files` limits what is published (excludes `test/`, `node_modules/`, and the local-only Thai docs)
 - `engines` requires Node >= 20
 

@@ -10,6 +10,7 @@ import {
   type ToolResult,
 } from "../db/index.js";
 import { embed, cosine, deserialize } from "../lib/embed.js";
+import { wrapMemoryReference } from "../lib/memory-format.js";
 
 export const recallInput = {
   topic: z.string().min(1).max(500).describe("Topic to recall from memory"),
@@ -156,7 +157,10 @@ export async function recallHandler(args: {
       return ok(`no memory found for "${truncate(args.topic, 100)}"`);
     }
 
-    return ok(truncate(parts.join("\n\n"), RECALL_BUDGET));
+    // Batch B-2: recalled memory is reference data, not instructions.
+    return ok(
+      wrapMemoryReference(truncate(parts.join("\n\n"), RECALL_BUDGET))
+    );
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }

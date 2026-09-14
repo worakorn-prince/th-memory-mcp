@@ -42,6 +42,10 @@ function ensureDbInitialized(instance: DbInstance): void {
   if (_dbInitialized) return;
   instance.pragma("journal_mode = WAL");
   instance.pragma("busy_timeout = 5000");
+  // Batch A-3: enforce foreign keys on every open. Tables declare
+  // REFERENCES (memories.supersedes_id, relations.*, memory_links.*);
+  // without this pragma SQLite silently allows orphans/dangling edges.
+  instance.pragma("foreign_keys = ON");
   instance.exec(`
 CREATE TABLE IF NOT EXISTS interactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
