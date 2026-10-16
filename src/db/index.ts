@@ -17,6 +17,7 @@ import { dirname } from "node:path";
 import { truncate } from "../lib/capture-core.js";
 import { serialize } from "../lib/embed.js";
 import { DEFAULT_DB_PATH } from "../lib/config.js";
+import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
 
 type DbInstance = BetterSqlite3.Database;
@@ -189,10 +190,7 @@ function getScopedEmbeds(): BetterSqlite3.Statement {
   JOIN memories m ON m.id = e.ref_id
   WHERE e.ref_table = 'memories'
     AND m.status = 'active'
-    AND (m.scope = 'GLOBAL'
-         OR (m.scope = 'USER' AND m.user_id = @uid)
-         OR (m.scope = 'SESSION' AND m.session_id = @sid)
-         OR (m.scope = 'PROJECT' AND m.project_id = @pid))
+    AND ${buildScopeClause("m").sql}
  `));
 }
 let _legacyEmbeds: BetterSqlite3.Statement | null = null;
@@ -226,11 +224,13 @@ export function getAllEmbeddings(opts: {
   const hasScopeFilter =
     opts.uid !== undefined || opts.sid !== undefined || opts.pid !== undefined;
   if (!hasScopeFilter) {
-    const uid = null;
-    const sid = null;
-    const pid = null;
+    const scope = buildScopeClause("m", {
+      resolvedUid: null,
+      sessionId: null,
+      projectId: null,
+    });
     try {
-      const memRows = getScopedEmbeds().all({ uid, sid, pid }) as {
+      const memRows = getScopedEmbeds().all(scope.params) as {
         ref_table: string;
         ref_id: number;
         vec: Buffer;
@@ -241,7 +241,16 @@ export function getAllEmbeddings(opts: {
         vec: Buffer;
       }[];
       return [...memRows, ...legacyRows];
-    } catch {
+    } catch (e) {
+      // Explicit documented fallback (P1-A): this widens the read to every
+      // embedding row (any scope/status). It exists so the unscoped caller
+      // (recall.ts) degrades instead of failing outright, and it now logs on
+      // EVERY entry so the widening is never silent.
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(
+        `[db] getAllEmbeddings: scoped memories + legacy queries failed (${msg}); ` +
+          `falling back to ALL embeddings (may include out-of-scope rows)`
+      );
       return getAllEmbeds().all() as {
         ref_table: string;
         ref_id: number;
@@ -252,7 +261,14 @@ export function getAllEmbeddings(opts: {
   const uid = opts.uid ?? null;
   const sid = opts.sid ?? null;
   const pid = opts.pid ?? null;
-  const memRows = getScopedEmbeds().all({ uid, sid, pid }) as {
+  // Scoped read path: NO fallback — errors must propagate so a scoped caller
+  // can never receive out-of-scope embeddings.
+  const scope = buildScopeClause("m", {
+    resolvedUid: uid,
+    sessionId: sid,
+    projectId: pid,
+  });
+  const memRows = getScopedEmbeds().all(scope.params) as {
     ref_table: string;
     ref_id: number;
     vec: Buffer;

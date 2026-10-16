@@ -2,6 +2,7 @@ import { db } from "../db/index.js";
 import { retrieve } from "./retrieval-engine.js";
 import { traverse } from "./graph-engine.js";
 import { resolveUserId } from "../db/repositories/users.js";
+import { isScopeVisible } from "../lib/scope.js";
 import type { MemoryRecord } from "../memory/types.js";
 
 export interface ContextOptions {
@@ -27,26 +28,6 @@ export interface ContextResult {
   truncated: boolean;
 }
 
-function isScopeVisible(
-  m: MemoryRecord,
-  opts: ContextOptions,
-  uid: number | null
-): boolean {
-  if (m.scope === "USER") {
-    if (opts.userId == null) return false;
-    return m.user_id === uid;
-  }
-  if (m.scope === "SESSION") {
-    if (opts.sessionId == null) return false;
-    return m.session_id === opts.sessionId;
-  }
-  if (m.scope === "PROJECT") {
-    if (opts.projectId == null) return false;
-    return m.project_id === opts.projectId;
-  }
-  return true;
-}
-
 function isCurrentlyValid(m: MemoryRecord, now: Date): boolean {
   if (m.valid_from && new Date(m.valid_from) > now) return false;
   if (m.valid_until && new Date(m.valid_until) < now) return false;
@@ -60,6 +41,12 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
   const maxTokens = opts.maxTokens ?? 2000;
   const now = new Date();
   const resolvedUid = opts.userId ? resolveUserId(opts.userId) : null;
+  const scopeCtx = {
+    userId: opts.userId,
+    resolvedUid,
+    sessionId: opts.sessionId,
+    projectId: opts.projectId,
+  };
 
   const seeds = retrieve(query, {
     limit,
@@ -88,7 +75,7 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
             m.status === "superseded")
         )
           continue;
-        if (!isScopeVisible(m, opts, resolvedUid)) continue;
+        if (!isScopeVisible(m, scopeCtx)) continue;
         if (!opts.includeHistory && !isCurrentlyValid(m, now)) continue;
         ids.add(n.memoryId);
       }
@@ -105,7 +92,7 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
     )
     .filter((m): m is MemoryRecord => !!m)
     .filter((m) => opts.includeHistory || isCurrentlyValid(m, now))
-    .filter((m) => isScopeVisible(m, opts, resolvedUid))
+    .filter((m) => isScopeVisible(m, scopeCtx))
     .filter(
       (m) =>
         opts.includeHistory ||

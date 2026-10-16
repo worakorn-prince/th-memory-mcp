@@ -22,30 +22,37 @@ const insertLesson = db.prepare(
   "INSERT INTO lessons (situation, mistake, correction, created_at) VALUES (?, ?, ?, ?)"
 );
 
-export async function saveLessonHandler(args: {
+type LessonArgs = {
   situation: string;
   mistake: string;
   correction: string;
-}): Promise<ToolResult> {
+};
+
+const applyLesson = db.transaction((args: LessonArgs): { id: number } => {
+  const res = insertLesson.run(
+    args.situation,
+    args.mistake,
+    args.correction,
+    nowISO()
+  );
+  const id = Number(res.lastInsertRowid);
+  syncSearchIndex(
+    "lessons",
+    id,
+    args.situation.slice(0, LESSON_TITLE_MAX),
+    `${args.situation} | mistake: ${args.mistake} -> correction: ${args.correction}`
+  );
+  upsertEmbedding(
+    "lessons",
+    id,
+    embed(`${args.situation} ${args.mistake} ${args.correction}`)
+  );
+  return { id };
+});
+
+export async function saveLessonHandler(args: LessonArgs): Promise<ToolResult> {
   try {
-    const res = insertLesson.run(
-      args.situation,
-      args.mistake,
-      args.correction,
-      nowISO()
-    );
-    const id = Number(res.lastInsertRowid);
-    syncSearchIndex(
-      "lessons",
-      id,
-      args.situation.slice(0, LESSON_TITLE_MAX),
-      `${args.situation} | mistake: ${args.mistake} -> correction: ${args.correction}`
-    );
-    upsertEmbedding(
-      "lessons",
-      id,
-      embed(`${args.situation} ${args.mistake} ${args.correction}`)
-    );
+    const { id } = applyLesson(args);
     return ok(`lesson saved (lesson id=${id})`);
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));

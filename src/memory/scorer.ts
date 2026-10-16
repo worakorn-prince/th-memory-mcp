@@ -1,6 +1,4 @@
-import type { MemoryType } from "./types.js";
 import { sourceWeight } from "./source-weights.js";
-import { recencyFactorFor } from "./decay.js";
 
 export interface SalienceWeights {
   semanticRelevance: number;
@@ -35,6 +33,9 @@ export function clamp01(x: number): number {
   return Math.min(1, Math.max(0, x));
 }
 
+/** PARKED: computeSalience/computeConfidence are not wired into the tool flow yet;
+ *  they are exercised only by test/lifecycle.test.mjs (and internal use by each other).
+ *  Do not delete without relocating the scoring capability together with its tests. */
 export function computeSalience(input: SalienceInput): number {
   const w = { ...DEFAULT_SALIENCE_WEIGHTS, ...(input.weights ?? {}) };
   const raw =
@@ -59,29 +60,4 @@ export function computeConfidence(input: ConfidenceInput): number {
   const n = Math.max(0, input.confirmations);
   const next = w + (1 - w) * (1 - 1 / (1 + n));
   return clamp01(next);
-}
-
-// Convenience: build salience from a memory record + query relevance.
-export function salienceForMemory(params: {
-  type: MemoryType;
-  importance: number;
-  confidence: number;
-  updatedAt: string;
-  accessCount: number;
-  relevance: number;
-  projectRelevance?: number;
-  maxAccess?: number;
-}): number {
-  const recency = recencyFactorFor(params.type, params.updatedAt);
-  const accessFrequency = clamp01(
-    params.accessCount / (params.maxAccess ?? 10)
-  );
-  return computeSalience({
-    relevance: params.relevance,
-    importance: params.importance,
-    confidence: params.confidence,
-    recency,
-    accessFrequency,
-    projectRelevance: params.projectRelevance ?? 0.5,
-  });
 }

@@ -24,14 +24,14 @@ npm test
 ## Adding a new tool
 1. Register in `src/index.ts` (register tool + handler)
 2. Add tests under `test/` (aim for `npm test` to pass 70+ assertions)
-3. Update README (Tools section) and `ARCHITECTURE_v2.md` if needed
+3. Update README (Tools section) if needed
 4. Add it to the Smart Distill rule if relevant
 
 ## Pull request workflow
 - Branch off `master` (e.g. `feat/...`, `fix/...`), or fork and open a PR
 - Ensure `npm test` and `npm run build` pass before opening a PR
 - Use conventional commits (e.g. `feat:`, `fix:`, `docs:`, `chore:`)
-- CI (Node 20.x / 22.x) must pass
+- CI (Node 20.x) must pass
 
 ## License
 - This project is MIT licensed, copyright holder `worakorn-prince`

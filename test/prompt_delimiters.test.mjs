@@ -20,7 +20,6 @@ function textOf(r) {
 
 test("Batch B-2: isUntrustedMetadata reads the import flag only", () => {
   assert.equal(fmt.isUntrustedMetadata(null), false);
-  assert.equal(fmt.isUntrustedMetadata(null), false);
   assert.equal(fmt.isUntrustedMetadata(JSON.stringify({ trusted: true })), false);
   assert.equal(fmt.isUntrustedMetadata(JSON.stringify({ trusted: false })), true);
   assert.equal(fmt.isUntrustedMetadata(JSON.stringify({ value: "x", trusted: false })), true);

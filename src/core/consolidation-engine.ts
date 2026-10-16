@@ -1,8 +1,9 @@
-import { db, getAllEmbeddings } from "../db/index.js";
+import { db } from "../db/index.js";
 import { cosine, deserialize } from "../lib/embed.js";
 import { createMemory } from "../db/repositories/memories.js";
 import { linkMemories } from "./graph-engine.js";
 import { resolveUserId } from "../db/repositories/users.js";
+import { isScopeVisible } from "../lib/scope.js";
 
 export interface ClusterOptions {
   threshold?: number;
@@ -39,25 +40,17 @@ export function clusterMemories(opts: ClusterOptions = {}): number[][] {
   // External userId -> internal id once (null when unscoped/unknown; then no
   // USER row can match, so only GLOBAL clusters — never another user's data).
   const resolvedUid = opts.userId ? resolveUserId(opts.userId) : null;
-  const valid = rows.filter((r) => {
-    // Batch B-1 strict scope filter (mirrors retrieval visible()): a scoped
-    // memory clusters only when the caller explicitly scopes to it. GLOBAL
-    // always participates. This stops USER/SESSION/PROJECT memories from
-    // being absorbed into a cluster the caller reads as another scope.
-    if (r.scope === "USER") {
-      if (opts.userId == null) return false;
-      return r.user_id === resolvedUid;
-    }
-    if (r.scope === "SESSION") {
-      if (opts.sessionId == null) return false;
-      return r.session_id === opts.sessionId;
-    }
-    if (r.scope === "PROJECT") {
-      if (opts.projectId == null) return false;
-      return r.project_id === opts.projectId;
-    }
-    return true;
-  });
+  // Strict scope filter (shared helper, mirrors retrieval visibility): a
+  // scoped memory clusters only when the caller explicitly scopes to it.
+  // GLOBAL always participates. This stops USER/SESSION/PROJECT memories
+  // from being absorbed into a cluster the caller reads as another scope.
+  const scopeCtx = {
+    userId: opts.userId,
+    resolvedUid,
+    sessionId: opts.sessionId,
+    projectId: opts.projectId,
+  };
+  const valid = rows.filter((r) => isScopeVisible(r, scopeCtx));
 
   const CAP = 2000;
   const sliced = valid.slice(0, CAP);

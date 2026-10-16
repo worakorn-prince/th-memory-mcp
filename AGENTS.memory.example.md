@@ -24,6 +24,13 @@ This project ships an MCP server `th-memory-mcp` that provides long-term memory 
 | `get_recent_interactions(limit?, kind?)` | view raw recent interactions (before distill / audit) |
 | `export_memory(includeInteractions?, filename?)` | export all memory to a JSON file under data/exports/ |
 | `forget(target_id)` | delete wrong/stale memory (id from remember/save_lesson output) |
+| `get_context(query, ...)` | before a task — assemble relevant memories with hybrid retrieval + token budget |
+| `consolidate(threshold?, minClusterSize?)` | periodic cleanup — cluster similar memories, optionally create derived ones |
+| `link_memory(sourceId, targetId, relation)` | connect two memories in the graph (supports/contradicts/supersedes/...) |
+| `merge_memory(sourceId, targetId)` | merge a duplicate into the canonical memory (source → superseded) |
+| `update_memory(id, ...)` | change summary/importance/confidence/validity in place (content change → supersede) |
+| `import_memory(json/file, apply?)` | import memories from JSON (dry-run by default, dedupes, never overwrites blindly) |
+| `extract_memories(limit?, apply?)` | scan recent interactions for memory-intent phrases (proposes candidates) |
 
 ## Smart Distill
 

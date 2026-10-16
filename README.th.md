@@ -7,7 +7,7 @@
 
 MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons, ประวัติการใช้งาน ลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) เพื่อให้ AI "จำและปรับตัว" กับผู้ใช้ผ่าน context-based learning
 
-**สถานะ:** v2.3.0 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval 16 MCP tools, 25 ชุดเทสผ่าน อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ฟีเจอร์ใหม่ใน v2.2: lifecycle states, temporal validity, การแก้ conflict/dedup พร้อม scope USER/SESSION/PROJECT/GLOBAL, hybrid FTS+vector retrieval (RRF), memory graph, ประกอบ `get_context`, consolidation, และ `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` ใหม่ใน v2.2.3: บังคับ scope ใน retrieval, แยก scope ใน graph, export/import แบบ round-trip, ป้องกัน symlink ด้วย realpath, ตรวจ import เข้มงวด, เลิก N+1 query, benchmark cold/ablation และสวิตช์ `MEMORY_RETRIEVAL_MODE` ใหม่ใน v2.2.7: ซิงค์ secret filter ระหว่าง Claude hook กับ capture-core (redact 6 patterns แทนทิ้งบรรทัด), แก้ `err()` ให้ส่ง `isError:true` ตาม MCP spec, แก้ backup rotation (backup เฉพาะเมื่อมี migration pending + prune เก็บ 5 ไฟล์ล่าสุด) และเพิ่ม hook error logging สำหรับ SessionEnd distill ใหม่ใน v2.2.8: แก้บัค scope contamination 0.75→0 (ร้ายแรง), แก้ conflict false 0→1, ปรับ benchmark rescale 5K/20K/100K/500K/1M และ viewer เทียบ profiles ภายใน version, workflow ก่อน commit เหลือ 2 profiles (quick 5K + normal 20K) ใหม่ใน v2.2.9: ขยาย export ให้ครอบคลุม entities/users/relations, forget ลบลิงก์ที่เกี่ยวข้อง, migration แบบ fail-closed พร้อม ISO helper กลาง, เลิก N+1 ใน FTS, รวม smoke ในสคริปต์เทส และซิงค์ viewer กับโปรไฟล์ rescale 5K/20K/100K/500K/1M ใหม่ใน v2.3.0: CLI th-memory + highlight underline
+**สถานะ:** v2.3.0 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval 16 MCP tools, 75 tests ผ่าน (32 ไฟล์เทส) อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ฟีเจอร์ใหม่ใน v2.2: lifecycle states, temporal validity, การแก้ conflict/dedup พร้อม scope USER/SESSION/PROJECT/GLOBAL, hybrid FTS+vector retrieval (RRF), memory graph, ประกอบ `get_context`, consolidation, และ `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` ใหม่ใน v2.2.3: บังคับ scope ใน retrieval, แยก scope ใน graph, export/import แบบ round-trip, ป้องกัน symlink ด้วย realpath, ตรวจ import เข้มงวด, เลิก N+1 query และสวิตช์ `MEMORY_RETRIEVAL_MODE` ใหม่ใน v2.2.7: ซิงค์ secret filter ระหว่าง Claude hook กับ capture-core (redact 6 patterns แทนทิ้งบรรทัด), แก้ `err()` ให้ส่ง `isError:true` ตาม MCP spec, แก้ backup rotation (backup เฉพาะเมื่อมี migration pending + prune เก็บ 5 ไฟล์ล่าสุด) และเพิ่ม hook error logging สำหรับ SessionEnd distill ใหม่ใน v2.2.8: แก้บัค scope contamination 0.75→0 (ร้ายแรง), แก้ conflict false 0→1 ใหม่ใน v2.2.9: ขยาย export ให้ครอบคลุม entities/users/relations, forget ลบลิงก์ที่เกี่ยวข้อง, migration แบบ fail-closed พร้อม ISO helper กลาง, เลิก N+1 ใน FTS, รวม smoke ในสคริปต์เทส ใหม่ใน v2.3.0: CLI th-memory + highlight underline
 
 > English: [README.md](README.md)
 
@@ -71,8 +71,6 @@ OpenCode ──┬─ Plugin learning-capture (Bun)  ── จับ prompt/too
                                Global instructions (memory-protocol.md) สอน AI ใช้ tools
 ```
 
-รายละเอียดสถาปัตยกรรมเต็มอยู่ใน [ARCHITECTURE_v2.md](ARCHITECTURE_v2.md) — คู่มืออัปเกรดจาก v1 ดูได้ที่ [MIGRATION_v2.md](MIGRATION_v2.md)
-
 ## ทำไมต้องใช้ th-memory-mcp?
 
 LLM ไม่ได้จำคุณข้าม session — แชทใหม่ทุกครั้งเริ่มจากศูนย์ th-memory-mcp มอบความจำระยะยาวแบบส่วนตัว ภายในเครื่อง ให้ AI ของคุณ:
@@ -85,7 +83,7 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 - **Conflict-aware** — ตรวจจับ duplicate / contradiction และแก้ด้วย update/supersession โดยเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้งแทนการเขียนทับเงียบๆ
 - **Hybrid retrieval** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion + scoring) แล้วประกอบ context แบบมี token budget พร้อมขยายผ่าน memory graph
 - **Consolidation** — จัดคลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from` links)
-- **เปิดกว้างและต่อยอดได้** — MIT license, 11 tools ที่อธิบายครบ, มี rule-based distill และ plugin auto-capture ที่คุณปรับแต่งได้
+- **เปิดกว้างและต่อยอดได้** — MIT license, 16 tools ที่อธิบายครบ, มี rule-based distill และ plugin auto-capture ที่คุณปรับแต่งได้
 
 ## Scripts
 
@@ -94,7 +92,7 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
 | `npm run distill` | rule-based distill: interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | ชุดเทสครบ: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark |
+| `npm test` | build + เทสทั้งชุด 31 ไฟล์ + smoke (75 tests): batch_a_integrity, benchmark, capture, capture-sync, cli, conflict, conflict_benchmark, consolidation, consolidation_scope, context, distill, e2e_transport, entity_extraction, export_import_roundtrip, export_v2, graph, highlight, lifecycle, p1b_transactions, profile, prompt_delimiters, recall_regression, retrieval, retrieval_benchmark, scope, scope_helper, security, security_regression, smoke, temporal, tools_v21, version_guard |
 | `node test/capture.test.mjs` | ทดสอบ capture-core (filter secrets, dedupe, truncate, insert SQL) |
 | `node test/distill.test.mjs` | ทดสอบ distill-core (tokenize ไทย, stats, profile sections, prune) |
 | `node test/lifecycle.test.mjs` | ทดสอบ lifecycle engine (states, decay, supersession) |
@@ -106,7 +104,7 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `node test/consolidation.test.mjs` | ทดสอบ clustering + derived memories |
 | `node test/benchmark.test.mjs` | เทสความเร็วบนความจำ 300 รายการ |
 | `node test/security.test.mjs` | ตรวจการ injection / ความปลอดภัย |
-| `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (11 tools) |
+| `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (16 tools) |
 
 ## Tools (16)
 

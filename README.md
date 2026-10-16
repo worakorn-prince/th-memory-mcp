@@ -11,7 +11,7 @@
 [![th-memory-mcp MCP server](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/card.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp)
 
 
-**Status:** v2.3.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 25 passing test suites. Non-destructive schema migration from v1 (all v1 data preserved). New in v2.2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`. New in v2.2.3: scope-enforced retrieval, graph scope isolation, export/import round-trip, hardened import path (realpath), strict import validation, N+1 query elimination, cold/ablation benchmark, and `MEMORY_RETRIEVAL_MODE` switch. New in v2.2.7: synced secret filter between Claude hook and capture-core (6-pattern redact instead of line-drop), fixed `err()` to return `isError:true` per MCP spec, fixed backup rotation (backup only when migrations pending + prune to 5 files), and added hook error logging for SessionEnd distill. New in v2.2.8: fixed scope contamination 0.75→0 (critical) and conflict false 0→1 (GLOBAL leak), fixed graph hop1 0.52→1.0 via includeGraph, and rescaled benchmark profiles to 5K/20K/100K/500K/1M (pre-commit now quick 5K + normal 20K only). New in v2.2.9: extended export to entities/users/relations, forget now removes associated links, fail-closed migration with shared ISO helper, eliminated FTS N+1, included smoke in test script, and synced viewer to rescaled profiles 5K/20K/100K/500K/1M. New in v2.3.0: CLI th-memory + highlight underline.
+**Status:** v2.3.0 — a temporal, conflict-aware, hybrid-retrieval memory engine. 16 MCP tools, 32 test files (75 passing tests). Non-destructive schema migration from v1 (all v1 data preserved). New in v2.2: lifecycle states, temporal validity, conflict/dedup resolution with USER/SESSION/PROJECT/GLOBAL scope, hybrid FTS+vector retrieval (RRF), memory graph, `get_context` assembly, periodic consolidation, and `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories`. New in v2.2.3: scope-enforced retrieval, graph scope isolation, export/import round-trip, hardened import path (realpath), strict import validation, N+1 query elimination, and `MEMORY_RETRIEVAL_MODE` switch. New in v2.2.7: synced secret filter between Claude hook and capture-core (6-pattern redact instead of line-drop), fixed `err()` to return `isError:true` per MCP spec, fixed backup rotation (backup only when migrations pending + prune to 5 files), and added hook error logging for SessionEnd distill. New in v2.2.8: fixed scope contamination 0.75→0 (critical) and conflict false 0→1 (GLOBAL leak), fixed graph hop1 0.52→1.0 via includeGraph. New in v2.2.9: extended export to entities/users/relations, forget now removes associated links, fail-closed migration with shared ISO helper, eliminated FTS N+1, included smoke in test script. New in v2.3.0: CLI th-memory + highlight underline.
 
 ## Requirements
 
@@ -73,8 +73,6 @@ OpenCode ──┬─ Plugin learning-capture (Bun)  ── auto-captures prompt
                                Global instructions (memory-protocol.md) teach the AI to use the tools
 ```
 
-See [ARCHITECTURE_v2.md](ARCHITECTURE_v2.md) for the full architecture spec.
-
 ## Why th-memory-mcp?
 
 LLMs don't remember you between sessions — every new chat starts blank. th-memory-mcp gives your AI a private, local long-term memory:
@@ -87,7 +85,7 @@ LLMs don't remember you between sessions — every new chat starts blank. th-mem
 
 ## Works with other harnesses
 
-th-memory-mcp is a standard MCP server, so the 9 tools run anywhere MCP-over-stdio
+th-memory-mcp is a standard MCP server, so the 16 tools run anywhere MCP-over-stdio
 is supported. Full **auto-capture** (background prompt/tool/error capture + profile
 injection) needs a hook runtime — OpenCode has it built in; Claude Code gets it via
 our hooks bridge; Codex and Cursor use the tools manually (no hook runtime yet).
@@ -141,7 +139,7 @@ anywhere is readable everywhere.
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | rule-based distill: interactions → profile sections + prune old data (env `RETENTION_DAYS` default 30) |
-| `npm test` | full suite: capture, distill, lifecycle, temporal, conflict, retrieval, graph, context, consolidation, benchmark, security, tools_v21, smoke, e2e_transport, retrieval_benchmark, recall_regression, scope, profile, entity_extraction, conflict_benchmark, security_regression, export_import_roundtrip |
+| `npm test` | build + full suite — 31 test files + smoke (75 tests): batch_a_integrity, benchmark, capture, capture-sync, cli, conflict, conflict_benchmark, consolidation, consolidation_scope, context, distill, e2e_transport, entity_extraction, export_import_roundtrip, export_v2, graph, highlight, lifecycle, p1b_transactions, profile, prompt_delimiters, recall_regression, retrieval, retrieval_benchmark, scope, scope_helper, security, security_regression, smoke, temporal, tools_v21, version_guard |
 | `node test/capture.test.mjs` | test capture-core (filter secrets, dedupe, truncate, insert SQL) |
 | `node test/distill.test.mjs` | test distill-core (Thai tokenize, stats, profile sections, prune) |
 | `node test/lifecycle.test.mjs` | test lifecycle engine (states, decay, supersession) |
@@ -266,48 +264,6 @@ data/
 
 - DB path can be overridden via the `MEMORY_DB_PATH` env var
 - everything in `data/` is git-ignored
-
-## Benchmark — internal self-reported (not third-party)
-
-> **⚠️ Internal self-reported benchmark — not third-party benchmark**
-> - **internal small-N**: **180 records/30 topics** (B.retrieval: 30 topics × 5 relevant + 30 distractors = 180; full run also uses small-N storage/temporal/context subsets)
-> - **single-machine self-run**: single developer machine, single OS/Node/better-sqlite3 build — not cross-machine, not independently verified
-> - **not third-party benchmark**: self-reported, not independently verified; do not compare as if from an external evaluator
-> - Dataset and harness are in `repro/` (commitable) and `benchmark/` (full framework, see `TH_MEMORY_MCP_BENCHMARK_SPEC.md` and `benchmark/README.md`).
-
-**Two modes**
-
-| Mode | Command | Data | Suites | Use case |
-|------|---------|------|--------|----------|
-| Normal | `npm run benchmark` | 180 records / 30 topics | retrieval | quick check (<5s) |
-| Heavy | `npm run benchmark:heavy` | 600 records / 100 topics + 2k scale | all (storage/retrieval/temporal/context/performance/scalability/cold/ablation) | stress / regression |
-
-Reproduce:
-
-```powershell
-npm run build
-# Normal — quick
-npm run benchmark
-npm run benchmark -- --k 10
-npm run benchmark -- --out repro/results
-
-# Heavy — full framework, more data
-npm run benchmark:heavy
-# or custom:
-node benchmark/run.mjs --suite all --topics 100 --distractors 100 --scale 2000 --out benchmark/results
-```
-
-**Viewer — compare last 3 versions (table + charts)**
-
-```powershell
-npm run benchmark:viewer
-# or: npx serve . -l 3000
-# open http://localhost:3000/benchmark/viewer/  or  http://localhost:3000/result/viewer.html
-```
-
-The viewer loads `benchmark/results/history.jsonl`, groups by version, takes the **latest run of the 3 most recent versions** (e.g. 2.2.6 / 2.2.7 / 2.2.8) and shows a highlighted table (1 row per version) + bar charts for `Recall@5 / MRR / NDCG@5` and `Latency p95`. Results are also saved per version in `result/v*_benchmark_result.md` and `benchmark/results/versions/<ver>/`.
-
-Last internal run (v2.2.8, warm, normal profile, a2dcbce — not third-party): Recall@5=0.9060, Precision@5=0.9060, MRR=1, NDCG@5=0.9347 over 100 topics/600 records. See `result/v2.2.8_benchmark_result.md` and `repro/README.md` for details and caveats (internal, single-machine self-run).
 
 ## Known Limitations
 

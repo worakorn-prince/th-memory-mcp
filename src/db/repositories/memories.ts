@@ -1,13 +1,10 @@
 import {
   db,
   syncSearchIndex,
-  removeSearchIndex,
   upsertEmbedding,
-  removeEmbedding,
   nowISO,
 } from "../../db/index.js";
 import { embed } from "../../lib/embed.js";
-import { retrieve } from "../../core/retrieval-engine.js";
 import { ensureUser } from "./users.js";
 import type {
   MemoryType,
@@ -34,7 +31,7 @@ export interface CreateMemoryInput {
   metadata?: unknown;
 }
 
-export function createMemory(input: CreateMemoryInput): number {
+function insertMemoryAtomic(input: CreateMemoryInput): number {
   const ts = nowISO();
   const uid = input.userId ? ensureUser(input.userId) : null;
   const scope: Scope = input.sessionId
@@ -77,6 +74,13 @@ export function createMemory(input: CreateMemoryInput): number {
   return id;
 }
 
+let createMemoryTxn: ((input: CreateMemoryInput) => number) | null = null;
+
+export function createMemory(input: CreateMemoryInput): number {
+  createMemoryTxn ??= db.transaction(insertMemoryAtomic);
+  return createMemoryTxn(input);
+}
+
 export function syncMemoryIndex(id: number, title: string, body: string): void {
   syncSearchIndex("memories", id, title, body);
   upsertEmbedding("memories", id, embed(body));
@@ -94,28 +98,4 @@ export function setStatus(id: number, status: LifecycleState): void {
     nowISO(),
     id
   );
-}
-
-export function softDelete(id: number): void {
-  setStatus(id, "deleted");
-}
-
-export function removeMemoryIndex(id: number): void {
-  removeSearchIndex("memories", id);
-  removeEmbedding("memories", id);
-}
-
-export interface SearchOptions {
-  limit?: number;
-  projectId?: string | null;
-  sessionId?: string | null;
-  includeArchived?: boolean;
-  includeHistory?: boolean;
-}
-
-export function searchMemories(
-  query: string,
-  opts: SearchOptions = {}
-): MemoryRecord[] {
-  return retrieve(query, opts);
 }

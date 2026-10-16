@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serverPath = resolve(root, "dist", "index.js");
+const pkgVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 // Test DB lives in an OS temp dir so the project's data/ stays untouched.
 // export_memory derives its exports dir from dirname(DB_PATH), so exported
 // JSON also lands inside this same temp dir and is cleaned up with it.
@@ -316,7 +317,7 @@ try {
         (k) => k in parsed
       );
       report(
-        keysOk && parsed.version === "2.3.0" && parsed.format === "th-memory-mcp/v2" && parsed.interactions.included === false,
+        keysOk && parsed.version === pkgVersion && parsed.format === "th-memory-mcp/v2" && parsed.interactions.included === false,
         "10g. default export: spec keys present, interactions excluded"
       );
     } catch (e) {

@@ -5,6 +5,7 @@ import { rrfFuse } from "../retrieval/fusion.js";
 import { finalScore, scopeFactorFor } from "../retrieval/scorer.js";
 import { recencyFactorFor } from "../memory/decay.js";
 import { resolveUserId } from "../db/repositories/users.js";
+import { isScopeVisible } from "../lib/scope.js";
 import type { MemoryRecord } from "../memory/types.js";
 
 export interface RetrieveOptions {
@@ -46,20 +47,11 @@ export function retrieve(
       : opts.userId
         ? resolveUserId(opts.userId)
         : null;
-  const visible = (m: MemoryRecord): boolean => {
-    if (m.scope === "USER") {
-      if (opts.userId == null) return false;
-      return m.user_id === resolvedUid;
-    }
-    if (m.scope === "SESSION") {
-      if (opts.sessionId == null) return false;
-      return m.session_id === opts.sessionId;
-    }
-    if (m.scope === "PROJECT") {
-      if (opts.projectId == null) return false;
-      return m.project_id === opts.projectId;
-    }
-    return true;
+  const scopeCtx = {
+    userId: opts.userId,
+    resolvedUid,
+    sessionId: opts.sessionId,
+    projectId: opts.projectId,
   };
   const ids = [...fused.keys()];
   if (ids.length === 0) return [];
@@ -79,7 +71,7 @@ export function retrieve(
         mem.status === "superseded")
     )
       continue;
-    if (!visible(mem)) continue;
+    if (!isScopeVisible(mem, scopeCtx)) continue;
     const recency = recencyFactorFor(mem.type, mem.updated_at, now);
     const scope = scopeFactorFor(mem, {
       projectId: opts.projectId,

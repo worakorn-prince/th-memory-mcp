@@ -1,6 +1,6 @@
 # th-memory-mcp on Codex CLI
 
-Codex CLI speaks MCP, so the **9 memory tools work**, but it has **no
+Codex CLI speaks MCP, so the **16 memory tools work**, but it has **no
 Claude-Code-style Hooks runtime** — background auto-capture (the OpenCode plugin
 / Claude hooks) is not available. The AI still uses the tools via the
 `memory-protocol` instructions; it just captures manually rather than
@@ -50,7 +50,7 @@ Remember that I prefer pnpm
 
 | Feature | OpenCode | Claude Code | Codex |
 |---|---|---|---|
-| 9 MCP tools | ✅ | ✅ | ✅ |
+| 16 MCP tools | ✅ | ✅ | ✅ |
 | Auto-capture (background) | ✅ plugin | ✅ hooks | ❌ manual |
 | Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ (call `get_profile`) |
 

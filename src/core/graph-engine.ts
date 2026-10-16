@@ -133,6 +133,8 @@ export function traverse(
   return result;
 }
 
+/** PARKED: not wired into any tool flow; exercised only by test/graph.test.mjs.
+ *  Do not delete without relocating the neighbor traversal together with its tests. */
 export function neighbors(memoryId: number): TraversalNode[] {
   return traverse(memoryId, { maxDepth: 1 });
 }

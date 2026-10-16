@@ -1,7 +1,7 @@
 # th-memory-mcp on Cursor
 
 Cursor loads MCP servers from a project file and applies **Rules** (not hooks),
-so the **9 memory tools work** but background auto-capture (OpenCode plugin /
+so the **16 memory tools work** but background auto-capture (OpenCode plugin /
 Claude hooks) is not available. The AI uses the tools per the memory-protocol
 rules you attach.
 
@@ -41,9 +41,11 @@ description: Use the th-memory-mcp memory tools to remember and recall the user 
 alwaysApply: true
 ---
 
-You have a local long-term memory MCP server called `memory` with 9 tools
+You have a local long-term memory MCP server called `memory` with 16 tools
 (`remember`, `recall`, `get_profile`, `save_lesson`, `search_history`,
-`forget`, `memory_stats`, `get_recent_interactions`, `export_memory`).
+`forget`, `memory_stats`, `get_recent_interactions`, `export_memory`,
+`get_context`, `consolidate`, `link_memory`, `merge_memory`, `update_memory`,
+`import_memory`, `extract_memories`).
 
 Rules:
 - Before starting a non-trivial task, call `recall` to pull relevant preferences/lessons.
@@ -60,7 +62,7 @@ Open the chat and say *"Remember that I prefer pnpm"* → new session →
 
 | Feature | OpenCode | Claude Code | Cursor |
 |---|---|---|---|
-| 9 MCP tools | ✅ | ✅ | ✅ |
+| 16 MCP tools | ✅ | ✅ | ✅ |
 | Auto-capture (background) | ✅ plugin | ✅ hooks | ❌ manual (Rules) |
 | Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ (call `get_profile`) |
 

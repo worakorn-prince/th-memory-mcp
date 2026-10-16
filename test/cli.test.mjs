@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cli = join(here, "..", "dist", "cli.js");
+const pkgVersion = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+).version;
 const dir = mkdtempSync(join(tmpdir(), "th-mem-cli-"));
 const dbPath = join(dir, "test.db");
 
@@ -24,10 +27,10 @@ test("cli --help exits 0", () => {
   assert.ok((r.stdout + r.stderr).toLowerCase().includes("usage"));
 });
 
-test("cli --version shows 2.3.0", () => {
+test(`cli --version shows ${pkgVersion}`, () => {
   const r = run(["--version"]);
   assert.equal(r.status, 0);
-  assert.ok((r.stdout + r.stderr).includes("2.3.0"));
+  assert.ok((r.stdout + r.stderr).includes(pkgVersion));
 });
 
 test("cli remember then recall finds value", () => {
@@ -82,4 +85,46 @@ test("cli forget removes entry", () => {
 test("cli unknown command exits non-zero", () => {
   const r = run(["badcmd"]);
   assert.notEqual(r.status, 0);
+});
+
+test("cli --json=maybe exits 2 with readable error and no stack trace", () => {
+  const r = run(["--json=maybe", "stats"]);
+  assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stdout} ${r.stderr}`);
+  assert.ok(
+    r.stderr.startsWith("error:"),
+    `stderr should use fail() format: ${r.stderr}`
+  );
+  assert.ok(
+    `${r.stdout}${r.stderr}`.includes("--json=maybe"),
+    `error message should reference the bad flag: ${r.stdout} ${r.stderr}`
+  );
+  assert.ok(
+    !/(^|\n)\s+at\s/.test(`${r.stdout}${r.stderr}`),
+    `stack trace leaked: ${r.stderr}`
+  );
+});
+
+test("cli thrown parse error is caught (exit 2, no stack trace)", () => {
+  const r = run(["recall", "foo", "--highlight=maybe"]);
+  assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stdout} ${r.stderr}`);
+  assert.ok(
+    r.stderr.includes('invalid value for --highlight: "maybe"'),
+    `readable error missing: ${r.stdout} ${r.stderr}`
+  );
+  assert.ok(
+    !/(^|\n)\s+at\s/.test(`${r.stdout}${r.stderr}`),
+    `stack trace leaked: ${r.stderr}`
+  );
+});
+
+test("cli thrown parse error with --json emits JSON error (exit 2)", () => {
+  const r = run(["--json", "recall", "foo", "--highlight=maybe"]);
+  assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stdout} ${r.stderr}`);
+  const parsed = JSON.parse(r.stdout.trim());
+  assert.equal(parsed.ok, false, `expected ok:false: ${r.stdout}`);
+  assert.ok(
+    String(parsed.data).includes('invalid value for --highlight: "maybe"'),
+    `readable error missing: ${r.stdout}`
+  );
+  assert.ok(!r.stderr.includes("at "), `stack trace leaked: ${r.stderr}`);
 });

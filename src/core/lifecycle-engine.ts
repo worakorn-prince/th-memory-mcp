@@ -55,13 +55,6 @@ export function reinforce(id: number): MemoryRecord {
   return getMemoryById(id) as MemoryRecord;
 }
 
-export function touch(id: number): void {
-  const ts = nowISO();
-  db.prepare(
-    `UPDATE memories SET access_count = access_count + 1, last_accessed_at = ? WHERE id = ?`
-  ).run(ts, id);
-}
-
 // old memory becomes superseded; new memory becomes active and points to old.
 export function supersede(oldId: number, newId: number): void {
   const oldM = getMemoryById(oldId);
@@ -85,6 +78,8 @@ export function supersede(oldId: number, newId: number): void {
   tx();
 }
 
+/** PARKED: not wired into the tool flow; exercised only by test/lifecycle.test.mjs.
+ *  Do not delete without relocating the archive capability together with its tests. */
 export function archive(id: number): MemoryRecord {
   const mem = getMemoryById(id);
   if (!mem) throw new LifecycleError(`memory ${id} not found`);

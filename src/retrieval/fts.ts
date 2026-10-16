@@ -1,5 +1,6 @@
 import { db, buildFtsMatch } from "../db/index.js";
 import { resolveUserId } from "../db/repositories/users.js";
+import { buildScopeClause } from "../lib/scope.js";
 
 export interface RankedId {
   id: number;
@@ -23,29 +24,26 @@ export function ftsSearch(
   // Batch A-4: scope predicate lives INSIDE SQL (not JS post-filter), so
   // LIMIT applies after scope filtering. The old code did LIMIT-then-filter:
   // out-of-scope rows could fill the LIMIT window and starve in-scope hits.
+  // P1-A: the predicate is now the shared clause from lib/scope.ts.
   const uid = opts.userId == null ? null : resolveUserId(opts.userId);
-  const sid = opts.sessionId ?? null;
-  const pid = opts.projectId ?? null;
+  const scope = buildScopeClause("m", {
+    resolvedUid: uid,
+    sessionId: opts.sessionId,
+    projectId: opts.projectId,
+  });
   const rows = db
     .prepare(
       `SELECT m.id, m.scope, m.project_id, m.session_id, m.user_id FROM memories m
        JOIN search_index ON search_index.ref_table = 'memories' AND search_index.ref_id = m.id
        WHERE search_index MATCH @match ${statusClause}
-         AND (
-           m.scope = 'GLOBAL'
-           OR (m.scope = 'USER' AND @uid IS NOT NULL AND m.user_id = @uid)
-           OR (m.scope = 'SESSION' AND @sid IS NOT NULL AND m.session_id = @sid)
-           OR (m.scope = 'PROJECT' AND @pid IS NOT NULL AND m.project_id = @pid)
-         )
+         AND ${scope.sql}
        ORDER BY rank
        LIMIT @limit`
     )
     .all({
       match: buildFtsMatch(query),
       limit,
-      uid,
-      sid,
-      pid,
+      ...scope.params,
     }) as Array<{
       id: number;
       scope: string;

@@ -1,3 +1,7 @@
+/** PARKED: not wired into any tool flow; exercised only by tests
+ *  (test/conflict.test.mjs, test/conflict_benchmark.test.mjs).
+ *  Do not delete without relocating the conflict-classification capability
+ *  together with its tests. */
 import { db, nowISO } from "../db/index.js";
 import { getMemoryById } from "../db/repositories/memories.js";
 import { supersede, reinforce, softDelete } from "../core/lifecycle-engine.js";

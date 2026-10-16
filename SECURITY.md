@@ -4,10 +4,10 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.2.x   | :white_check_mark: |
-| < 2.2   | :x:                |
+| 2.3.x   | :white_check_mark: |
+| < 2.3   | :x:                |
 
-We support the latest `2.2.x` release line. Older major/minor lines receive no security updates.
+We support the latest `2.3.x` release line. Older major/minor lines receive no security updates.
 
 ## Reporting a Vulnerability
 
@@ -28,12 +28,12 @@ Use one of these private channels:
 ### What to expect
 
 - Acknowledgement within 72 hours
-- Triage and severity assessment using the same legend as `HealthCheck_Final.md` (Critical / High / Medium / Low)
+- Triage and severity assessment (Critical / High / Medium / Low)
 - Fix in a patch release and credit in release notes if desired
 
 ## Scope
 
-This policy covers the MCP server (`src/`), SQLite store (`data/memory.db`), and the auto-capture plugin (`src/plugin/learning-capture.ts`). The benchmark harness (`benchmark/`, `repro/`) and result files (`result/`) are out of scope.
+This policy covers the MCP server (`src/`), SQLite store (`data/memory.db`), and the auto-capture plugin (`src/plugin/learning-capture.ts`). Internal development-only material is out of scope.
 
 ## Authentication scope — single-user local process (Batch B-3)
 

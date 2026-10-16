@@ -35,12 +35,14 @@ const updatePref = db.prepare(
   `UPDATE preferences SET value = ?, confidence = MIN(confidence + ${CONFIDENCE_STEP}, ${CONFIDENCE_MAX}), updated_at = ? WHERE id = ?`
 );
 
-export async function rememberHandler(args: {
+type RememberArgs = {
   category: "work_style" | "coding_pref" | "language" | "domain" | "other";
   key: string;
   value: string;
-}): Promise<ToolResult> {
-  try {
+};
+
+const applyRemember = db.transaction(
+  (args: RememberArgs): { id: number; confidence: number } => {
     const existing = selectPref.get({ category: args.category, key: args.key });
     let id: number;
     let confidence: number;
@@ -65,6 +67,13 @@ export async function rememberHandler(args: {
       `${args.key}: ${args.value}`
     );
     upsertEmbedding("preferences", id, embed(`${args.category} ${args.key} ${args.value}`));
+    return { id, confidence };
+  }
+);
+
+export async function rememberHandler(args: RememberArgs): Promise<ToolResult> {
+  try {
+    const { id, confidence } = applyRemember(args);
     return ok(
       `remembered [${args.category}] ${args.key} = ${args.value} (preference id=${id}, confidence=${confidence.toFixed(2)})`
     );

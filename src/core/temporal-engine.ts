@@ -1,3 +1,5 @@
+/** PARKED: not wired into any tool flow; exercised only by test/temporal.test.mjs.
+ *  Do not delete without relocating the temporal-validity capability together with its tests. */
 import { db } from "../db/index.js";
 import { getMemoryById } from "../db/repositories/memories.js";
 import type { MemoryRecord } from "../memory/types.js";

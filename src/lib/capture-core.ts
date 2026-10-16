@@ -1,3 +1,6 @@
+/** PARKED: test-only by design — scripts/check-capture-sync.mjs intentionally
+ *  skips it and the deployed plugin aliases SECRET_PATTERNS[0] instead.
+ *  Do not delete without relocating the security regression tests that use it. */
 export const SECRET_LINE = /(api[_-]?key|secret|token|password)\s*[=:]/i;
 
 export const SECRET_PATTERNS = [

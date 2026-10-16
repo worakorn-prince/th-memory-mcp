@@ -18,10 +18,9 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "SECURITY.md",
-    "ARCHITECTURE_v2.md",
-    "design.md",
     "opencode.example.json",
     "AGENTS.memory.example.md"
   ],

@@ -1,7 +1,7 @@
 # th-memory-mcp on Qwen Code
 
 Qwen Code (Alibaba's CLI, a fork of Gemini CLI) speaks MCP over stdio, so the
-**9 memory tools work**. Its hook system uses the **Gemini-CLI schema**, which
+**16 memory tools work**. Its hook system uses the **Gemini-CLI schema**, which
 differs from Claude Code's (different event names + I/O), so the Claude hooks
 bridge (`scripts/claude-capture.mjs`) is **not** a drop-in — see Hooks below.
 
@@ -59,7 +59,7 @@ events. The **I/O schema is not the same as Claude Code's** — event names and 
 stdin/stdout JSON differ — so `scripts/claude-capture.mjs` cannot be reused as-is.
 
 What works today:
-- **9 MCP tools**: ✅ full
+- **16 MCP tools**: ✅ full
 - **Tool-call auto-capture**: possible via an `AfterTool` hook, but needs a
   small Qwen/Gemini-style adapter script (different payload fields). Available on
   request — tell me your Qwen Code hook event names and I'll add
@@ -75,7 +75,7 @@ fully readable here.
 
 | Feature | OpenCode | Claude Code | Qwen Code |
 |---|---|---|---|
-| 9 MCP tools | ✅ | ✅ | ✅ |
+| 16 MCP tools | ✅ | ✅ | ✅ |
 | Auto-capture (background) | ✅ plugin | ✅ hooks | ⚠️ needs adapter (AfterTool) |
 | Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ manual (`get_profile`) |
 | Local semantic search | ✅ | ✅ | ✅ |
