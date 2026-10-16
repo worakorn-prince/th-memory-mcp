@@ -2,6 +2,8 @@ node_modules/
 dist/
 data/
 review/
+.agent/
+.openvisio/
 *.log
 
 # Thai-language documentation — kept local only, not pushed to GitHub
@@ -18,5 +20,28 @@ PUBLISH.th.md
 mcp-publisher.exe
 mcp-publisher
 
-# Own benchmark framework — now tracked (previously local only)
+# Own benchmark framework — spec is local-only (not in repo; benchmark docs reference it as internal)
 TH_MEMORY_MCP_BENCHMARK_SPEC.md
+
+# Python caches
+__pycache__/
+
+# Internal docs — not published (architecture/design/migration/release process)
+ARCHITECTURE_v2.md
+design.md
+MIGRATION_v2.md
+PUBLISH.md
+
+# Internal benchmark framework + results — local only
+benchmark/
+result/
+repro/
+
+# Internal viewer/observability stack — local only
+README-viewer.md
+dashboard/
+docs/
+run_dashboard.bat
+run_dashboard.sh
+scripts/*.py
+scripts/run_dashboard.ps1
