@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] - 2026-10-18
+
+### Changed
+- Performance: consolidation clustering hot loop iterates sparse non-zero entries and skips already-connected pairs — ~2.2x faster at the 2K-candidate cap with bit-identical clustering results (N=1000: 429→198 ms; N=2000: 1967→888 ms).
+- Performance: `get_context` fetches candidate memories with batched `WHERE id IN (...)` queries (chunked, cached statements) instead of one prepared statement per id; graph traversal and entity/relation writers reuse cached prepared statements.
+- Performance: conflict resolver `findRelated` uses a single embeddings⋈memories join instead of a per-row lookup; `consolidate` no longer re-queries member content.
+- No behavior change — verified by the full test suite (75/75) and a behavior-equivalence review (bit-identical vector math on 780/780 real pairs, identical join plan and row order).
+
 ## [2.3.1] - 2026-10-17
 
 ### Added
@@ -58,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.1...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.2...HEAD
+[2.3.2]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.2
 [2.3.1]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.1
 [2.3.0]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.0
 [2.2.9]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.2.9
