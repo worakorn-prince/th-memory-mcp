@@ -5,150 +5,97 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 
-MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons, ประวัติการใช้งาน ลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) เพื่อให้ AI "จำและปรับตัว" กับผู้ใช้ผ่าน context-based learning
+MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons และประวัติการใช้งานลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) ให้ AI ปรับตัวกับคุณผ่าน context-based learning
 
-**สถานะ:** v2.3.2 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval 16 MCP tools, 75 tests ผ่าน (32 ไฟล์เทส) อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ฟีเจอร์ใหม่ใน v2.2: lifecycle states, temporal validity, การแก้ conflict/dedup พร้อม scope USER/SESSION/PROJECT/GLOBAL, hybrid FTS+vector retrieval (RRF), memory graph, ประกอบ `get_context`, consolidation, และ `link_memory` / `merge_memory` / `update_memory` / `import_memory` / `extract_memories` ใหม่ใน v2.2.3: บังคับ scope ใน retrieval, แยก scope ใน graph, export/import แบบ round-trip, ป้องกัน symlink ด้วย realpath, ตรวจ import เข้มงวด, เลิก N+1 query และสวิตช์ `MEMORY_RETRIEVAL_MODE` ใหม่ใน v2.2.7: ซิงค์ secret filter ระหว่าง Claude hook กับ capture-core (redact 6 patterns แทนทิ้งบรรทัด), แก้ `err()` ให้ส่ง `isError:true` ตาม MCP spec, แก้ backup rotation (backup เฉพาะเมื่อมี migration pending + prune เก็บ 5 ไฟล์ล่าสุด) และเพิ่ม hook error logging สำหรับ SessionEnd distill ใหม่ใน v2.2.8: แก้บัค scope contamination 0.75→0 (ร้ายแรง), แก้ conflict false 0→1 ใหม่ใน v2.2.9: ขยาย export ให้ครอบคลุม entities/users/relations, forget ลบลิงก์ที่เกี่ยวข้อง, migration แบบ fail-closed พร้อม ISO helper กลาง, เลิก N+1 ใน FTS, รวม smoke ในสคริปต์เทส ใหม่ใน v2.3.0: CLI th-memory + highlight underline
+**สถานะ:** v2.3.2 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval: 16 MCP tools, 75 tests ผ่าน (32 ไฟล์เทส), อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ดูประวัติเวอร์ชันใน [CHANGELOG.md](CHANGELOG.md)
 
 > English: [README.md](README.md)
 
 ## Requirements (ความต้องการระบบ)
 
-- **Node.js >= 20** — server ใช้ API ของ Node โดยเฉพาะ (better-sqlite3 แบบ native build และการหา path ด้วย `import.meta.url`) และ MCP SDK ต้องการ runtime สมัยใหม่ CI ของเราทดสอบบน Node 20.x และ 22.x
-- **npm** — สำหรับติดตั้ง dependencies และรัน build/test (`npm install`, `npm run build`, `npm test`)
-- **OpenCode** — โปรแกรมหลักที่โหลด MCP server นี้และ plugin auto-capture ใช้ OpenCode รุ่นที่รองรับ MCP (stdio) + plugins (plugin รันบน Bun ที่มากับ OpenCode)
-- **OS: Windows / macOS / Linux** — server ข้ามแพลตฟอร์มได้ (Node) plugin auto-capture รันได้ทุกที่ที่มี Bun ของ OpenCode หมายเหตุสำหรับ Windows: ตั้ง `MEMORY_DB_PATH` ง่ายสุดด้วย `setx` ส่วน macOS/Linux ใช้ `export` ใน shell profile
-
-ไม่ต้องมีบริการภายนอก บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite ภายในเครื่อง
+- **Node.js >= 20 + npm** — server ใช้ API เฉพาะของ Node (`better-sqlite3` native build, `import.meta.url`), CI บน Node 20.x/22.x; ติดตั้ง dependencies และรัน build/test ด้วย npm (`npm install`, `npm run build`, `npm test`); ไม่ต้องมี external services, บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite เดียวในเครื่อง
+- **OpenCode** — โปรแกรมหลักที่โหลด MCP server และ plugin auto-capture (รองรับ MCP over stdio + plugins; plugin รันบน Bun ที่มากับ OpenCode)
+- **OS: Windows / macOS / Linux** — ข้ามแพลตฟอร์ม (Node); Windows ตั้ง `MEMORY_DB_PATH` ด้วย `setx`, macOS/Linux ใช้ `export` ใน shell profile
 
 ## Quick Start (เริ่มใช้งานไว)
 
-**ทางที่เร็วที่สุด:** หลัง clone ให้รัน `npm run quickstart` — มันจะ build, ต่อไฟล์ `opencode.json`, วาง plugin และตั้ง `MEMORY_DB_PATH` ให้ในคำสั่งเดียว ขั้นตอนด้านล่างคือสิ่งที่สคริปต์ทำ (ใช้ได้หากอยากควบคุมเองทีละขั้น)
-
-**ติดตั้งผ่าน npm (อีกทางเลือก):** ติดตั้ง server แบบ global ด้วย `npm install -g th-memory-mcp` (หรือรันทันทีด้วย `npx th-memory-mcp`) แล้วชี้ `command` ของ `mcp` ใน `opencode.json` ไปที่ `th-memory-mcp` แทน `dist/index.js` ที่ build แล้ว plugin auto-capture ยังคงมาจาก repo นี้ (คัดลอก `src/plugin/learning-capture.ts` ตามขั้นตอน 4 ด้านล่าง)
-> หมายเหตุ: ไม่พับลิชขึ้น GitHub Packages แล้ว — ติดตั้งจาก npmjs ด้วย `npm i -g th-memory-mcp` แทน
+**ทางที่เร็วที่สุด:** `npm run quickstart` (หลัง clone) — build, ต่อไฟล์ `opencode.json`, วาง plugin และตั้ง `MEMORY_DB_PATH` ให้ในคำสั่งเดียว (ขั้นตอนด้านล่างคือสิ่งที่สคริปต์ทำ) **ติดตั้งผ่าน npm (อีกทาง):** `npm install -g th-memory-mcp` (หรือ `npx th-memory-mcp`) แล้วชี้ `mcp.command` ไปที่ `th-memory-mcp` แทน `dist/index.js` (plugin ยังมาจาก repo นี้; ไม่พับลิชขึ้น GitHub Packages แล้ว)
 
 ```bash
 # 1. Clone และ build
 git clone https://github.com/worakorn-prince/th-memory-mcp.git
-cd th-memory-mcp
-npm install
-npm run build
-
-# 2. ให้ server และ plugin ใช้ DB เดียวกัน
-#    Windows (PowerShell):
-setx MEMORY_DB_PATH "$PWD/data/memory.db"
-#    macOS / Linux (เพิ่มใน shell profile เช่น ~/.zshrc):
-# export MEMORY_DB_PATH="$PWD/data/memory.db"
+cd th-memory-mcp && npm install && npm run build
+# 2. ให้ server และ plugin ใช้ DB เดียวกัน (Windows; macOS/Linux ใช้ export แบบบรรทัดล่าง)
+setx MEMORY_DB_PATH "$PWD/data/memory.db"      # Windows (PowerShell)
+# export MEMORY_DB_PATH="$PWD/data/memory.db"  # macOS/Linux — เพิ่มใน shell profile (~/.zshrc)
 ```
 
-3. นำไป merge ใน `~/.config/opencode/opencode.json` (แทน `<REPO>` ด้วย path เต็มของโฟลเดอร์ที่ clone):
+3. Merge นี่เข้า `~/.config/opencode/opencode.json` (แทน `<REPO>` ด้วย path เต็มของโฟลเดอร์ที่ clone; บล็อกสำเร็จรูปดู [`opencode.example.json`](opencode.example.json)) — `MEMORY_DB_PATH` ต้องชี้ไฟล์ DB เดียวกันทั้ง server และ plugin:
 
 ```json
-{
-  "instructions": ["<REPO>/AGENTS.memory.example.md"],
-  "mcp": {
-    "memory": {
-      "type": "local",
-      "command": ["node", "<REPO>/dist/index.js"],
-      "enabled": true,
-      "environment": { "MEMORY_DB_PATH": "<REPO>/data/memory.db" }
-    }
-  }
-}
+{ "instructions": ["<REPO>/AGENTS.memory.example.md"],
+  "mcp": { "memory": { "type": "local", "command": ["node", "<REPO>/dist/index.js"], "enabled": true, "environment": { "MEMORY_DB_PATH": "<REPO>/data/memory.db" } } } }
 ```
 
 4. (Optional) เปิด auto-capture: คัดลอก `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/`
-5. **Restart OpenCode**
-6. ลองใช้: *"จำไว้ว่าฉันชอบใช้ pnpm"* → เปิด session ใหม่ → *"ฉันชอบ package manager อะไร?"*
+5. **Restart OpenCode** (config โหลดตอน start เท่านั้น) แล้วลองใช้: *"จำไว้ว่าฉันชอบใช้ pnpm"* → เปิด session ใหม่ → *"ฉันชอบ package manager อะไร?"*
 
 ## สถาปัตยกรรม
 
-```
-OpenCode ──┬─ Plugin learning-capture (Bun)  ── จับ prompt/tool/error ลง DB อัตโนมัติ
-            │                                   └─ ฉีด profile กลับ context ตอน compaction
-              └─ MCP th-memory-mcp (Node.js stdio)  ── tools 16 ตัว อ่าน/เขียน SQLite เดียวกัน
-                                                      ▲
-                               Global instructions (memory-protocol.md) สอน AI ใช้ tools
-```
+OpenCode โหลดสองส่วน: **plugin** `learning-capture` (Bun) — จับ prompt/tool/error ลง DB อัตโนมัติและฉีด profile กลับตอน compaction — และ **MCP server** `th-memory-mcp` (Node stdio) เปิด 16 tools บน SQLite DB เดียวกัน; กฎกลาง (`memory-protocol.md`) สอน AI ให้ใช้ tools
 
 ## ทำไมต้องใช้ th-memory-mcp?
 
-LLM ไม่ได้จำคุณข้าม session — แชทใหม่ทุกครั้งเริ่มจากศูนย์ th-memory-mcp มอบความจำระยะยาวแบบส่วนตัว ภายในเครื่อง ให้ AI ของคุณ:
-
-- **เรียนรู้แบบ context-based ไม่ใช่ fine-tuning** — จับความชอบ/การถูกแก้/พฤติกรรม ของคุณ แล้วเรียกกลับเข้า context ครั้งหน้า กลไกเดียวกับฟีเจอร์ความจำของ AI ชั้นนำ โดยไม่ส่งข้อมูลออกนอกเครื่อง
-- **local 100% และเป็นส่วนตัว** — ไฟล์ SQLite เดียว ไม่มีคลาวด์ ไม่มี external API มีการกรอง secret ก่อนบันทึกเสมอ
-- **โอเวอร์เฮดต่ำ** — ทุก tool call มีเพดาน (latency < 10 ms, ขนาด output จำกัด) และ AI ค้นความจำเฉพาะตอนจำเป็น จึงไม่บวม context
-- **ทนทาน** — ทุก tool ทำ graceful degradation ถ้า DB ไม่ได้เปิด AI ก็ทำงานต่อได้แทนที่จะพัง
-- **Lifecycle & temporal** — ทุกความจำมี lifecycle state (active/stale/superseded/archived), คะแนน confidence/importance/salience, decay ต่อ type, และ validity intervals ให้ AI เหตุผลเรื่อง point-in-time truth และ supersession chains ได้
-- **Conflict-aware** — ตรวจจับ duplicate / contradiction และแก้ด้วย update/supersession โดยเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้งแทนการเขียนทับเงียบๆ
-- **Hybrid retrieval** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion + scoring) แล้วประกอบ context แบบมี token budget พร้อมขยายผ่าน memory graph
-- **Consolidation** — จัดคลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from` links)
-- **เปิดกว้างและต่อยอดได้** — MIT license, 16 tools ที่อธิบายครบ, มี rule-based distill และ plugin auto-capture ที่คุณปรับแต่งได้
+- **Context-based learning, local 100%** — จับความชอบ/การถูกแก้/พฤติกรรม แล้วเรียกกลับเข้า context ครั้งหน้า โดยไม่ส่งข้อมูลออกนอกเครื่อง; SQLite ไฟล์เดียว ไม่มีคลาวด์/external API และกรอง secret (`api_key=`, `password:`, `token`) ก่อนบันทึกเสมอ
+- **เบา ทนทาน เปิดกว้าง** — tool calls มีเพดาน (latency < 10 ms, ขนาด output จำกัด) และ graceful degradation เมื่อ DB ไม่พร้อม; Node + `better-sqlite3` เท่านั้น; MIT license, 16 tools, rule-based distill, plugin auto-capture
+- **Lifecycle & temporal** — states (active/stale/superseded/archived), confidence/importance/salience, decay ต่อ type, validity intervals รองรับ point-in-time truth และ supersession chains
+- **Conflict-aware & consolidation** — ตรวจจับ duplicate/contradiction และเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้ง; คลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from`)
+- **Hybrid retrieval & ไทย** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion) แบบ token budget พร้อมขยายผ่าน memory graph; tokenize ไทยใน distill และรับไทย/อังกฤษสลับกันได้
 
 ## Scripts
 
-| Command | คำอธิบาย |
-|---------|----------|
+| คำสั่ง | คำอธิบาย |
+|-------|----------|
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
-| `npm run distill` | rule-based distill: interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | build + เทสทั้งชุด 31 ไฟล์ + smoke (75 tests): batch_a_integrity, benchmark, capture, capture-sync, cli, conflict, conflict_benchmark, consolidation, consolidation_scope, context, distill, e2e_transport, entity_extraction, export_import_roundtrip, export_v2, graph, highlight, lifecycle, p1b_transactions, profile, prompt_delimiters, recall_regression, retrieval, retrieval_benchmark, scope, scope_helper, security, security_regression, smoke, temporal, tools_v21, version_guard |
-| `node test/capture.test.mjs` | ทดสอบ capture-core (filter secrets, dedupe, truncate, insert SQL) |
-| `node test/distill.test.mjs` | ทดสอบ distill-core (tokenize ไทย, stats, profile sections, prune) |
-| `node test/lifecycle.test.mjs` | ทดสอบ lifecycle engine (states, decay, supersession) |
-| `node test/temporal.test.mjs` | ทดสอบ temporal model (validity, historical retrieval) |
-| `node test/conflict.test.mjs` | ทดสอบ conflict & dedup resolution |
-| `node test/retrieval.test.mjs` | ทดสอบ hybrid FTS+vector+RRF retrieval |
-| `node test/graph.test.mjs` | ทดสอบ memory graph (entities, relations, traversal) |
-| `node test/context.test.mjs` | ทดสอบ context assembly + token budgeting |
-| `node test/consolidation.test.mjs` | ทดสอบ clustering + derived memories |
-| `node test/benchmark.test.mjs` | เทสความเร็วบนความจำ 300 รายการ |
-| `node test/security.test.mjs` | ตรวจการ injection / ความปลอดภัย |
+| `npm run distill` | interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
+| `npm test` | build + เทสทั้งชุด (32 ไฟล์, 75 tests) |
+| `node test/<name>.test.mjs` | รันทีละ suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security` |
 | `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (16 tools) |
 
 ## Tools (16)
 
 | Tool | คำอธิบาย |
 |------|----------|
-| `remember` | upsert preference (category+key) — ยืนยันซ้ำ confidence +0.1 (cap 1.0) |
-| `recall` | ค้น preferences + lessons (FTS5) + interactions ล่าสุดที่ match ตาม topic |
-| `get_profile` | ภาพรวมผู้ใช้: profile sections + top preferences + lessons ล่าสุด 5 รายการ |
+| `remember` | upsert preference (category+key); ยืนยันซ้ำ +0.1 confidence (cap 1.0) |
+| `recall` | ค้น preferences + lessons (FTS5) + interactions ล่าสุดที่ match — ใช้ก่อนเริ่มงานใหม่ |
+| `get_profile` | profile sections + top preferences + lessons ล่าสุด 5 รายการ |
 | `save_lesson` | บันทึกบทเรียนจากการถูกแก้ (situation / mistake / correction) |
-| `search_history` | ค้น prompt เก่าด้วย keyword (snippet 200 chars/รายการ) |
+| `search_history` | ค้น prompt เก่าด้วย keyword (snippet 200 chars) |
 | `forget` | ลบ row เดียว (preference/lesson/interaction) ตาม id (+type กัน id ชนข้ามตาราง) |
-| `memory_stats` | สถิติความจำ: counts แยก kind, ขนาด DB, oldest/newest interaction, profile sections |
-| `get_recent_interactions` | ดึง interactions ล่าสุดแบบดิบ (กรองตาม kind ได้) — วัตถุดิบของ Smart Distill |
-| `export_memory` | export ความจำเป็น JSON ลง `data/exports/` เท่านั้น (sanitize filename ให้เอง) |
-| `get_context` | ประกอบความจำที่เกี่ยวข้องกับงานปัจจุบันผ่าน hybrid retrieval (+ ขยายผ่าน memory graph ได้) พร้อม token budgeting |
-| `consolidate` | จัดคลัสเตอร์ความจำที่คล้ายกันด้วย embedding cosine และสร้าง derived/consolidated memory ที่ผูกด้วย `derived_from` ได้ |
-| `link_memory` | สร้างความสัมพันธ์แบบมีประเภทระหว่างความจำสองอันในกราฟ |
-| `merge_memory` | รวมความจำที่ซ้ำเข้ากับความจำหลัก (ต้นทางถูก superseded, เก็บ provenance ไว้ใน `metadata.merged_from`) |
-| `update_memory` | อัปเดตฟิลด์ที่เปลี่ยนได้แบบไม่เปลี่ยนตัวตน หรือสร้างความจำแทนที่เมื่อ `content` เปลี่ยน (ตั้ง `supersede=false` เพื่อแก้ในที่) |
-| `import_memory` | นำเข้าความจำจาก JSON (ตรวจสอบ type, dedup กับของเดิม, ไม่เขียนทับแบบมืดบอด); ค่าเริ่มต้น dry-run, ตั้ง `apply=true` เพื่อเพิ่ม |
-| `extract_memories` | สแกน interactions ล่าสุดหาเจตนาบันทึกความจำ และเสนอ/สร้างความจำ (ไม่ใช้ LLM); ค่าเริ่มต้น dry-run, ตั้ง `apply=true` เพื่อสร้าง (source=captured) |
+| `memory_stats` | counts แยก kind, ขนาด DB, interaction เก่า/ใหม่สุด, profile sections |
+| `get_recent_interactions` | interactions ล่าสุดแบบดิบ (กรองตาม kind) — วัตถุดิบของ Smart Distill |
+| `export_memory` | export เป็น JSON ลง `data/exports/` เท่านั้น (sanitize filename) |
+| `get_context` | ประกอบความจำที่เกี่ยวข้องผ่าน hybrid retrieval (+ ขยายผ่าน graph), token budgeting |
+| `consolidate` | คลัสเตอร์ความจำที่คล้ายกันด้วย embedding; สร้าง derived memory ผูกด้วย `derived_from` ได้ |
+| `link_memory` | ลิงก์แบบมีประเภทระหว่างความจำสองอัน: supports/contradicts/supersedes/derived_from/related_to/caused_by/depends_on |
+| `merge_memory` | รวมความจำซ้ำเข้า canonical (ต้นทาง superseded; provenance ใน `metadata.merged_from`) |
+| `update_memory` | แก้ฟิลด์ที่เปลี่ยนได้ในที่ หรือสร้างความจำแทนที่เมื่อ `content` เปลี่ยน (`supersede=false` = แก้ในที่) |
+| `import_memory` | นำเข้าจาก JSON (ตรวจ type, dedup, ไม่เขียนทับมืดบอด); dry-run by default, `apply=true` เพื่อเพิ่ม |
+| `extract_memories` | สแกน interactions หาเจตนาบันทึกความจำ เสนอ candidates (ไม่ใช้ LLM); dry-run, `apply=true` เพื่อสร้าง (source=captured) |
 
 ## CLI (`th-memory`)
 
-ไบนารี 2 ตัวใน `package.json` (`bin`):
+ไบนารี 2 ตัวใน `package.json` (`bin`): `th-memory-mcp` — MCP server (stdio) จาก `dist/index.js` (tools 16 ตัวข้างบน) และ `th-memory` — CLI ภายในเครื่องแบบ zero-dep (`dist/cli.js`, ใช้ DB เดียวกันผ่าน `MEMORY_DB_PATH`)
 
-| ไบนารี | Entry | ใช้ทำอะไร |
-|--------|-------|-----------|
-| `th-memory-mcp` | `dist/index.js` | MCP server (stdio) — tools 16 ตัวข้างบน |
-| `th-memory` | `dist/cli.js` | CLI ความจำภายในเครื่อง (zero-dep, ใช้ DB เดียวกันผ่าน `MEMORY_DB_PATH`) |
-
-วิธีใช้: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — ดูวิธีใช้รายคำสั่งด้วย `th-memory <command> --help`
-
-แฟล็กกลาง (ใช้ได้ทุกคำสั่ง):
+วิธีใช้: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — help รายคำสั่ง: `th-memory <command> --help`; `highlight`/`recall --highlight` ขีดเส้นใต้ส่วนที่ตรง (`ESC[4m`) บน TTY สี มิฉะนั้นใช้ `[mem]`…`[/mem]` (pipe, `--plain`, `--json`)
 
 | แฟล็ก | ผล |
 |------|-----|
 | `--db <path>` | ใช้ไฟล์ SQLite นี้ (ตั้งค่า `MEMORY_DB_PATH`) |
 | `--json` | พิมพ์ JSON `{ok,data}` แทนข้อความธรรมดา |
 | `--plain` / `--no-color` | ปิดสี |
-| `-h, --help` | แสดงวิธีใช้ (รวม หรือรายคำสั่ง) |
-| `-V, --version` | แสดงเวอร์ชัน |
-
-ตารางคำสั่ง:
+| `-h, --help` / `-V, --version` | แสดง help / เวอร์ชัน |
 
 | คำสั่ง | วิธีใช้ |
 |--------|---------|
@@ -156,70 +103,39 @@ LLM ไม่ได้จำคุณข้าม session — แชทใหม
 | `recall` | `recall <topic> [--limit <n>] [--highlight]` — ค้นความจำ |
 | `forget` | `forget <id> [--type <t>]` — ลบตาม id (`t`: `memory\|preference\|lesson\|interaction`) |
 | `export` | `export [--include-interactions] [--filename <n>]` — export ไป `data/exports/*.json` |
-| `import` | `import (--file <p>\|--json <s>) [--apply] [--user-id <id>]` — นำเข้า backup (ค่าเริ่มต้น dry-run) |
-| `stats` | `stats` — สถิติความจำ |
-| `profile` | `profile` — ภาพรวมโปรไฟล์ผู้ใช้ |
-| `history` | `history [--query <q>] [--limit <n>]` — ค้น prompt เก่า (ไม่ใส่ query = prompt ล่าสุด) |
+| `import` | `import (--file <p>\|--json <s>) [--apply] [--user-id <id>]` — นำเข้า backup (dry-run by default) |
+| `stats` / `profile` | `stats` — สถิติความจำ; `profile` — โปรไฟล์ผู้ใช้ที่กลั่นแล้ว |
+| `history` | `history [--query <q>] [--limit <n>]` — ค้น prompt เก่า (ไม่ใส่ query = ล่าสุด) |
 | `recent` | `recent [--limit <n>] [--kind <k>]` — interactions ล่าสุด (`k`: `prompt\|tool_call\|error`) |
-| `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — ไฮไลต์ส่วนที่ตรง topic (ไม่ใส่ text = อ่านจาก stdin pipe) |
-
-พฤติกรรม highlight (คำสั่ง `highlight` และ `recall --highlight`): ส่วนที่ตรงจะถูกหุ้มด้วย**ขีดเส้นใต้** (`ESC[4m`…`ESC[24m`) เมื่อ stdout เป็น TTY และเปิดสีอยู่; เมื่อ pipe output, ใช้ `--json`, หรือใช้ `--plain`/`--no-color` จะหุ้มด้วยเครื่องหมาย `[mem]`…`[/mem]` แทน
-
-ตัวอย่าง:
+| `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — ไฮไลต์คำที่ match (ไม่ใส่ text = อ่านจาก stdin) |
 
 ```bash
 th-memory remember --category coding_pref --key package_manager --value pnpm
-th-memory recall pnpm --limit 5
-th-memory recall pnpm --highlight
 echo "I prefer pnpm for installs" | th-memory highlight -q pnpm
 ```
 
-หมายเหตุ: `--value -` อ่านค่าจาก stdin (เช่น `echo -n "pnpm" | th-memory remember --category coding_pref --key package_manager --value -`)
-
 ## ติดตั้งกับ OpenCode
 
-1. Merge `mcp` section จาก [`opencode.example.json`](opencode.example.json) เข้า `opencode.json` (global หรือ project-level)
-   - **สำคัญ:** ตั้ง `MEMORY_DB_PATH` ให้ชี้ที่ไฟล์ DB เดียวกันทั้ง server และ plugin (ในตัวอย่างคือ `<ABSOLUTE_PATH>/th-memory-mcp/data/memory.db`) มิฉะนั้น auto-capture plugin จะเขียนลง DB คนละไฟล์กับที่ AI อ่าน
-   - วิธีตั้ง (เลือกหนึ่ง):
-     - กำหนดใน `environment` ของ mcp (ดูตัวอย่าง) — ครอบคลุมเฉพาะ MCP server
-     - **หรือ** กำหนดเป็น environment variable ระดับระบบ/ผู้ใช้ (เช่น `setx MEMORY_DB_PATH "D:/path/to/memory.db"` บน Windows) — ครอบคลุมทั้ง server และ plugin เพราะ plugin รันใน process เดียวกับ OpenCode
-2. ผูกกฎความจำระดับ global — เพิ่มใน `opencode.json`:
-   ```json
-   "instructions": ["C:/Users/<user>/.config/opencode/memory-protocol.md"]
-   ```
-   (ตัวอย่างเนื้อหากฎอยู่ใน [`AGENTS.memory.example.md`](AGENTS.memory.example.md) — ใช้แนบระดับโปรเจกต์แทนได้)
-3. (Optional) Deploy plugin auto-capture: copy `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/learning-capture.ts`
-4. **Restart OpenCode** (config โหลดตอน start เท่านั้น)
-5. ทดสอบ: *"จำไว้ว่าฉันชอบใช้ pnpm"* → เปิด session ใหม่ถามกลับ
+จุดเพิ่มเติมจาก Quick Start: ตั้ง `MEMORY_DB_PATH` เป็น env var ระดับระบบ/ผู้ใช้ (เช่น `setx MEMORY_DB_PATH "D:/path/to/memory.db"`) จะครอบทั้ง server และ plugin โดยอัตโนมัติทุกโปรเจกต์ (plugin รันใน process เดียวกับ OpenCode); ส่วน `environment` ใน mcp ครอบเฉพาะ server — ใช้ [`opencode.example.json`](opencode.example.json) เป็นบล็อกสำเร็จรูป (global หรือ project) และกฎความจำตัวอย่างใน [`AGENTS.memory.example.md`](AGENTS.memory.example.md) (แนบระดับโปรเจกต์แทนได้)
 
 ## การใช้งานประจำวัน
 
-AI รองรับสองภาษา (ไทย/อังกฤษ) สลับกันได้ตลอด โดยไม่ต้องแจ้งล่วงหน้า
+AI รับไทย/อังกฤษสลับกันได้ตลอด; ดูแลระยะยาว: รัน `npm run distill` เป็นครั้งคราวเพื่อสรุปสถิติ + ลบ interactions เก่าเกิน 30 วัน
 
-| ไทย | English | สิ่งที่เกิด |
-|------|---------|-----------|
-| "จำไว้ว่า..." | "Remember that..." | `remember` — บันทึกความชอบ |
-| "สรุปความจำ" / "distill memory" | "Summarize memory" / "distill memory" | **Smart Distill** — AI อ่าน `get_recent_interactions` วิเคราะห์ pattern แล้วบันทึก insight เอง |
-| "ระบบความจำเป็นไงบ้าง" | "How is my memory?" / "memory status" | `memory_stats` |
-| "สำรองความจำ" | "Export memory" / "backup memory" | `export_memory` |
-| "ค้นประวัติ..." | "Search history..." | `search_history` |
-| "ลืม..." | "Forget..." | `forget` |
-
-ดูแลระยะยาว: รัน `npm run distill` เป็นครั้งคราวเพื่อสรุปสถิติ + ลบ interactions เก่าเกิน 30 วัน
+- "จำไว้ว่า..." / "Remember that..." → `remember` — บันทึกความชอบ
+- "สรุปความจำ" / "Summarize memory" / "distill memory" → **Smart Distill** — AI อ่าน `get_recent_interactions` วิเคราะห์ pattern แล้วบันทึก insight เอง
+- "ระบบความจำเป็นไงบ้าง" / "memory status" → `memory_stats`
+- "สำรองความจำ" / "Export memory" → `export_memory`
+- "ค้นประวัติ..." / "Search history..." → `search_history` · "ลืม..." / "Forget..." → `forget`
 
 ## โครงสร้าง data/
 
 ```
 data/
-├── memory.db          # SQLite (WAL mode) — DB หลัก (+ .db-wal, .db-shm)
-└── exports/           # ไฟล์ JSON จาก tool export_memory (เขียนได้เฉพาะ dir นี้)
+├── memory.db          # SQLite (WAL mode) — DB หลัก (+ .db-wal, .db-shm); override path ได้ผ่าน MEMORY_DB_PATH
+└── exports/           # ไฟล์ JSON จาก tool export_memory (เขียนได้เฉพาะ dir นี้); นอกนั้นใน data/ ถูก git ignore
 ```
-
-- path ของ DB override ได้ผ่าน env `MEMORY_DB_PATH`
-- ทุกอย่างใน `data/` ถูก git ignore
 
 ## License
 
-[MIT](LICENSE) © 2026 worakorn-prince
-
-โปรเจกต์นี้เผยแพร่ภายใต้สัญญาอนุญาต MIT — อ่านข้อความฉบับเต็มได้ในไฟล์ [LICENSE](LICENSE)
+[MIT](LICENSE) © 2026 worakorn-prince — อ่านข้อความฉบับเต็มได้ในไฟล์ [LICENSE](LICENSE)
