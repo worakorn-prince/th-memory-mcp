@@ -1,3 +1,4 @@
+import type BetterSqlite3 from "better-sqlite3";
 import {
   db,
   syncSearchIndex,
@@ -86,16 +87,24 @@ export function syncMemoryIndex(id: number, title: string, body: string): void {
   upsertEmbedding("memories", id, embed(body));
 }
 
+let _memoryByIdStmt: BetterSqlite3.Statement | null = null;
+function getMemoryByIdStmt(): BetterSqlite3.Statement {
+  return (_memoryByIdStmt ??= db.prepare(
+    "SELECT * FROM memories WHERE id = ?"
+  ));
+}
+
 export function getMemoryById(id: number): MemoryRecord | undefined {
-  return db.prepare("SELECT * FROM memories WHERE id = ?").get(id) as
-    | MemoryRecord
-    | undefined;
+  return getMemoryByIdStmt().get(id) as MemoryRecord | undefined;
+}
+
+let _setStatusStmt: BetterSqlite3.Statement | null = null;
+function getSetStatusStmt(): BetterSqlite3.Statement {
+  return (_setStatusStmt ??= db.prepare(
+    "UPDATE memories SET status = ?, updated_at = ? WHERE id = ?"
+  ));
 }
 
 export function setStatus(id: number, status: LifecycleState): void {
-  db.prepare("UPDATE memories SET status = ?, updated_at = ? WHERE id = ?").run(
-    status,
-    nowISO(),
-    id
-  );
+  getSetStatusStmt().run(status, nowISO(), id);
 }

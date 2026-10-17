@@ -2,11 +2,12 @@
  *  (test/conflict.test.mjs, test/conflict_benchmark.test.mjs).
  *  Do not delete without relocating the conflict-classification capability
  *  together with its tests. */
+import type BetterSqlite3 from "better-sqlite3";
 import { db, nowISO } from "../db/index.js";
 import { getMemoryById } from "../db/repositories/memories.js";
 import { supersede, reinforce, softDelete } from "../core/lifecycle-engine.js";
 import { embed, cosine, deserialize } from "../lib/embed.js";
-import type { MemoryType } from "./types.js";
+import type { MemoryType, LifecycleState } from "./types.js";
 
 export type Relation = "duplicate" | "update" | "contradiction" | "unrelated";
 
@@ -109,17 +110,22 @@ function tokenSet(s: string): Set<string> {
   return new Set(s.toLowerCase().match(/[a-z0-9ก-์]+/gi) ?? []);
 }
 
+let _relVecByRef: BetterSqlite3.Statement | null = null;
+function getRelVecByRef(): BetterSqlite3.Statement {
+  return (_relVecByRef ??= db.prepare(
+    "SELECT vec FROM embeddings WHERE ref_table='memories' AND ref_id=?"
+  ));
+}
+
 export function classifyRelationship(
   candidate: Candidate,
   relatedId: number
 ): Relation {
   const rel = getMemoryById(relatedId);
   if (!rel) return "unrelated";
-  const relVecRow = db
-    .prepare(
-      "SELECT vec FROM embeddings WHERE ref_table='memories' AND ref_id=?"
-    )
-    .get(relatedId) as { vec: Buffer } | undefined;
+  const relVecRow = getRelVecByRef().get(relatedId) as
+    | { vec: Buffer }
+    | undefined;
   if (!relVecRow) return "unrelated";
   const score = cosine(embed(candidate.content), deserialize(relVecRow.vec));
   const ta = tokenSet(candidate.content);
@@ -140,24 +146,34 @@ export function classifyRelationship(
   return "unrelated";
 }
 
+let _relatedCandidates: BetterSqlite3.Statement | null = null;
+function getRelatedCandidates(): BetterSqlite3.Statement {
+  return (_relatedCandidates ??= db.prepare(
+    `SELECT e.ref_id AS ref_id, e.vec AS vec, m.type AS type, m.status AS status
+     FROM embeddings e JOIN memories m ON m.id = e.ref_id
+     WHERE e.ref_table = 'memories'`
+  ));
+}
+
 // Find best related active/non-archived memory of the same type for a candidate.
 export function findRelated(
   candidate: Candidate,
   threshold = RELATED_THRESHOLD
 ): { id: number; score: number } | undefined {
   const vec = embed(candidate.content);
-  const rows = db
-    .prepare("SELECT ref_id, vec FROM embeddings WHERE ref_table = 'memories'")
-    .all() as Array<{ ref_id: number; vec: Buffer }>;
+  const rows = getRelatedCandidates().all() as Array<{
+    ref_id: number;
+    vec: Buffer;
+    type: MemoryType;
+    status: LifecycleState;
+  }>;
   let best: { id: number; score: number } | undefined;
   for (const r of rows) {
     if (candidate.id && r.ref_id === candidate.id) continue;
-    const m = getMemoryById(r.ref_id);
     if (
-      !m ||
-      m.type !== candidate.type ||
-      m.status === "deleted" ||
-      m.status === "archived"
+      r.type !== candidate.type ||
+      r.status === "deleted" ||
+      r.status === "archived"
     )
       continue;
     const score = cosine(vec, deserialize(r.vec));
@@ -166,6 +182,15 @@ export function findRelated(
     }
   }
   return best;
+}
+
+let _insertContradictionLink: BetterSqlite3.Statement | null = null;
+function getInsertContradictionLink(): BetterSqlite3.Statement {
+  return (_insertContradictionLink ??= db.prepare(
+    `INSERT INTO memory_links (source_memory_id, relation, target_memory_id, confidence, created_at)
+     VALUES (?, 'contradicts', ?, 0.8, ?)
+     ON CONFLICT(source_memory_id, relation, target_memory_id) DO UPDATE SET confidence = 0.8`
+  ));
 }
 
 // Resolve a candidate against existing memories. If candidate.id is set (memory
@@ -195,11 +220,7 @@ export function resolveConflict(candidate: Candidate): Resolution {
     };
   }
   if (relation === "contradiction" && candidate.id !== undefined) {
-    db.prepare(
-      `INSERT INTO memory_links (source_memory_id, relation, target_memory_id, confidence, created_at)
-       VALUES (?, 'contradicts', ?, 0.8, ?)
-       ON CONFLICT(source_memory_id, relation, target_memory_id) DO UPDATE SET confidence = 0.8`
-    ).run(candidate.id, related.id, nowISO());
+    getInsertContradictionLink().run(candidate.id, related.id, nowISO());
     return {
       relation,
       relatedId: related.id,

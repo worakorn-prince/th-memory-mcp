@@ -81,11 +81,8 @@ export function consolidateHandler(args: Record<string, unknown>) {
     const contents = members.map((m) => `  - [${m.id}] ${m.content}`);
     // Auto entity extraction (item 5): persist entities + co-occurrence, then
     // link memories in the cluster that share an entity.
-    for (const id of c) {
-      const m = db
-        .prepare("SELECT content FROM memories WHERE id = ?")
-        .get(id) as { content: string } | undefined;
-      if (m) linkEntitiesForMemory(id, m.content);
+    for (const m of members) {
+      if (m.row) linkEntitiesForMemory(m.id, m.content);
     }
     linkMemoriesBySharedEntities(c);
     lines.push(`Cluster (${c.length}):\n${contents.join("\n")}`);

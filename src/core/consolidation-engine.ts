@@ -1,5 +1,5 @@
 import { db } from "../db/index.js";
-import { cosine, deserialize } from "../lib/embed.js";
+import { deserialize } from "../lib/embed.js";
 import { createMemory } from "../db/repositories/memories.js";
 import { linkMemories } from "./graph-engine.js";
 import { resolveUserId } from "../db/repositories/users.js";
@@ -57,6 +57,30 @@ export function clusterMemories(opts: ClusterOptions = {}): number[][] {
   const vecs = new Map<number, Float32Array>();
   for (const r of sliced) vecs.set(r.ref_id, deserialize(r.vec));
   const ids = [...vecs.keys()];
+  const dens: Float32Array[] = [];
+  const sIdx: Int32Array[] = [];
+  const sVal: Float32Array[] = [];
+  for (const id of ids) {
+    const v = vecs.get(id)!;
+    dens.push(v);
+    let nnz = 0;
+    for (let d = 0; d < v.length; d++) {
+      if (v[d] !== 0) nnz++;
+    }
+    const idx = new Int32Array(nnz);
+    const val = new Float32Array(nnz);
+    let k = 0;
+    for (let d = 0; d < v.length; d++) {
+      const x = v[d]!;
+      if (x !== 0) {
+        idx[k] = d;
+        val[k] = x;
+        k++;
+      }
+    }
+    sIdx.push(idx);
+    sVal.push(val);
+  }
 
   const parent = new Map<number, number>();
   ids.forEach((id) => parent.set(id, id));
@@ -79,11 +103,15 @@ export function clusterMemories(opts: ClusterOptions = {}): number[][] {
 
   for (let i = 0; i < ids.length; i++) {
     const a = ids[i]!;
+    const ai = sIdx[i]!;
+    const av = sVal[i]!;
     for (let j = i + 1; j < ids.length; j++) {
       const b = ids[j]!;
-      if (cosine(vecs.get(a)!, vecs.get(b)!) >= threshold) {
-        union(a, b);
-      }
+      if (find(a) === find(b)) continue;
+      const bv = dens[j]!;
+      let dot = 0;
+      for (let k = 0; k < ai.length; k++) dot += av[k]! * bv[ai[k]!]!;
+      if (dot >= threshold) union(a, b);
     }
   }
 

@@ -1,3 +1,4 @@
+import type BetterSqlite3 from "better-sqlite3";
 import { db } from "../db/index.js";
 import { retrieve } from "./retrieval-engine.js";
 import { traverse } from "./graph-engine.js";
@@ -34,6 +35,28 @@ function isCurrentlyValid(m: MemoryRecord, now: Date): boolean {
   return true;
 }
 
+const ID_FETCH_CHUNK = 500;
+const idFetchStmts = new Map<number, BetterSqlite3.Statement>();
+
+function getIdFetchStmt(count: number): BetterSqlite3.Statement {
+  let stmt = idFetchStmts.get(count);
+  stmt ??= db.prepare(
+    `SELECT * FROM memories WHERE id IN (${Array(count).fill("?").join(", ")})`
+  );
+  idFetchStmts.set(count, stmt);
+  return stmt;
+}
+
+function fetchMemoriesByIds(ids: number[]): Map<number, MemoryRecord> {
+  const out = new Map<number, MemoryRecord>();
+  for (let i = 0; i < ids.length; i += ID_FETCH_CHUNK) {
+    const chunk = ids.slice(i, i + ID_FETCH_CHUNK);
+    const rows = getIdFetchStmt(chunk.length).all(...chunk) as MemoryRecord[];
+    for (const row of rows) out.set(row.id, row);
+  }
+  return out;
+}
+
 // Assemble relevant memories for the current task (spec §15)
 export function getContext(opts: ContextOptions = {}): ContextResult {
   const query = opts.query ?? "";
@@ -62,34 +85,33 @@ export function getContext(opts: ContextOptions = {}): ContextResult {
 
   const ids = new Set<number>(seeds.map((s) => s.id));
   if (opts.includeGraph) {
+    const neighborIds: number[] = [];
     for (const s of seeds) {
       for (const n of traverse(s.id, { maxDepth: 1 })) {
-        const m = db
-          .prepare("SELECT * FROM memories WHERE id = ?")
-          .get(n.memoryId) as MemoryRecord | undefined;
-        if (!m) continue;
-        if (
-          !opts.includeHistory &&
-          (m.status === "deleted" ||
-            m.status === "archived" ||
-            m.status === "superseded")
-        )
-          continue;
-        if (!isScopeVisible(m, scopeCtx)) continue;
-        if (!opts.includeHistory && !isCurrentlyValid(m, now)) continue;
-        ids.add(n.memoryId);
+        neighborIds.push(n.memoryId);
       }
+    }
+    const fetched = fetchMemoriesByIds([...new Set(neighborIds)]);
+    for (const nid of neighborIds) {
+      const m = fetched.get(nid);
+      if (!m) continue;
+      if (
+        !opts.includeHistory &&
+        (m.status === "deleted" ||
+          m.status === "archived" ||
+          m.status === "superseded")
+      )
+        continue;
+      if (!isScopeVisible(m, scopeCtx)) continue;
+      if (!opts.includeHistory && !isCurrentlyValid(m, now)) continue;
+      ids.add(nid);
     }
   }
 
-
-  const all = [...ids]
-    .map(
-      (id) =>
-        db.prepare("SELECT * FROM memories WHERE id = ?").get(id) as
-          | MemoryRecord
-          | undefined
-    )
+  const orderedIds = [...ids];
+  const fetched = fetchMemoriesByIds(orderedIds);
+  const all = orderedIds
+    .map((id) => fetched.get(id))
     .filter((m): m is MemoryRecord => !!m)
     .filter((m) => opts.includeHistory || isCurrentlyValid(m, now))
     .filter((m) => isScopeVisible(m, scopeCtx))
