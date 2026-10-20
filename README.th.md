@@ -1,9 +1,18 @@
+<div align="center">
+  <img src="access/Banner.png" alt="th-memory-mcp Banner" width="100%" />
+</div>
+
 # th-memory-mcp
+
+<div align="center">
 
 [![npm version](https://img.shields.io/npm/v/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
+[![Th Memory MCP on mcprush](https://mcprush.com/badge/th-memory-mcp/score.svg)](https://mcprush.com/to/th-memory-mcp?ref=badge)
+
+</div>
 
 MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons และประวัติการใช้งานลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) ให้ AI ปรับตัวกับคุณผ่าน context-based learning
 
