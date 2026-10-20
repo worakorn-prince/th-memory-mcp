@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.3] - 2026-10-21
+
+### Changed
+- Docs: README refreshed — project banner added, mcprush badge added, Glama badge switched to the score variant, and badges regrouped (package/CI row + directory-listing row). No code change.
+
 ## [2.3.2] - 2026-10-18
 
 ### Changed
@@ -66,7 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.2...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.3...HEAD
+[2.3.3]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.3
 [2.3.2]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.2
 [2.3.1]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.1
 [2.3.0]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.0

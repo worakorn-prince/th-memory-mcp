@@ -18,7 +18,7 @@
 
 MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons และประวัติการใช้งานลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) ให้ AI ปรับตัวกับคุณผ่าน context-based learning
 
-**สถานะ:** v2.3.2 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval: 16 MCP tools, 75 tests ผ่าน (32 ไฟล์เทส), อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ดูประวัติเวอร์ชันใน [CHANGELOG.md](CHANGELOG.md)
+**สถานะ:** v2.3.3 — engine ความจำแบบ temporal, conflict-aware, hybrid-retrieval: 16 MCP tools, 75 tests ผ่าน (32 ไฟล์เทส), อัปเกรด schema แบบ non-destructive จาก v1 (ข้อมูล v1 ทั้งหมดถูกเก็บรักษา) ดูประวัติเวอร์ชันใน [CHANGELOG.md](CHANGELOG.md)
 
 > English: [README.md](README.md)
 

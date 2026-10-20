@@ -12,7 +12,7 @@
 
 </div>
 
-**Status:** v2.3.2 — temporal, conflict-aware, hybrid-retrieval memory engine: 16 MCP tools, 32 test files (75 passing tests), non-destructive schema migration from v1 (v1 data preserved). Version history: [CHANGELOG.md](CHANGELOG.md).
+**Status:** v2.3.3 — temporal, conflict-aware, hybrid-retrieval memory engine: 16 MCP tools, 32 test files (75 passing tests), non-destructive schema migration from v1 (v1 data preserved). Version history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements
 
