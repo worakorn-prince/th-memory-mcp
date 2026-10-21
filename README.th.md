@@ -23,7 +23,7 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 ## Requirements (ความต้องการระบบ)
 
 - **Node.js >= 20 + npm** — server ใช้ API เฉพาะของ Node (`better-sqlite3` native build, `import.meta.url`), CI บน Node 20.x/22.x; ติดตั้ง dependencies และรัน build/test ด้วย npm (`npm install`, `npm run build`, `npm test`); ไม่ต้องมี external services, บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite เดียวในเครื่อง
-- **OpenCode** — โปรแกรมหลักที่โหลด MCP server และ plugin auto-capture (รองรับ MCP over stdio + plugins; plugin รันบน Bun ที่มากับ OpenCode)
+- **OpenCode** — โปรแกรมหลักที่โหลด MCP server และ plugin auto-capture (รองรับ MCP over stdio + plugins); plugin ใช้ `node:sqlite` บน OpenCode Desktop/Node 22.5+ และ fallback ไป `bun:sqlite` บน CLI ที่ใช้ Bun
 - **OS: Windows / macOS / Linux** — ข้ามแพลตฟอร์ม (Node); Windows ตั้ง `MEMORY_DB_PATH` ด้วย `setx`, macOS/Linux ใช้ `export` ใน shell profile
 
 ## Quick Start (เริ่มใช้งานไว)
@@ -49,9 +49,11 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"      # Windows (PowerShell)
 4. (Optional) เปิด auto-capture: คัดลอก `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/`
 5. **Restart OpenCode** (config โหลดตอน start เท่านั้น) แล้วลองใช้: *"จำไว้ว่าฉันชอบใช้ pnpm"* → เปิด session ใหม่ → *"ฉันชอบ package manager อะไร?"*
 
+ถ้าตอน start แจ้ง `Failed to load plugin ... Received protocol 'bun:'` แสดงว่าคัดลอก plugin เวอร์ชันเก่า — ให้คัดลอก `src/plugin/learning-capture.ts` ตัวล่าสุดอีกครั้ง ซึ่งจะลอง `node:sqlite` ก่อนและ fallback ไป `bun:sqlite` เฉพาะตอนรันบน Bun
+
 ## สถาปัตยกรรม
 
-OpenCode โหลดสองส่วน: **plugin** `learning-capture` (Bun) — จับ prompt/tool/error ลง DB อัตโนมัติและฉีด profile กลับตอน compaction — และ **MCP server** `th-memory-mcp` (Node stdio) เปิด 16 tools บน SQLite DB เดียวกัน; กฎกลาง (`memory-protocol.md`) สอน AI ให้ใช้ tools
+OpenCode โหลดสองส่วน: **plugin** `learning-capture` (Node/Bun) — จับ prompt/tool/error ลง DB อัตโนมัติและฉีด profile กลับตอน compaction — และ **MCP server** `th-memory-mcp` (Node stdio) เปิด 16 tools บน SQLite DB เดียวกัน; กฎกลาง (`memory-protocol.md`) สอน AI ให้ใช้ tools
 
 ## ทำไมต้องใช้ th-memory-mcp?
 

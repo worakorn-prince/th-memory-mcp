@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.5] - 2026-10-21
+
+### Fixed
+- Learning-capture plugin now resolves `node:sqlite` first and falls back to `bun:sqlite`, so OpenCode Desktop's Node ESM loader no longer fails with `Received protocol 'bun:'`. The deployed plugin and project source stay in sync.
+
 ## [2.3.4] - 2026-10-21
 
 ### Security

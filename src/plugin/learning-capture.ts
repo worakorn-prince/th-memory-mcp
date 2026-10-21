@@ -2,10 +2,35 @@
 // and session errors into data/memory.db (table `interactions`).
 // Deployed as a SINGLE standalone file (~/.config/opencode/plugins/), so all
 // logic below is an inline copy kept IN SYNC with src/lib/capture-core.ts.
-import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+
+// OpenCode Desktop loads plugins with a Node ESM loader, while the CLI can run
+// on Bun. A static `bun:sqlite` import fails before any hook executes under
+// Node, so resolve the driver at runtime and keep a Node-first fallback.
+interface SqliteStatement {
+  all(...params: any[]): any[];
+  run(...params: any[]): any;
+}
+interface SqliteDb {
+  exec(sql: string): unknown;
+  prepare(sql: string): SqliteStatement;
+}
+
+async function openDatabase(path: string): Promise<SqliteDb> {
+  try {
+    const { DatabaseSync } = await import("node:sqlite");
+    return new DatabaseSync(path) as unknown as SqliteDb;
+  } catch (nodeError) {
+    try {
+      const { Database } = await import("bun:sqlite");
+      return new Database(path) as unknown as SqliteDb;
+    } catch {
+      throw nodeError;
+    }
+  }
+}
 
 interface AnyRecord {
   [key: string]: any;
@@ -163,7 +188,7 @@ function fmtConfidence(c: unknown): string {
   return String(Math.round(n * 100) / 100);
 }
 
-function buildProfileText(dbi: InstanceType<typeof Database> | null): string {
+function buildProfileText(dbi: SqliteDb | null): string {
   if (!dbi) return "";
   try {
     const parts: string[] = [];
@@ -211,7 +236,7 @@ function buildProfileText(dbi: InstanceType<typeof Database> | null): string {
 }
 
 export const LearningCapture = async (ctx?: PluginContext) => {
-  let db: InstanceType<typeof Database> | null = null;
+  let db: SqliteDb | null = null;
   const initLog = makeQuietLog("init");
   try {
     const path =
@@ -219,7 +244,7 @@ export const LearningCapture = async (ctx?: PluginContext) => {
         ? process.env.MEMORY_DB_PATH
         : DEFAULT_DB_PATH;
     mkdirSync(dirname(path), { recursive: true });
-    db = new Database(path);
+    db = await openDatabase(path);
     db.exec("PRAGMA journal_mode=WAL");
     db.exec("PRAGMA busy_timeout=5000");
     db.exec(INTERACTIONS_DDL);
@@ -227,7 +252,7 @@ export const LearningCapture = async (ctx?: PluginContext) => {
     initLog(e);
   }
 
-  let insertStmt: ReturnType<Database["prepare"]> | null = null;
+  let insertStmt: ReturnType<SqliteDb["prepare"]> | null = null;
   function insert(
     kind: CaptureKind,
     content: string,

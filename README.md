@@ -16,7 +16,7 @@
 
 - **Node.js >= 20** — the server uses Node-only APIs (`better-sqlite3` native build, `import.meta.url`); CI tests Node 20.x/22.x.
 - **npm** — for `npm install`, `npm run build`, `npm test`. No external services, accounts, or API keys — everything lives in a single local SQLite file.
-- **OpenCode** — the host that loads the MCP server and the auto-capture plugin (any build with MCP over stdio + plugins; the plugin runs on OpenCode's bundled Bun).
+- **OpenCode** — the host that loads the MCP server and the auto-capture plugin (any build with MCP over stdio + plugins). The plugin uses `node:sqlite` on OpenCode Desktop/Node 22.5+ and falls back to `bun:sqlite` on the Bun-based CLI.
 - **OS: Windows / macOS / Linux** — cross-platform (Node); Windows: set `MEMORY_DB_PATH` with `setx`, macOS/Linux: `export` in your shell profile.
 
 ## Quick Start
@@ -42,9 +42,11 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"      # Windows (PowerShell)
 4. (Optional) Auto-capture: copy `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/`
 5. **Restart OpenCode** (config loads at startup only), then try: *"Remember that I prefer pnpm"* → new session → *"What package manager do I prefer?"*
 
+If startup reports `Failed to load plugin ... Received protocol 'bun:'`, you copied an older plugin. Re-copy the current `src/plugin/learning-capture.ts`; it loads `node:sqlite` first and only falls back to `bun:sqlite` under Bun.
+
 ## Architecture
 
-OpenCode loads the plugin `learning-capture` (Bun) — auto-captures prompt/tool/error into the DB, injects the profile on compaction — and the MCP server `th-memory-mcp` (Node stdio) exposing the 16 tools on that same SQLite DB; global rules (`memory-protocol.md`) teach the AI to use them.
+OpenCode loads the plugin `learning-capture` (Node/Bun) — auto-captures prompt/tool/error into the DB, injects the profile on compaction — and the MCP server `th-memory-mcp` (Node stdio) exposing the 16 tools on that same SQLite DB; global rules (`memory-protocol.md`) teach the AI to use them.
 
 ## Why th-memory-mcp?
 
