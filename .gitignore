@@ -39,7 +39,7 @@ repro/
 
 # Internal viewer/observability stack — local only
 README-viewer.md
-dashboard/
+scopeboard/
 docs/
 run_dashboard.bat
 run_dashboard.sh
