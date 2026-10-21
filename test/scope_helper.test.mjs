@@ -52,8 +52,9 @@ test("isScopeVisible matrix: scope x ctx presence x match/mismatch", () => {
     ["PROJECT match", PROJECT_P1, { projectId: "p1" }, true],
     ["PROJECT mismatch", PROJECT_P1, { projectId: "p2" }, false],
     ["PROJECT hidden without projectId", PROJECT_P1, {}, false],
-    // Unknown scope values pass through (legacy default branch).
-    ["unknown scope passes", rec("FUTURE_SCOPE"), {}, true],
+    // Unknown scope values are hidden (SEC-14 fail-closed).
+    ["unknown scope hidden", rec("FUTURE_SCOPE"), {}, false],
+    ["unknown scope hidden with full ctx", rec("FUTURE_SCOPE"), full, false],
   ];
   for (const [name, record, ctx, expected] of matrix) {
     assert.equal(isScopeVisible(record, ctx), expected, name);
@@ -141,6 +142,7 @@ test("SQL clause filters identically to isScopeVisible (in-memory parity)", () =
       ["SESSION", null, "s2", null],
       ["PROJECT", "p1", null, null],
       ["PROJECT", "p2", null, null],
+      ["FUTURE_SCOPE", null, null, null],
     ];
     const insert = raw.prepare(
       "INSERT INTO memories (id, scope, project_id, session_id, user_id) VALUES (?, ?, ?, ?, ?)"
@@ -181,14 +183,13 @@ test("SQL clause filters identically to isScopeVisible (in-memory parity)", () =
   }
 });
 
-test("documented divergences: unknown scope + corrupt USER row are fail-closed in SQL", () => {
-  // Divergence #1 (unknown scope): a row whose scope is not one of the four
-  // writers' constants (e.g. 'FUTURE') is hidden by the SQL clause, while the
-  // JS helper's default branch passes it.
-  // Divergence #2 (corrupt USER row): legacy JS could match `null === null`
-  // when the caller passed an external userId that did not resolve; the SQL
-  // clause hides such rows instead. Production USER rows always carry a
-  // resolved user_id (createMemory), so this only affects corrupt data —
+test("unknown scope is fail-closed in SQL and JS; corrupt USER row is the remaining divergence", () => {
+  // Unknown scope (SEC-14): both the SQL clause and isScopeVisible hide a row
+  // whose scope is not one of the four writer constants (e.g. 'FUTURE').
+  // Remaining divergence: legacy JS can match `null === null` for a corrupt
+  // USER row when the caller passed an external userId that did not resolve;
+  // the SQL clause hides such rows instead. Production USER rows always carry
+  // a resolved user_id (createMemory), so this only affects corrupt data —
   // and hiding is the safe direction.
   const raw = new Database(":memory:");
   try {
@@ -220,8 +221,8 @@ test("documented divergences: unknown scope + corrupt USER row are fail-closed i
     );
     assert.equal(
       isScopeVisible(rec("FUTURE"), ctx),
-      true,
-      "JS default branch passes unknown scopes (kept for parity)"
+      false,
+      "JS helper hides unknown scopes (SEC-14 fail-closed)"
     );
   } finally {
     raw.close();

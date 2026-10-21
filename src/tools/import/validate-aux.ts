@@ -1,3 +1,4 @@
+import { MAX_PROFILE_CONTENT, MAX_PROFILE_SECTION } from "./common.js";
 import type { ImportCounts } from "./types.js";
 
 export function validateAux(
@@ -59,7 +60,20 @@ export function validateAux(
       validLessons.push(l);
     }
     for (const pr of profileArr) {
-      if (!pr || typeof pr.section !== "string" || (pr.section as string).length === 0 || typeof pr.content !== "string" || (pr.content as string).length === 0) continue;
+      // SEC-08: cap section/content so one aux row cannot bloat profile reads
+      // (or the DB). Skipped rows are counted as invalid, never as applied.
+      if (
+        !pr ||
+        typeof pr.section !== "string" ||
+        (pr.section as string).length === 0 ||
+        (pr.section as string).length > MAX_PROFILE_SECTION ||
+        typeof pr.content !== "string" ||
+        (pr.content as string).length === 0 ||
+        (pr.content as string).length > MAX_PROFILE_CONTENT
+      ) {
+        state.profileInvalid++;
+        continue;
+      }
       state.profileOk++;
       validProfiles.push(pr);
     }

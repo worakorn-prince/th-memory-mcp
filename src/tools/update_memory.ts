@@ -15,6 +15,55 @@ import { supersede } from "../core/lifecycle-engine.js";
 import { isoDateTimeSchema, isIsoDateString } from "../lib/iso.js";
 import type { MemoryType, SourceType } from "../memory/types.js";
 
+type MetadataObject = Record<string, unknown>;
+
+function safeParseMetadata(
+  raw: string | null | undefined
+): MetadataObject | null {
+  if (raw == null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as MetadataObject;
+    }
+  } catch {
+    // Malformed legacy metadata is treated as absent, never thrown.
+  }
+  return null;
+}
+
+// SEC-06: the trusted flag records provenance, so an update may never create
+// it. When the existing metadata has no flag, absence is preserved (legacy
+// local data stays unlabelled); an existing flag is canonicalized to a boolean
+// carrying the same trust value.
+function normalizeMetadata(
+  existingRaw: string | null | undefined,
+  incoming: unknown
+): MetadataObject | null {
+  const existing = safeParseMetadata(existingRaw);
+  const hasExistingFlag =
+    existing !== null && Object.hasOwn(existing, "trusted");
+  const existingTrusted = hasExistingFlag && existing!.trusted === true;
+
+  if (incoming === undefined) {
+    if (existing === null) return null;
+    if (hasExistingFlag) existing.trusted = existingTrusted;
+    return existing;
+  }
+
+  if (incoming === null) {
+    return hasExistingFlag ? { trusted: existingTrusted } : null;
+  }
+
+  const next: MetadataObject =
+    typeof incoming === "object" && !Array.isArray(incoming)
+      ? { ...(incoming as MetadataObject) }
+      : { value: incoming };
+  if (hasExistingFlag) next.trusted = existingTrusted;
+  else delete next.trusted;
+  return next;
+}
+
 export const updateMemoryInput = {
   id: z.number().int().describe("Memory id to update"),
   content: z
@@ -119,12 +168,7 @@ export function updateMemoryHandler(args: {
           args.validFrom !== undefined ? args.validFrom : mem.valid_from,
         validUntil:
           args.validUntil !== undefined ? args.validUntil : mem.valid_until,
-        metadata:
-          args.metadata !== undefined
-            ? args.metadata
-            : mem.metadata
-              ? JSON.parse(mem.metadata)
-              : null,
+        metadata: normalizeMetadata(mem.metadata, args.metadata),
       });
       supersede(mem.id, newId);
       return ok(
@@ -155,8 +199,9 @@ export function updateMemoryHandler(args: {
       vals.push(args.validUntil);
     }
     if (args.metadata !== undefined) {
+      const normalized = normalizeMetadata(mem.metadata, args.metadata);
       sets.push("metadata = ?");
-      vals.push(JSON.stringify(args.metadata));
+      vals.push(normalized === null ? null : JSON.stringify(normalized));
     }
     if (args.content !== undefined) {
       sets.push("content = ?");

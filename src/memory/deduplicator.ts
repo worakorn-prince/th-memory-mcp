@@ -1,5 +1,6 @@
 import { embed, cosine, deserialize, EMBED_DIM } from "../lib/embed.js";
 import { db } from "../db/index.js";
+import { buildScopeClause } from "../lib/scope.js";
 
 export function normalizeText(text: string): string {
   return text
@@ -18,43 +19,58 @@ export interface DupResult {
   score: number;
 }
 
-// Exact / normalized match on content within the same type.
+// SEC-09: dedup is scoped. Default (all null) is fail-closed: only GLOBAL
+// memories are considered. Callers pass the effective item/caller scope.
+export interface DedupScope {
+  resolvedUid?: number | null;
+  sessionId?: string | null;
+  projectId?: string | null;
+}
+
+// Exact / normalized match on content within the same type and visible scope.
 export function findExactMatch(
   type: string,
-  content: string
+  content: string,
+  scope: DedupScope = {}
 ): number | undefined {
   const norm = normalizeText(content);
+  const clause = buildScopeClause("m", scope);
   const rows = db
     .prepare(
-      "SELECT id, content FROM memories WHERE type = ? AND status != 'deleted'"
+      `SELECT m.id AS id, m.content AS content
+       FROM memories m
+       WHERE m.type = @type AND m.status != 'deleted' AND ${clause.sql}`
     )
-    .all(type) as Array<{ id: number; content: string }>;
+    .all({ type, ...clause.params }) as Array<{ id: number; content: string }>;
   for (const r of rows) {
     if (normalizeText(r.content) === norm) return r.id;
   }
   return undefined;
 }
 
-// Semantic similarity against existing memories of the same type.
-// Single-query JOIN (no N+1): type/status filtering happens in SQL,
+// Semantic similarity against existing memories of the same type and scope.
+// Single-query JOIN (no N+1): type/status/scope filtering happens in SQL,
 // then an in-memory candidate prefilter skips corrupt/empty vectors
 // before the expensive deserialize+cosine comparison.
 export function findSimilar(
   type: string,
   content: string,
-  threshold = 0.82
+  threshold = 0.82,
+  scope: DedupScope = {}
 ): { id: number; score: number } | undefined {
   const vec = embed(content);
+  const clause = buildScopeClause("m", scope);
   const rows = db
     .prepare(
       `SELECT e.ref_id AS ref_id, e.vec AS vec
        FROM embeddings e
        JOIN memories m ON m.id = e.ref_id
        WHERE e.ref_table = 'memories'
-         AND m.type = ?
-         AND m.status != 'deleted'`
+         AND m.type = @type
+         AND m.status != 'deleted'
+         AND ${clause.sql}`
     )
-    .all(type) as Array<{ ref_id: number; vec: Buffer }>;
+    .all({ type, ...clause.params }) as Array<{ ref_id: number; vec: Buffer }>;
   // Candidate prefilter (in-memory, cheap): drop rows whose vector blob
   // cannot be a valid EMBED_DIM float32 vector before deserialize/cosine.
   const expectedBytes = EMBED_DIM * 4;
@@ -78,11 +94,15 @@ export function findSimilar(
   return best;
 }
 
-export function deduplicate(type: string, content: string): DupResult {
-  const exact = findExactMatch(type, content);
+export function deduplicate(
+  type: string,
+  content: string,
+  scope: DedupScope = {}
+): DupResult {
+  const exact = findExactMatch(type, content, scope);
   if (exact !== undefined)
     return { verdict: "duplicate", existingId: exact, score: 1 };
-  const sim = findSimilar(type, content);
+  const sim = findSimilar(type, content, 0.82, scope);
   if (sim) return { verdict: "duplicate", existingId: sim.id, score: sim.score };
   return { verdict: "distinct", score: 0 };
 }

@@ -229,34 +229,33 @@ export function getAllEmbeddings(opts: {
       sessionId: null,
       projectId: null,
     });
+    let memRows: {
+      ref_table: string;
+      ref_id: number;
+      vec: Buffer;
+    }[] = [];
     try {
-      const memRows = getScopedEmbeds().all(scope.params) as {
+      memRows = getScopedEmbeds().all(scope.params) as {
         ref_table: string;
         ref_id: number;
         vec: Buffer;
       }[];
-      const legacyRows = getLegacyEmbeds().all() as {
-        ref_table: string;
-        ref_id: number;
-        vec: Buffer;
-      }[];
-      return [...memRows, ...legacyRows];
     } catch (e) {
-      // Explicit documented fallback (P1-A): this widens the read to every
-      // embedding row (any scope/status). It exists so the unscoped caller
-      // (recall.ts) degrades instead of failing outright, and it now logs on
-      // EVERY entry so the widening is never silent.
+      // Fail closed (SEC-14): never widen to every embedding row. Legacy
+      // preferences/lessons embeddings are global by design and safe to
+      // return; if that query also fails, the error propagates below.
       const msg = e instanceof Error ? e.message : String(e);
       console.error(
-        `[db] getAllEmbeddings: scoped memories + legacy queries failed (${msg}); ` +
-          `falling back to ALL embeddings (may include out-of-scope rows)`
+        `[db] getAllEmbeddings: scoped memories query failed (${msg}); ` +
+          `returning legacy preferences/lessons embeddings only (fail-closed)`
       );
-      return getAllEmbeds().all() as {
-        ref_table: string;
-        ref_id: number;
-        vec: Buffer;
-      }[];
     }
+    const legacyRows = getLegacyEmbeds().all() as {
+      ref_table: string;
+      ref_id: number;
+      vec: Buffer;
+    }[];
+    return [...memRows, ...legacyRows];
   }
   const uid = opts.uid ?? null;
   const sid = opts.sid ?? null;

@@ -47,19 +47,27 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "better-sqlite3": "^12.9.0",
     "zod": "^3.25.0"
   },
   "overrides": {
-    "ip-address": "^10.2.0"
+    "hono": "^4.13.13",
+    "fast-uri": "^3.1.9",
+    "proxy-addr": "^2.0.8",
+    "ip-address": "^10.7.4",
+    "qs": "^6.16.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3"
     ],
     "overrides": {
-      "ip-address": "^10.2.0"
+      "hono": "^4.13.13",
+      "fast-uri": "^3.1.9",
+      "proxy-addr": "^2.0.8",
+      "ip-address": "^10.7.4",
+      "qs": "^6.16.1"
     }
   },
   "devDependencies": {

@@ -15,6 +15,9 @@ import type {
 
 export interface ApplyImportInput {
   userId?: string | null;
+  // SEC-05/SEC-13: only a trusted import may write aux rows and set the
+  // metadata.trusted marker; per-row flags are ignored by the caller.
+  trusted: boolean;
   validUsers: ValidatedUser[];
   validMemories: ValidatedMemory[];
   validLinks: ValidatedLink[];
@@ -55,15 +58,16 @@ export function applyValidatedRows(
           salience: typeof it.salience === "number" ? it.salience : 0.5,
           projectId: typeof it.projectId === "string" ? it.projectId : null,
           sessionId: typeof it.sessionId === "string" ? it.sessionId : null,
+          // SEC-03: tool-level userId always wins over the row owner.
           userId:
-            typeof it.userId === "string"
-              ? it.userId
-              : typeof input.userId === "string"
-                ? input.userId
+            typeof input.userId === "string"
+              ? input.userId
+              : typeof it.userId === "string"
+                ? it.userId
                 : null,
           validFrom: typeof it.validFrom === "string" ? (it.validFrom as string) : null,
           validUntil: typeof it.validUntil === "string" ? (it.validUntil as string) : null,
-          metadata: withTrustedFlag(it.metadata, it.trusted),
+          metadata: withTrustedFlag(it.metadata, input.trusted),
         });
         if (typeof it.id === "number" && Number.isInteger(it.id)) importedIds.set(it.id, newId);
         if (typeof it.status === "string" && it.status !== "active") {
@@ -155,7 +159,9 @@ export function applyValidatedRows(
         insRelation.run(newSource, v.predicate, newTarget, v.conf, v.vf, v.vu, newMem, meta);
       }
 
-      if (input.hasAux) {
+      // SEC-13: defense in depth — never apply auxiliary data unless the
+      // caller explicitly trusted the import.
+      if (input.hasAux && input.trusted) {
         const selectPref = db.prepare("SELECT id FROM preferences WHERE category = ? AND key = ?");
         const insertPref = db.prepare(
           "INSERT INTO preferences (category, key, value, confidence, source, updated_at) VALUES (?, ?, ?, ?, ?, ?)"

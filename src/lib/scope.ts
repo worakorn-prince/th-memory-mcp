@@ -12,9 +12,9 @@
 //                     USER records — no userId hides every USER record even
 //                     if resolvedUid happens to carry a value.
 //   - ctx.resolvedUid internal numeric id compared against record.user_id.
-// Null rules (legacy, preserved exactly): a missing scope value
-// (null/undefined) hides records of that scope; GLOBAL — and any unknown
-// scope value — always passes.
+// Null rules: a missing scope value (null/undefined) hides records of that
+// scope. Only explicit GLOBAL always passes; unknown scope values are hidden
+// (fail-closed, SEC-14).
 
 export interface ScopeSqlContext {
   /** Internal user id from resolveUserId(); compared to records' user_id. */
@@ -39,10 +39,10 @@ export interface ScopeRecordLike {
  * JS-side visibility filter for records already fetched from the DB
  * (retrieval-engine, context-engine, consolidation-engine).
  *
- * Behavior mirrors the legacy per-site copies exactly: the gate checks the
- * external `userId` (not `resolvedUid`), the comparison uses the resolved
- * numeric id (`record.user_id === resolvedUid`), and GLOBAL/unknown scopes
- * always pass.
+ * The gate checks the external `userId` (not `resolvedUid`) and the
+ * comparison uses the resolved numeric id (`record.user_id === resolvedUid`).
+ * Only explicit GLOBAL passes the default branch; unknown scope values are
+ * hidden (fail-closed, SEC-14).
  */
 export function isScopeVisible(
   record: ScopeRecordLike,
@@ -60,7 +60,7 @@ export function isScopeVisible(
     if (ctx.projectId == null) return false;
     return record.project_id === ctx.projectId;
   }
-  return true;
+  return record.scope === "GLOBAL";
 }
 
 export interface ScopeSqlValues {
@@ -95,13 +95,9 @@ const ALIAS_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
  * USER scope only from a resolved user), so this only affects corrupt data —
  * and hiding is the fail-closed direction.
  *
- * Second documented divergence (unknown scope values): a row whose scope is
- * none of GLOBAL/USER/SESSION/PROJECT (e.g. 'FUTURE') is hidden by this
- * predicate — it only matches the four constants — while the JS helper's
- * default branch passes it. Writers set scope from those four constants only
- * (createMemory derivation), so unknown values cannot originate in this
- * codebase; hiding matches the pre-existing fts predicate and is the
- * fail-closed direction.
+ * Unknown scope values are hidden by both this predicate and the JS helper
+ * (fail-closed, SEC-14): the predicate matches only GLOBAL/USER/SESSION/
+ * PROJECT, and isScopeVisible returns true only for explicit GLOBAL.
  */
 export function buildScopeClause(
   alias: string,

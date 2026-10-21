@@ -14,9 +14,9 @@ export interface ImportItem {
   validFrom?: unknown;
   validUntil?: unknown;
   metadata?: unknown;
-  // Batch A-2: trust marker for prompt-injection delimiters (team B).
-  // Contract is ONLY via metadata.trusted boolean (no schema change):
-  // trusted:true => metadata {trusted:true}; missing/other => {trusted:false}.
+  // Legacy per-row trust marker. SEC-05: this field is parsed for backward
+  // compatibility but IGNORED by the importer — trust comes only from the
+  // tool-level `trusted` flag and lands in metadata.trusted.
   trusted?: unknown;
 }
 
@@ -94,6 +94,7 @@ export interface ImportCounts {
   lessonOk: number;
   lessonInvalid: number;
   profileOk: number;
+  profileInvalid: number;
 }
 
 export function createImportCounts(): ImportCounts {
@@ -114,5 +115,6 @@ export function createImportCounts(): ImportCounts {
     lessonOk: 0,
     lessonInvalid: 0,
     profileOk: 0,
+    profileInvalid: 0,
   };
 }

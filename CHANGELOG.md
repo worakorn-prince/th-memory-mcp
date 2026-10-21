@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- Import hardening: untrusted imports gate only `preferences`/`lessons`/`profile`; users/entities/relations/memories are still imported by design (use trusted exports). Per-item `trusted` is ignored for the gate, tool-level `userId` wins, and untrusted imports remain labelled.
+- `get_profile` with no arguments now returns GLOBAL scope only; optional scope args widen it, and an unknown scope resolves to GLOBAL-only and never widens to an arbitrary scope.
+- Delimiter sanitization prevents stored content from breaking out of `<memory-reference>` wrappers.
+- Secrets are redacted before truncation in both the core and capture plugin.
+- Export previews are wrapped as reference data; export files/directories are created with `0600`/`0700` on POSIX.
+- Migration backups use `VACUUM INTO` for a consistent WAL-safe snapshot (still opt-out via `MEMORY_BACKUP_ON_MIGRATE=0|false`).
+- Raised `@modelcontextprotocol/sdk` to `^1.32.1` and added overrides for `hono`, `fast-uri`, `proxy-addr`, `ip-address`, and `qs`.
+
 ## [2.3.3] - 2026-10-21
 
 ### Changed

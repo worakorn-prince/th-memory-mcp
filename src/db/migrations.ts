@@ -1,5 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
-import { copyFileSync, readdirSync, unlinkSync } from "node:fs";
+import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { embed, serialize } from "../lib/embed.js";
 
@@ -274,6 +274,30 @@ export const MIGRATIONS: Migration[] = [
 
 const KEEP_BACKUPS = 5;
 
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+export function backupDatabase(db: DB, dbPath: string): string {
+  const stem = `${dbPath}.backup-${Date.now()}`;
+  let target = stem;
+  let counter = 1;
+  while (existsSync(target)) {
+    target = `${stem}-${counter}`;
+    counter += 1;
+  }
+  try {
+    db.exec(`VACUUM INTO '${escapeSqlLiteral(target)}'`);
+    return target;
+  } catch (e) {
+    try {
+      if (existsSync(target)) unlinkSync(target);
+    } catch {}
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new Error(`migration backup failed for ${dbPath}: ${reason}`);
+  }
+}
+
 function pruneOldBackups(dbPath: string): void {
   try {
     const dir = dirname(dbPath);
@@ -314,22 +338,10 @@ export function runMigrations(db: DB): void {
   if (shouldBackup) {
     const dbPath = (db as unknown as { name: string }).name;
     if (dbPath && dbPath !== ":memory:") {
-      try {
-        // A plain copy of the main file is not a valid snapshot while recent
-        // commits are still in the WAL. Checkpoint first, then fail closed.
-        db.pragma("wal_checkpoint(TRUNCATE)");
-        // NOTE: better-sqlite3 exposes .backup(dest) but it is async
-        // (Promise-based) while runMigrations is sync and runs inside the
-        // DB singleton init path. Awaiting it would require making the whole
-        // migration/startup chain async and risks a half-applied state, so we
-        // keep the synchronous copyFileSync snapshot here on purpose.
-        // No new dependency added.
-        copyFileSync(dbPath, `${dbPath}.backup-${Date.now()}`);
-        pruneOldBackups(dbPath);
-      } catch (e) {
-        const reason = e instanceof Error ? e.message : String(e);
-        throw new Error(`migration backup failed for ${dbPath}: ${reason}`);
-      }
+      // VACUUM INTO produces a consistent snapshot even with pending WAL
+      // frames; the helper owns the error message and partial cleanup.
+      backupDatabase(db, dbPath);
+      pruneOldBackups(dbPath);
     }
   }
   for (const m of pending) {

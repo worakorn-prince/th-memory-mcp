@@ -38,12 +38,24 @@ export function isUntrustedMetadata(
   try {
     const obj: unknown = JSON.parse(metadata);
     if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
-      return (obj as Record<string, unknown>).trusted !== true;
+      const record = obj as Record<string, unknown>;
+      if (!Object.prototype.hasOwnProperty.call(record, "trusted")) return false;
+      return record.trusted !== true;
     }
     return false;
   } catch {
     return false;
   }
+}
+
+/**
+ * Neutralize memory-reference delimiters inside untrusted text so stored
+ * content cannot close the wrapper early (SEC-07). Opening and closing tags
+ * are matched case-insensitively; `<` is rewritten to `&lt;` so the text
+ * still reads naturally but no longer forms a delimiter.
+ */
+export function sanitizeMemoryText(text: string): string {
+  return text.replace(/<\/?memory-reference>/gi, (tag) => `&lt;${tag.slice(1)}`);
 }
 
 /** Wrap a whole memory block with the guidance line + delimiters. */
@@ -53,7 +65,8 @@ export function wrapMemoryReference(
 ): string {
   const label =
     opts?.untrusted === true ? `${UNTRUSTED_TAG} ${UNTRUSTED_NOTE}\n` : "";
-  return `${MEMORY_REF_GUIDANCE}\n${MEMORY_REF_OPEN}\n${label}${body}\n${MEMORY_REF_CLOSE}`;
+  const safe = sanitizeMemoryText(body);
+  return `${MEMORY_REF_GUIDANCE}\n${MEMORY_REF_OPEN}\n${label}${safe}\n${MEMORY_REF_CLOSE}`;
 }
 
 /** Wrap one memory line; untrusted imports get an explicit label. */
@@ -61,8 +74,9 @@ export function decorateMemoryLine(
   line: string,
   metadata: string | null | undefined
 ): string {
+  const safe = sanitizeMemoryText(line);
   if (isUntrustedMetadata(metadata)) {
-    return `${MEMORY_REF_OPEN} ${UNTRUSTED_TAG} ${UNTRUSTED_NOTE}\n${line}\n${MEMORY_REF_CLOSE}`;
+    return `${MEMORY_REF_OPEN} ${UNTRUSTED_TAG} ${UNTRUSTED_NOTE}\n${safe}\n${MEMORY_REF_CLOSE}`;
   }
-  return `${MEMORY_REF_OPEN}\n${line}\n${MEMORY_REF_CLOSE}`;
+  return `${MEMORY_REF_OPEN}\n${safe}\n${MEMORY_REF_CLOSE}`;
 }

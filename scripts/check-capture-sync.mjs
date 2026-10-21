@@ -172,6 +172,20 @@ export function runCaptureSyncChecks() {
         );
       }
     }
+    // SEC-07: both copies must neutralize memory-reference tags before wrapping.
+    for (const [label, src] of [
+      ["memory-format", fmt],
+      ["plugin", plugin],
+    ]) {
+      if (!src.includes("function sanitizeMemoryText")) {
+        throw new Error(`${label}: sanitizeMemoryText missing`);
+      }
+      if (!src.includes("&lt;") || !src.includes("memory-reference>/gi")) {
+        throw new Error(
+          `${label}: sanitizeMemoryText must neutralize memory-reference tags via &lt;`
+        );
+      }
+    }
   });
 
   return { checks, summary };

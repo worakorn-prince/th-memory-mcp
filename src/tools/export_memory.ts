@@ -1,4 +1,10 @@
-import { mkdirSync, writeFileSync, statSync, statfsSync } from "node:fs";
+import {
+  mkdirSync,
+  writeFileSync,
+  statSync,
+  statfsSync,
+  chmodSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 import { z } from "zod";
 import {
@@ -12,6 +18,13 @@ import {
 } from "../db/index.js";
 import { VERSION, EXPORTS_DIRNAME } from "../lib/config.js";
 import type { InteractionRow } from "../lib/capture-core.js";
+import {
+  MEMORY_REF_CLOSE,
+  MEMORY_REF_GUIDANCE,
+  MEMORY_REF_OPEN,
+  sanitizeMemoryText,
+  wrapMemoryReference,
+} from "../lib/memory-format.js";
 
 export const exportMemoryInput = {
   includeInteractions: z
@@ -29,7 +42,13 @@ export const exportMemoryInput = {
 };
 
 const PREVIEW_BUDGET = 500;
+// Wrapper adds guidance + open/close tags + 3 newlines; keep the whole
+// preview (wrapper included) inside PREVIEW_BUDGET.
+const PREVIEW_WRAP_OVERHEAD =
+  MEMORY_REF_GUIDANCE.length + MEMORY_REF_OPEN.length + MEMORY_REF_CLOSE.length + 3;
 const EXPORT_DIR = join(dirname(DB_PATH), EXPORTS_DIRNAME);
+
+const IS_POSIX = process.platform !== "win32";
 
 interface PreferenceRow {
   id: number;
@@ -222,18 +241,28 @@ export async function exportMemoryHandler(args: {
 
     const json = JSON.stringify(payload, null, 2);
 
-    mkdirSync(EXPORT_DIR, { recursive: true });
+    mkdirSync(EXPORT_DIR, { recursive: true, mode: 0o700 });
     try {
       const stats = statfsSync(EXPORT_DIR);
       if (json.length > stats.bavail * stats.bsize * 0.9)
         return err("insufficient disk space for export");
     } catch {}
     const filePath = join(EXPORT_DIR, filename);
-    writeFileSync(filePath, json, "utf8");
+    writeFileSync(filePath, json, { encoding: "utf8", mode: 0o600 });
+    if (IS_POSIX) {
+      try {
+        chmodSync(filePath, 0o600);
+      } catch {}
+    }
     const size = statSync(filePath).size;
+    const previewBody = truncate(
+      sanitizeMemoryText(json),
+      Math.max(0, PREVIEW_BUDGET - PREVIEW_WRAP_OVERHEAD)
+    );
+    const preview = wrapMemoryReference(previewBody);
 
     return ok(
-      `exported: ${filePath}\nsize: ${size} bytes\npreview: ${truncate(json, PREVIEW_BUDGET)}`
+      `exported: ${filePath}\nsize: ${size} bytes\npreview: ${preview}`
     );
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));

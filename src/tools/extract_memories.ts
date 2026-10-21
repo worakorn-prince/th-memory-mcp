@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db, ok, err, type ToolResult } from "../db/index.js";
 import { createMemory } from "../db/repositories/memories.js";
+import { resolveUserId } from "../db/repositories/users.js";
 import { deduplicate } from "../memory/deduplicator.js";
 import { MEMORY_TYPES } from "../memory/types.js";
 import type { MemoryType } from "../memory/types.js";
@@ -85,9 +86,19 @@ export function extractMemoriesHandler(args: {
       }
     }
 
+    // SEC-09: dedup within the extractor's scope. Unknown/absent userId
+    // resolves to null -> GLOBAL-only (fail-closed).
+    const dedupScope =
+      typeof args.userId === "string"
+        ? {
+            resolvedUid: resolveUserId(args.userId),
+            sessionId: null,
+            projectId: null,
+          }
+        : { resolvedUid: null, sessionId: null, projectId: null };
     const distinct = candidates.filter(
       (c) =>
-        deduplicate(c.type, c.content).verdict === "distinct"
+        deduplicate(c.type, c.content, dedupScope).verdict === "distinct"
     );
 
     if (args.apply === true) {

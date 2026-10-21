@@ -1,12 +1,21 @@
-import { deduplicate } from "../../memory/deduplicator.js";
+import {
+  deduplicate,
+  type DedupScope,
+} from "../../memory/deduplicator.js";
+import { resolveUserId } from "../../db/repositories/users.js";
 import { MEMORY_TYPES, LIFECYCLE_STATES } from "../../memory/types.js";
 import type { MemoryType, LifecycleState } from "../../memory/types.js";
 import { isIsoDateString } from "../../lib/iso.js";
-import { isValidSource } from "./common.js";
+import {
+  MAX_METADATA_BYTES,
+  effectiveImportScope,
+  isValidSource,
+} from "./common.js";
 import type { ImportCounts, ImportItem, ValidatedMemory } from "./types.js";
 
 export function validateMemories(
   memoryItems: ImportItem[],
+  forcedUserId: string | null,
   state: ImportCounts,
   log: string[]
 ): ValidatedMemory[] {
@@ -14,6 +23,8 @@ export function validateMemories(
   // Intra-batch exact-dupe guard: deduplicate() only sees committed rows,
   // so track normalized type+content accepted in THIS batch as well.
   const batchSeen = new Set<string>();
+  // SEC-09: resolve external ids at most once per import.
+  const uidCache = new Map<string, number | null>();
 
   for (const [idx, it] of memoryItems.entries()) {
     if (
@@ -58,7 +69,13 @@ export function validateMemories(
       state.invalid++;
       continue;
     }
-    if (it.userId != null && (typeof it.userId !== "string" || (it.userId as string).length === 0 || (it.userId as string).length > 200)) {
+    // SEC-03: a tool-level userId wins, so per-item owner values (including
+    // malformed ones) are irrelevant in that case and must not reject the row.
+    if (
+      forcedUserId == null &&
+      it.userId != null &&
+      (typeof it.userId !== "string" || (it.userId as string).length === 0 || (it.userId as string).length > 200)
+    ) {
       state.invalid++;
       continue;
     }
@@ -87,13 +104,47 @@ export function validateMemories(
       );
       continue;
     }
-    const dup = deduplicate(it.type as MemoryType, it.content);
+    // SEC-08: cap per-item metadata so one row cannot bloat memory/DB work.
+    if (it.metadata != null) {
+      let metaLength = 0;
+      try {
+        const serialized = JSON.stringify(it.metadata);
+        metaLength = typeof serialized === "string" ? serialized.length : 0;
+      } catch {
+        state.invalid++;
+        log.push(`invalid row ${idx}: metadata is not JSON-serializable`);
+        continue;
+      }
+      if (metaLength > MAX_METADATA_BYTES) {
+        state.invalid++;
+        log.push(
+          `invalid row ${idx}: metadata exceeds ${MAX_METADATA_BYTES} bytes`
+        );
+        continue;
+      }
+    }
+
+    // SEC-09: only a tool-level owner is trustworthy enough to scope a dedup
+    // probe. Row-supplied userId/sessionId/projectId are attacker-controlled
+    // import data; using them here leaks existence/ids across scopes.
+    const identity = effectiveImportScope(it, forcedUserId);
+    let dupScope: DedupScope = {};
+    if (forcedUserId != null && identity.scope === "USER") {
+      let uid = uidCache.get(forcedUserId);
+      if (uid === undefined) {
+        uid = resolveUserId(forcedUserId);
+        uidCache.set(forcedUserId, uid);
+      }
+      dupScope = { resolvedUid: uid };
+    }
+
+    const dup = deduplicate(it.type as MemoryType, it.content as string, dupScope);
     if (dup.verdict === "duplicate") {
       state.skipped++;
       log.push(`skip duplicate -> existing ${dup.existingId}`);
       continue;
     }
-    const batchKey = `${it.type}::${(it.content as string).toLowerCase().trim()}`;
+    const batchKey = `${identity.scope}::${identity.userId ?? ""}::${identity.sessionId ?? ""}::${identity.projectId ?? ""}::${it.type}::${(it.content as string).toLowerCase().trim()}`;
     if (batchSeen.has(batchKey)) {
       state.skipped++;
       log.push(`skip duplicate -> duplicate within import batch (row ${idx})`);

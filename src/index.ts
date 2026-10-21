@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { rememberInput, rememberHandler } from "./tools/remember.js";
 import { recallInput, recallHandler } from "./tools/recall.js";
-import { getProfileHandler } from "./tools/profile.js";
+import { profileInput, getProfileHandler } from "./tools/profile.js";
 import { saveLessonInput, saveLessonHandler } from "./tools/lesson.js";
 import { searchHistoryInput, searchHistoryHandler } from "./tools/history.js";
 import { forgetInput, forgetHandler } from "./tools/forget.js";
@@ -58,10 +58,10 @@ server.registerTool(
   {
     title: "Get user profile",
     description:
-      "Get the distilled user profile: profile sections, top preferences by confidence (max 15), and the 5 most recent lessons.",
-    inputSchema: {},
+      "Get the distilled user profile: profile sections, top preferences by confidence (max 15), and the 5 most recent lessons. Optional userId/sessionId/projectId scope the auto-projected memories; without them only GLOBAL memories are included.",
+    inputSchema: profileInput,
   },
-  () => getProfileHandler()
+  (args) => getProfileHandler(args)
 );
 
 server.registerTool(

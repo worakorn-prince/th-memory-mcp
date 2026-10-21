@@ -46,23 +46,35 @@ test("A1: forget without type errors on ambiguous id, deletes nothing", async ()
   db.prepare("DELETE FROM lessons WHERE id = ?").run(id);
 });
 
-// --- A2a: trusted flag lands in metadata (default untrusted) ---
-test("A2: import stores trusted flag in metadata, default untrusted", () => {
+// --- A2a: trust is tool-level only; per-item trusted is ignored (SEC-05) ---
+test("A2: import trust is tool-level only, per-item trusted is ignored", () => {
   const stamp = Date.now();
   const payload = JSON.stringify({
     memories: [
-      { type: "FACT", content: `batchA trusted yes ${stamp}`, trusted: true },
+      { type: "FACT", content: `batchA trusted item ${stamp}`, trusted: true },
       { type: "FACT", content: `batchA trusted default ${stamp}` },
     ],
     memoryLinks: [],
   });
   const applied = importMemoryHandler({ json: payload, apply: true });
   assert.ok(!isErr(applied), text(applied));
-  const yes = db.prepare("SELECT metadata FROM memories WHERE content = ?").get(`batchA trusted yes ${stamp}`);
+  const item = db.prepare("SELECT metadata FROM memories WHERE content = ?").get(`batchA trusted item ${stamp}`);
   const def = db.prepare("SELECT metadata FROM memories WHERE content = ?").get(`batchA trusted default ${stamp}`);
-  assert.ok(yes && def, "both rows imported");
-  assert.equal(JSON.parse(yes.metadata).trusted, true);
-  assert.equal(JSON.parse(def.metadata).trusted, false);
+  assert.ok(item && def, "both rows imported");
+  assert.equal(JSON.parse(item.metadata).trusted, false, "per-item trusted:true must be ignored");
+  assert.equal(JSON.parse(def.metadata).trusted, false, "default stays untrusted");
+
+  const trustedPayload = JSON.stringify({
+    memories: [
+      { type: "FACT", content: `batchA trusted tool ${stamp}`, trusted: false },
+    ],
+    memoryLinks: [],
+  });
+  const trusted = importMemoryHandler({ json: trustedPayload, trusted: true, apply: true });
+  assert.ok(!isErr(trusted), text(trusted));
+  const toolTrusted = db.prepare("SELECT metadata FROM memories WHERE content = ?").get(`batchA trusted tool ${stamp}`);
+  assert.ok(toolTrusted, "tool-trusted row imported");
+  assert.equal(JSON.parse(toolTrusted.metadata).trusted, true, "tool-level trusted:true applies");
 });
 
 // --- A2b: single-transaction atomicity (mid-batch throw rolls back all) ---

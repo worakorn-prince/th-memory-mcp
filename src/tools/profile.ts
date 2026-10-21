@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   db,
   truncate,
@@ -5,6 +6,8 @@ import {
   err,
   type ToolResult,
 } from "../db/index.js";
+import { buildScopeClause } from "../lib/scope.js";
+import { resolveUserId } from "../db/repositories/users.js";
 import {
   MEMORY_REF_CLOSE,
   MEMORY_REF_GUIDANCE,
@@ -12,7 +15,32 @@ import {
   UNTRUSTED_NOTE,
   UNTRUSTED_TAG,
   isUntrustedMetadata,
+  sanitizeMemoryText,
 } from "../lib/memory-format.js";
+
+export const profileInput = {
+  userId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Include GLOBAL plus this user's USER-scoped memories"),
+  sessionId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Include GLOBAL plus this session's SESSION-scoped memories"),
+  projectId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Include GLOBAL plus this project's PROJECT-scoped memories"),
+};
+
+export interface ProfileScope {
+  userId?: string | null;
+  sessionId?: string | null;
+  projectId?: string | null;
+}
 
 export const PROFILE_BUDGET = 3000;
 const PROFILE_SECTION_MAX = 400;
@@ -29,11 +57,18 @@ const topPrefs = db.prepare(
 const recentLessons = db.prepare(
   "SELECT situation, mistake, correction FROM lessons ORDER BY created_at DESC, id DESC LIMIT 5"
 );
+// profile/preferences/lessons tables are global by design. Only the
+// auto-projected memories query is scope-filtered (SEC-01); with no scope
+// args the clause binds nulls and matches GLOBAL rows only (fail-closed).
 const topMemories = db.prepare(
-  "SELECT type, content, importance, confidence, metadata FROM memories WHERE status = 'active' ORDER BY importance * confidence DESC, updated_at DESC LIMIT 15"
+  `SELECT type, content, importance, confidence, metadata
+   FROM memories m
+   WHERE m.status = 'active'
+     AND ${buildScopeClause("m").sql}
+   ORDER BY importance * confidence DESC, updated_at DESC LIMIT 15`
 );
 
-export function buildProfileText(): string {
+export function buildProfileText(scope: ProfileScope = {}): string {
   const parts: string[] = [];
 
   const prof = profileRows.all() as { section: string; content: string }[];
@@ -71,7 +106,13 @@ export function buildProfileText(): string {
   }
 
   // Auto-projection: surface top memories from the unified store (spec §7 / item 7).
-  const mems = topMemories.all() as {
+  const resolvedUid = scope.userId ? resolveUserId(scope.userId) : null;
+  const scopeFilter = buildScopeClause("m", {
+    resolvedUid,
+    sessionId: scope.sessionId ?? null,
+    projectId: scope.projectId ?? null,
+  });
+  const mems = topMemories.all(scopeFilter.params) as {
     type: string;
     content: string;
     importance: number;
@@ -99,15 +140,17 @@ export function buildProfileText(): string {
     MEMORY_REF_CLOSE.length +
     8;
   const inner = truncate(
-    parts.join("\n\n"),
+    sanitizeMemoryText(parts.join("\n\n")),
     Math.max(0, PROFILE_BUDGET - overhead)
   );
   return `${MEMORY_REF_GUIDANCE}\n${MEMORY_REF_OPEN}\n${inner}\n${MEMORY_REF_CLOSE}`;
 }
 
-export async function getProfileHandler(): Promise<ToolResult> {
+export async function getProfileHandler(
+  args: ProfileScope = {}
+): Promise<ToolResult> {
   try {
-    return ok(buildProfileText());
+    return ok(buildProfileText(args));
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }

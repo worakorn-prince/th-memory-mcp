@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { getContext } from "../core/context-engine.js";
-import { ok } from "../db/index.js";
+import { ok, truncate } from "../db/index.js";
 import {
   MEMORY_REF_GUIDANCE,
   decorateMemoryLine,
 } from "../lib/memory-format.js";
+
+const METADATA_MAX = 300;
 
 export const contextInput = {
   query: z
@@ -65,7 +67,9 @@ export function contextHandler(args: Record<string, unknown>) {
   // entry in <memory-reference> delimiters; untrusted imports
   // (metadata.trusted=false) get an explicit label.
   const lines = res.memories.map((m) => {
-    const meta = m.metadata ? ` meta=${m.metadata}` : "";
+    const meta = m.metadata
+      ? ` meta=${truncate(m.metadata, METADATA_MAX)}`
+      : "";
     const tag = m.viaGraph ? " [graph]" : "";
     return decorateMemoryLine(
       `[${m.id}] (${m.type}/${m.status})${tag} ${m.content}${meta}`,
