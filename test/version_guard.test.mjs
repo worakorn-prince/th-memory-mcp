@@ -10,8 +10,6 @@ const root = join(here, "..");
 const pkgVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 
 const VERSION_POINT_FILES = [
-  "README.md",
-  "README.th.md",
   "ARCHITECTURE_v2.md",
   "design.md",
   "server.json",

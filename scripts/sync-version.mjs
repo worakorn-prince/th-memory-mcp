@@ -20,16 +20,6 @@ function getPackageVersion() {
 
 const targets = [
   {
-    file: "README.md",
-    label: "Status",
-    pattern: /(\*\*Status:\*\*\s*v)\d+\.\d+\.\d+/g,
-  },
-  {
-    file: "README.th.md",
-    label: "สถานะ",
-    pattern: /(\*\*สถานะ:\*\*\s*v)\d+\.\d+\.\d+/g,
-  },
-  {
     file: "ARCHITECTURE_v2.md",
     label: "Current",
     pattern: /(\*\*Current:\*\*\s*v)\d+\.\d+\.\d+/g,
