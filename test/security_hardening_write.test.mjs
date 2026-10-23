@@ -1,7 +1,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmSync } from "node:fs";
-import { after, test } from "node:test";
+import { after, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 
 const dbPath = join(
@@ -21,6 +21,29 @@ const { filterSecrets } = await import("../dist/lib/capture-core.js");
 const { redactMetadata } = await import("../dist/lib/redact.js");
 
 const OPENAI_KEY = "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789";
+
+const CLEANUP_TABLES = [
+  "memory_links",
+  "relations",
+  "entities",
+  "memories",
+  "preferences",
+  "lessons",
+  "profile",
+  "search_index",
+  "embeddings",
+  "interactions",
+  "users",
+];
+
+beforeEach(() => {
+  const wipe = db.transaction(() => {
+    for (const table of CLEANUP_TABLES) {
+      db.prepare(`DELETE FROM ${table}`).run();
+    }
+  });
+  wipe();
+});
 
 after(() => {
   try {
@@ -109,6 +132,37 @@ test("rememberHandler redacts a secret in value (row + response)", async () => {
     )
     .get(row.id);
   assert.ok(!fts.body.includes("hunter2"), fts.body);
+  assert.ok(fts.body.includes("[REDACTED]"));
+});
+
+test("rememberHandler redacts a secret in key (row + response)", async () => {
+  const stamp = Date.now();
+  const rawKey = `routing password: hunter2-key-${stamp}`;
+  const res = await rememberHandler({
+    category: "other",
+    key: rawKey,
+    value: "clean value",
+  });
+  assert.ok(!isErr(res), text(res));
+  assert.ok(!text(res).includes("hunter2-key"), text(res));
+  assert.ok(text(res).includes("[REDACTED]"), text(res));
+
+  const row = db
+    .prepare(
+      "SELECT id, key, value FROM preferences ORDER BY id DESC LIMIT 1"
+    )
+    .get();
+  assert.ok(row, "preference row exists");
+  assert.ok(!row.key.includes("hunter2-key"), row.key);
+  assert.ok(row.key.includes("[REDACTED]"), row.key);
+  assert.equal(row.value, "clean value");
+
+  const fts = db
+    .prepare(
+      "SELECT body FROM search_index WHERE ref_table = 'preferences' AND ref_id = ?"
+    )
+    .get(row.id);
+  assert.ok(!fts.body.includes("hunter2-key"), fts.body);
   assert.ok(fts.body.includes("[REDACTED]"));
 });
 
@@ -209,6 +263,59 @@ test("updateMemoryHandler in-place redacts content, summary, and metadata", () =
     note: "plain metadata",
     count: 5,
   });
+});
+
+test("updateMemoryHandler supersede path redacts the new row", () => {
+  const stamp = Date.now();
+  const oldId = createMemory({
+    type: "FACT",
+    content: `supersede base ${stamp}`,
+    summary: "base summary",
+  });
+
+  const res = updateMemoryHandler({
+    id: oldId,
+    content: `superseding password: hunter2-sup-${stamp}`,
+    summary: `superseding summary ${OPENAI_KEY}`,
+    metadata: {
+      note: "password: hunter2-meta-sup",
+      nested: { token: OPENAI_KEY },
+      keep: "kept",
+    },
+  });
+  assert.ok(!isErr(res), text(res));
+
+  const newRow = db
+    .prepare(
+      "SELECT id, content, summary, metadata, status FROM memories WHERE supersedes_id = ?"
+    )
+    .get(oldId);
+  assert.ok(newRow, "superseding memory exists");
+  assert.equal(newRow.status, "active");
+  assert.ok(!newRow.content.includes("hunter2-sup"), newRow.content);
+  assert.ok(!newRow.summary.includes(OPENAI_KEY), newRow.summary);
+  assert.ok(!newRow.metadata.includes("hunter2-meta-sup"), newRow.metadata);
+  assert.ok(!newRow.metadata.includes(OPENAI_KEY), newRow.metadata);
+  assert.ok(newRow.content.includes("[REDACTED]"), newRow.content);
+  assert.ok(newRow.summary.includes("[REDACTED]"), newRow.summary);
+
+  const meta = JSON.parse(newRow.metadata);
+  assert.equal(meta.note, "[REDACTED]");
+  assert.equal(meta.nested.token, "[REDACTED]");
+  assert.equal(meta.keep, "kept");
+
+  const oldRow = db
+    .prepare("SELECT status FROM memories WHERE id = ?")
+    .get(oldId);
+  assert.equal(oldRow.status, "superseded");
+
+  const fts = db
+    .prepare(
+      "SELECT body FROM search_index WHERE ref_table = 'memories' AND ref_id = ?"
+    )
+    .get(newRow.id);
+  assert.ok(!fts.body.includes("hunter2-sup"), fts.body);
+  assert.ok(fts.body.includes("[REDACTED]"));
 });
 
 test("mergeMemoryHandler redacts legacy raw secret in target metadata", () => {
@@ -324,6 +431,30 @@ test("trusted import applies redacted preferences, lessons, and profile", async 
     .get(section);
   assert.ok(!profile.content.includes("hunter2-profile"), profile.content);
   assert.ok(profile.content.includes("[REDACTED]"), profile.content);
+});
+
+test("trusted import redacts a secret in the profile section", () => {
+  const stamp = Date.now();
+  const res = importMemoryHandler({
+    json: JSON.stringify({
+      profile: [
+        {
+          section: `profile password: hunter2-section-${stamp}`,
+          content: "clean profile content",
+        },
+      ],
+    }),
+    apply: true,
+    trusted: true,
+  });
+  assert.ok(!isErr(res), text(res));
+
+  const rows = db.prepare("SELECT section, content FROM profile").all();
+  assert.equal(rows.length, 1);
+  const row = rows[0];
+  assert.ok(!row.section.includes("hunter2-section"), row.section);
+  assert.ok(row.section.includes("[REDACTED]"), row.section);
+  assert.equal(row.content, "clean profile content");
 });
 
 test("filterSecrets leaves clean text unchanged", () => {
