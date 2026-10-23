@@ -80,6 +80,34 @@ test("SEC-07: sanitizeMemoryText neutralizes both reference tag forms", () => {
   );
 });
 
+test("SEC-07 P1: sanitizeMemoryText neutralizes whitespace/attribute tag variants", () => {
+  const variants = [
+    "</memory-reference >",
+    "</memory-reference foo>",
+    "</memory-reference\n>",
+    "</memory-reference\r\n>",
+    '<memory-reference data-x="1">',
+    "<MEMORY-REFERENCE\tdata-y>",
+  ];
+  for (const variant of variants) {
+    const out = fmt.sanitizeMemoryText(`before ${variant} after`);
+    assert.equal(
+      out,
+      `before &lt;${variant.slice(1)} after`,
+      `variant not neutralized: ${JSON.stringify(variant)}`
+    );
+    assert.equal(
+      (out.match(/<\/?memory-reference\b[^>]*>/gi) ?? []).length,
+      0,
+      `raw delimiter survived: ${JSON.stringify(variant)}`
+    );
+  }
+
+  const clean =
+    "memory-reference is mentioned as plain text, not a <memory-referencex> tag";
+  assert.equal(fmt.sanitizeMemoryText(clean), clean);
+});
+
 test("SEC-07: get_context/get_profile cannot be broken out of with </memory-reference>", async () => {
   createMemory({
     type: "FACT",

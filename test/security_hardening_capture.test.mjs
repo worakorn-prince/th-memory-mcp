@@ -131,3 +131,24 @@ test("SEC-07: wrappers sanitize reference delimiters in bodies", () => {
 
   assert.equal(sanitizeMemoryText("</MEMORY-REFERENCE>"), "&lt;/MEMORY-REFERENCE>");
 });
+
+test("SEC-07 P1: wrappers neutralize whitespace/attribute delimiter variants", () => {
+  const variants = [
+    "</memory-reference >",
+    "</memory-reference foo>",
+    "</memory-reference\n>",
+    '<memory-reference data-x="1">',
+  ];
+  const wrapped = wrapMemoryReference(variants.join("\n"));
+  assert.equal((wrapped.match(/<\/memory-reference>/gi) ?? []).length, 1);
+  for (const variant of variants) {
+    assert.ok(
+      !wrapped.includes(variant),
+      `raw variant survived: ${JSON.stringify(variant)}`
+    );
+    assert.ok(
+      wrapped.includes(`&lt;${variant.slice(1)}`),
+      `variant not neutralized: ${JSON.stringify(variant)}`
+    );
+  }
+});

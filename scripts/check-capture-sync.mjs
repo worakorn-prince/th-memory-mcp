@@ -180,9 +180,12 @@ export function runCaptureSyncChecks() {
       if (!src.includes("function sanitizeMemoryText")) {
         throw new Error(`${label}: sanitizeMemoryText missing`);
       }
-      if (!src.includes("&lt;") || !src.includes("memory-reference>/gi")) {
+      if (
+        !src.includes("&lt;") ||
+        !src.includes("memory-reference\\b[^>]*>/gi")
+      ) {
         throw new Error(
-          `${label}: sanitizeMemoryText must neutralize memory-reference tags via &lt;`
+          `${label}: sanitizeMemoryText must neutralize memory-reference tags via &lt; and the hardened /<\\/?memory-reference\\b[^>]*>/gi pattern`
         );
       }
     }

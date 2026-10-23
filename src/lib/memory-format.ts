@@ -60,7 +60,10 @@ export function isUntrustedMetadata(
  * still reads naturally but no longer forms a delimiter.
  */
 export function sanitizeMemoryText(text: string): string {
-  return text.replace(/<\/?memory-reference>/gi, (tag) => `&lt;${tag.slice(1)}`);
+  return text.replace(
+    /<\/?memory-reference\b[^>]*>/gi,
+    (tag) => `&lt;${tag.slice(1)}`
+  );
 }
 
 /** Wrap a whole memory block with the guidance line + delimiters. */
