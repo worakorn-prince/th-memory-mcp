@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `search_history`, `get_recent_interactions`, `consolidate`, and the `extract_memories` dry-run preview now wrap returned memory text in `<memory-reference>` guidance and neutralize embedded delimiter payloads.
 - `isUntrustedMetadata` now fails closed: unparseable JSON and non-object metadata are treated as untrusted.
 - Secrets are now redacted at explicit write boundaries: memory content/summary, preference key/value, lesson fields, `update_memory` in-place fields, and trusted-import auxiliary rows pass through `filterSecrets` before persistence and FTS/embedding indexing; metadata strings are recursively redacted. Graph entity/relation fields remain out of scope.
+- Metadata redaction no longer passes non-plain objects (class instances, `Date`, `Map`, etc.) through untouched: they are JSON-serialized and recursively redacted, and cyclic/unserializable values collapse to `[REDACTED]`. Plain objects/arrays keep the depth-10 limit and `[Circular]` marker.
 
 ## [2.3.6] - 2026-10-23
 

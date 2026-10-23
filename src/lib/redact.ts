@@ -28,7 +28,15 @@ function redactValue(
     return out;
   }
 
-  if (!isPlainObject(value)) return value;
+  if (!isPlainObject(value)) {
+    let serialized: unknown;
+    try {
+      serialized = JSON.parse(JSON.stringify(value));
+    } catch {
+      return "[REDACTED]";
+    }
+    return redactValue(serialized, depth + 1, ancestors);
+  }
 
   ancestors.add(value);
   const out: Record<string, unknown> = {};

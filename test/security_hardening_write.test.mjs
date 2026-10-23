@@ -17,6 +17,7 @@ const { saveLessonHandler } = await import("../dist/tools/lesson.js");
 const { updateMemoryHandler } = await import("../dist/tools/update_memory.js");
 const { importMemoryHandler } = await import("../dist/tools/import_memory.js");
 const { filterSecrets } = await import("../dist/lib/capture-core.js");
+const { redactMetadata } = await import("../dist/lib/redact.js");
 
 const OPENAI_KEY = "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -281,4 +282,67 @@ test("trusted import applies redacted preferences, lessons, and profile", async 
 
 test("filterSecrets leaves clean text unchanged", () => {
   assert.equal(filterSecrets("normal note"), "normal note");
+});
+
+test("redactMetadata marks plain-object cycles as [Circular]", () => {
+  const node = { note: "clean", count: 1 };
+  node.self = node;
+  node.list = [node];
+
+  const out = redactMetadata(node);
+  assert.equal(out.note, "clean");
+  assert.equal(out.count, 1);
+  assert.equal(out.self, "[Circular]");
+  assert.equal(out.list[0], "[Circular]");
+});
+
+test("redactMetadata truncates nesting deeper than 10 with [REDACTED]", () => {
+  const root = { level: 0 };
+  let cursor = root;
+  for (let i = 1; i <= 12; i++) {
+    cursor.child = { level: i };
+    cursor = cursor.child;
+  }
+
+  const out = redactMetadata(root);
+  let current = out;
+  for (let i = 0; i < 10; i++) current = current.child;
+  assert.equal(current, "[REDACTED]");
+  assert.equal(out.level, 0);
+});
+
+test("redactMetadata serializes and redacts class instances", () => {
+  class SessionConfig {
+    constructor(secret) {
+      this.owner = "ops";
+      this.secret = secret;
+      this.retries = 3;
+    }
+    describe() {
+      return "methods are not serialized";
+    }
+  }
+
+  const out = redactMetadata({
+    session: new SessionConfig("password: hunter2-class"),
+    date: new Date("2026-10-23T00:00:00.000Z"),
+  });
+
+  assert.equal(out.session.owner, "ops");
+  assert.equal(out.session.retries, 3);
+  assert.equal(out.session.secret, "[REDACTED]");
+  assert.ok(!JSON.stringify(out).includes("hunter2-class"));
+  assert.equal(out.date, "2026-10-23T00:00:00.000Z");
+});
+
+test("redactMetadata leaves clean metadata unchanged", () => {
+  const clean = {
+    note: "normal note",
+    count: 5,
+    enabled: true,
+    missing: null,
+    list: ["alpha", 1, false, null, { nested: "kept" }],
+  };
+
+  assert.deepEqual(redactMetadata(clean), clean);
 });
