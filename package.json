@@ -34,6 +34,7 @@
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
     "test": "npm run build && node --test test/*.test.mjs test/smoke.mjs",
     "distill": "node dist/distill.js",
+    "scrub-secrets": "node dist/scrub-cli.js",
     "quickstart": "npm run build && node scripts/quickstart.mjs",
     "benchmark": "node repro/run.mjs",
     "benchmark:quick": "node benchmark/run.mjs --profile quick --out benchmark/results",
