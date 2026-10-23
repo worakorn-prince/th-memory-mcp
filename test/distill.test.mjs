@@ -188,6 +188,33 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM profile").get().n, 2);
   });
 
+  check("4e. runDistill redacts secrets before writing profile sections", () => {
+    insertStmt.run(
+      nowIso(0),
+      "s1",
+      "tool_call",
+      "tool=bash password: hunter2-distill",
+      JSON.stringify({ tool: "bash", directory: "password: hunter2-distill" })
+    );
+    const s3 = runDistill(db);
+    assert.deepEqual(
+      [...s3.updatedSections].sort(),
+      ["topics", "usage_stats"],
+      `updatedSections=${JSON.stringify(s3.updatedSections)}`
+    );
+
+    const rows = db.prepare("SELECT section, content FROM profile").all();
+    const byName = Object.fromEntries(rows.map((r) => [r.section, r.content]));
+    assert.ok(!byName.usage_stats.includes("hunter2"), byName.usage_stats);
+    assert.ok(byName.usage_stats.includes("[REDACTED]"), byName.usage_stats);
+    assert.match(byName.usage_stats, /^prompts: \d+ across \d+ days?/m);
+    assert.match(byName.usage_stats, /top dirs:/);
+    assert.match(byName.topics, /^frequent topics: /m);
+
+    const all = rows.map((r) => r.content).join("\n");
+    assert.ok(!all.includes("hunter2-distill"), all);
+  });
+
   db.close();
 } finally {
   for (const f of [join(tmp, "t.db"), join(tmp, "t.db-wal"), join(tmp, "t.db-shm")]) {

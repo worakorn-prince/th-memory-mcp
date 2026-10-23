@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import DatabaseCtor from "better-sqlite3";
 import type BetterSqlite3 from "better-sqlite3";
 import { DEFAULT_DB_PATH } from "./lib/config.js";
+import { redactSecrets } from "./lib/redact.js";
 import {
   computeStats,
   formatProfileSections,
@@ -47,7 +48,7 @@ export function runDistill(db: DbInstance): DistillSummary {
   const upsert = db.prepare(UPSERT_PROFILE_SQL);
   const updatedSections: string[] = [];
   for (const [section, content] of Object.entries(sections)) {
-    upsert.run(section, content, updated_at);
+    upsert.run(section, redactSecrets(content), updated_at);
     updatedSections.push(section);
   }
 

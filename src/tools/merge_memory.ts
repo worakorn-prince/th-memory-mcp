@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db, nowISO, ok, err, type ToolResult } from "../db/index.js";
 import { getMemoryById } from "../db/repositories/memories.js";
 import { supersede } from "../core/lifecycle-engine.js";
+import { redactMetadata } from "../lib/redact.js";
 
 export const mergeMemoryInput = {
   sourceId: z
@@ -18,7 +19,10 @@ function mergeMetadata(existing: string | null, mergedId: number): string {
   let obj: Record<string, unknown> = {};
   if (existing) {
     try {
-      obj = JSON.parse(existing);
+      const redacted = redactMetadata(JSON.parse(existing));
+      if (redacted && typeof redacted === "object" && !Array.isArray(redacted)) {
+        obj = redacted as Record<string, unknown>;
+      }
     } catch {
       obj = {};
     }

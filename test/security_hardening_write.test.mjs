@@ -16,6 +16,7 @@ const { rememberHandler } = await import("../dist/tools/remember.js");
 const { saveLessonHandler } = await import("../dist/tools/lesson.js");
 const { updateMemoryHandler } = await import("../dist/tools/update_memory.js");
 const { importMemoryHandler } = await import("../dist/tools/import_memory.js");
+const { mergeMemoryHandler } = await import("../dist/tools/merge_memory.js");
 const { filterSecrets } = await import("../dist/lib/capture-core.js");
 const { redactMetadata } = await import("../dist/lib/redact.js");
 
@@ -208,6 +209,51 @@ test("updateMemoryHandler in-place redacts content, summary, and metadata", () =
     note: "plain metadata",
     count: 5,
   });
+});
+
+test("mergeMemoryHandler redacts legacy raw secret in target metadata", () => {
+  const stamp = Date.now();
+  const targetId = createMemory({
+    type: "FACT",
+    content: `merge target ${stamp}`,
+    summary: "merge target summary",
+  });
+  const sourceId = createMemory({
+    type: "FACT",
+    content: `merge source ${stamp}`,
+    summary: "merge source summary",
+  });
+
+  const legacySecret = `hunter2-merge-legacy-${stamp}`;
+  db.prepare("UPDATE memories SET metadata = ? WHERE id = ?").run(
+    JSON.stringify({
+      note: `password: ${legacySecret}`,
+      nested: { token: OPENAI_KEY },
+      keep: "kept",
+    }),
+    targetId
+  );
+
+  const res = mergeMemoryHandler({ sourceId, targetId });
+  assert.ok(!isErr(res), text(res));
+
+  const row = db
+    .prepare("SELECT metadata, status FROM memories WHERE id = ?")
+    .get(targetId);
+  assert.ok(!row.metadata.includes(legacySecret), row.metadata);
+  assert.ok(!row.metadata.includes(OPENAI_KEY), row.metadata);
+  assert.equal(row.status, "active");
+
+  const meta = JSON.parse(row.metadata);
+  assert.equal(meta.note, "[REDACTED]");
+  assert.equal(meta.nested.token, "[REDACTED]");
+  assert.equal(meta.keep, "kept");
+  assert.deepEqual(meta.merged_from, [sourceId]);
+
+  const sourceRow = db
+    .prepare("SELECT status FROM memories WHERE id = ?")
+    .get(sourceId);
+  assert.equal(sourceRow.status, "superseded");
 });
 
 test("trusted import applies redacted preferences, lessons, and profile", async () => {
