@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-24
+
 ### Security
 - Derived/consolidated memories now inherit the weakest trust of their sources: if any source memory is untrusted, the derived row is stored with `metadata.trusted=false` and the consolidate output labels it `[untrusted-import]`.
 - Tool errors, server/CLI/plugin logs, and capture-plugin `meta` payloads are now redacted before output/storage, so secrets in failing inputs or error messages are no longer echoed back.
@@ -14,13 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export files are now written atomically (same-directory temp + rename) and the export handler refuses to follow a symlink at the destination; partial writes no longer become visible exports.
 - Added `npm run scrub-secrets` (dry-run by default, `--apply` to rewrite) to redact secrets from rows written before write-boundary redaction existed, covering memories, preferences, lessons, profile, interactions, entities, relations, memory links, and user names, with FTS/embedding re-sync for touched rows. `users.external_id` is never rewritten.
 - Graph write paths now redact secrets: `createEntity` covers name/canonical/type/aliases, `addRelation` and `linkMemories` cover predicates/relations, and import apply covers entity/relation/link metadata plus user names. `users.external_id` remains unchanged as an identity key.
-- get_recent_interactions reserves wrapper overhead so the final response stays within 4000 chars; consolidate labels untrusted members with [untrusted-import] while keeping one wrapper per response.
+- `get_recent_interactions` reserves wrapper overhead so the final response stays within 4000 chars; `consolidate` labels untrusted members with `[untrusted-import]` while keeping one wrapper per response.
 - Memory-reference sanitization now matches whitespace/attribute tag variants (`</memory-reference >`, `</memory-reference foo>`, newline forms, `<memory-reference data-x="1">`) in both `src/lib/memory-format.ts` and the capture plugin, using the hardened `/<\/?memory-reference\b[^>]*>/gi` pattern; `check:capture-sync` now requires that hardened form in both copies.
 - `forget(type="memory")` is now a true hard purge inside the existing transaction: it deletes the `memories` row, deletes `memory_links` on both sides, removes `search_index`/`embeddings` rows, nulls `relations.source_memory_id` (shared graph relations survive) and `memories.supersedes_id` on surviving rows. This intentionally breaks supersession chains, and legacy rows already marked `status='deleted'` can be purged.
 - `export_memory` now excludes `status='deleted'` memories, memory links touching deleted memories, and relations whose `source_memory_id` points at a deleted memory; relations with a `NULL` source remain. The `th-memory-mcp/v2` format is unchanged.
 - `search_history`, `get_recent_interactions`, `consolidate`, and the `extract_memories` dry-run preview now wrap returned memory text in `<memory-reference>` guidance and neutralize embedded delimiter payloads.
 - `isUntrustedMetadata` now fails closed: unparseable JSON and non-object metadata are treated as untrusted.
-- Secrets are now redacted at explicit write boundaries: memory content/summary, preference key/value, lesson fields, `update_memory` in-place fields, and trusted-import auxiliary rows pass through `filterSecrets` before persistence and FTS/embedding indexing; metadata strings are recursively redacted. Graph entity/relation fields remain out of scope.
+- Secrets are now redacted at explicit write boundaries: memory content/summary, preference key/value, lesson fields, `update_memory` in-place fields, and trusted-import auxiliary rows pass through `filterSecrets` before persistence and FTS/embedding indexing; metadata strings are recursively redacted. Graph entity/relation fields are covered separately below.
 - Metadata redaction no longer passes non-plain objects (class instances, `Date`, `Map`, etc.) through untouched: they are JSON-serialized and recursively redacted, and cyclic/unserializable values collapse to `[REDACTED]`. Plain objects/arrays keep the depth-10 limit and `[Circular]` marker.
 - Closed remaining legacy write paths: `merge_memory` now recursively redacts parsed target metadata before adding `merged_from`, so pre-existing raw secrets are not carried forward; the `distill` CLI now redacts each formatted profile section before upserting it (stats and pruning unchanged).
 
@@ -113,7 +115,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.6...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.6...v2.4.0
 [2.3.6]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.6
 [2.3.3]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.3
 [2.3.2]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.2
