@@ -13,7 +13,7 @@ npm install
 npm run build
 npm test
 ```
-- Requires Node.js >= 20 (see README > Requirements)
+- Requires Node.js 22.23.4+, 24.22.1+, or 26.12.1+ (patched releases; Node 20 is EOL) — see README > Requirements
 
 ## Code conventions
 - Main language: TypeScript (strict mode)
@@ -31,7 +31,7 @@ npm test
 - Branch off `master` (e.g. `feat/...`, `fix/...`), or fork and open a PR
 - Ensure `npm test` and `npm run build` pass before opening a PR
 - Use conventional commits (e.g. `feat:`, `fix:`, `docs:`, `chore:`)
-- CI (Node 20.x) must pass
+- CI (Node 22.23.4 / 24.22.1 / 26.12.1) must pass
 
 ## License
 - This project is MIT licensed, copyright holder `worakorn-prince`

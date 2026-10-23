@@ -1,6 +1,6 @@
 {
   "name": "th-memory-mcp",
-  "version": "2.3.5",
+  "version": "2.3.6",
   "mcpName": "io.github.worakorn-prince/th-memory-mcp",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
   "author": "worakorn-prince",
@@ -44,7 +44,7 @@
     "benchmark:viewer": "npx serve . -l 3000"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^22.23.4 || ^24.22.1 || ^26.12.1"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

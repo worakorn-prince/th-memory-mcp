@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.6] - 2026-10-23
+
+### Security
+- Raised the supported runtime baseline to patched Node.js lines 22.23.4+, 24.22.1+, and 26.12.1+; Node.js 20 is EOL (April 2026) and no longer supported.
+- CI now tests the minimum patched version of each supported line and runs `npm audit --omit=dev --audit-level=high`.
+- Documented the 21 Oct 2026 Node.js security release (including CVE-2026-111497 Brotli decoder RCE) and runtime verification with `is-my-node-vulnerable`. No source-code change: the stdio-only server does not use the affected HTTP/TLS/DNS/Brotli paths.
+
 ## [2.3.5] - 2026-10-21
 
 ### Fixed
@@ -89,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.3...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.6...HEAD
+[2.3.6]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.6
 [2.3.3]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.3
 [2.3.2]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.2
 [2.3.1]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.1

@@ -9,7 +9,7 @@
 [![npm version](https://img.shields.io/npm/v/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
+[![Node](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-brightgreen.svg)](https://nodejs.org)
 
 [![th-memory-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/score.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp)
 [![Th Memory MCP on mcprush](https://mcprush.com/badge/th-memory-mcp/score.svg)](https://mcprush.com/to/th-memory-mcp?ref=badge)
@@ -22,9 +22,11 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 
 ## Requirements (ความต้องการระบบ)
 
-- **Node.js >= 20 + npm** — server ใช้ API เฉพาะของ Node (`better-sqlite3` native build, `import.meta.url`), CI บน Node 20.x/22.x; ติดตั้ง dependencies และรัน build/test ด้วย npm (`npm install`, `npm run build`, `npm test`); ไม่ต้องมี external services, บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite เดียวในเครื่อง
+- **Node.js 22.23.4+, 24.22.1+ หรือ 26.12.1+ และ npm** — เฉพาะรุ่นที่ได้รับ patch; server ใช้ API เฉพาะของ Node (`better-sqlite3` native build, `import.meta.url`); CI ทดสอบรุ่น patch ขั้นต่ำของแต่ละ line (22/24/26); Node 20 EOL แล้ว เม.ย. 2026 และไม่รองรับ — ติดตั้ง dependencies และรัน build/test ด้วย npm (`npm install`, `npm run build`, `npm test`); ไม่ต้องมี external services, บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite เดียวในเครื่อง
 - **OpenCode** — โปรแกรมหลักที่โหลด MCP server และ plugin auto-capture (รองรับ MCP over stdio + plugins); plugin ใช้ `node:sqlite` บน OpenCode Desktop/Node 22.5+ และ fallback ไป `bun:sqlite` บน CLI ที่ใช้ Bun
 - **OS: Windows / macOS / Linux** — ข้ามแพลตฟอร์ม (Node); Windows ตั้ง `MEMORY_DB_PATH` ด้วย `setx`, macOS/Linux ใช้ `export` ใน shell profile
+
+> **ความปลอดภัย:** ใช้ Node.js รุ่นที่ได้รับ patch — ตรวจ runtime ด้วย `npx is-my-node-vulnerable`; `npm audit` ครอบคลุมเฉพาะ dependencies ของ npm ไม่ครอบคลุม CVE ใน Node.js core
 
 ## Quick Start (เริ่มใช้งานไว)
 

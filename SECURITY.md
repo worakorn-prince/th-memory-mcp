@@ -9,6 +9,14 @@
 
 We support the latest `2.3.x` release line. Older major/minor lines receive no security updates.
 
+## Runtime security baseline
+
+- Supported runtimes are the patched Node.js lines: **22.x >= 22.23.4** (Maintenance LTS), **24.x >= 24.22.1** (LTS), and **26.x >= 26.12.1**.
+- Node.js 20 reached end-of-life in April 2026 and receives no security fixes; it is not supported.
+- `npm audit` covers npm dependencies only; it does not detect Node.js core CVEs. Check the runtime with `npx is-my-node-vulnerable`.
+- CI tests the minimum patched version of each line. Core CVEs (e.g. the 21 Oct 2026 release, including CVE-2026-111497 Brotli decoder RCE) are remediated only by upgrading Node.js; this package cannot patch them.
+- This project is a stdio-only local MCP server and does not use Node's HTTP/2, TLS, DNS, or Brotli code paths in its own source.
+
 ## Reporting a Vulnerability
 
 **Please do not open a public issue for security reports.**
