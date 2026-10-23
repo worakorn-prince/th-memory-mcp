@@ -18,6 +18,7 @@ import {
   exportMemoryHandler,
 } from "./tools/export_memory.js";
 import { contextInput, contextHandler } from "./tools/context.js";
+import { redactSecrets } from "./lib/redact.js";
 import { consolidateInput, consolidateHandler } from "./tools/consolidate.js";
 import { linkMemoryInput, linkMemoryHandler } from "./tools/link_memory.js";
 import { mergeMemoryInput, mergeMemoryHandler } from "./tools/merge_memory.js";
@@ -229,6 +230,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-  console.error("[th-memory-mcp] fatal:", e instanceof Error ? e.message : e);
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error(`[th-memory-mcp] fatal: ${redactSecrets(msg)}`);
   process.exit(1);
 });

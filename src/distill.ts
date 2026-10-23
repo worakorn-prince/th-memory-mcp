@@ -81,7 +81,7 @@ function main(): number {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     try {
-      console.error(`[distill] failed: ${msg}`);
+      console.error(`[distill] failed: ${redactSecrets(msg)}`);
     } catch {}
     return 1;
   } finally {

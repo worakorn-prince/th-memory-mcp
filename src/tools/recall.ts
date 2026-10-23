@@ -10,6 +10,7 @@ import {
   type ToolResult,
 } from "../db/index.js";
 import { embed, cosine, deserialize } from "../lib/embed.js";
+import { redactSecrets } from "../lib/redact.js";
 import { wrapMemoryReference } from "../lib/memory-format.js";
 
 export const recallInput = {
@@ -89,7 +90,7 @@ export async function recallHandler(args: {
       }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[recall] preference/lesson search failed:", msg);
+    console.error(`[recall] preference/lesson search failed: ${redactSecrets(msg)}`);
     prefLines = "";
     lessonLines = "";
   }
@@ -126,7 +127,7 @@ export async function recallHandler(args: {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error("[recall] semantic search failed:", msg);
+      console.error(`[recall] semantic search failed: ${redactSecrets(msg)}`);
     }
 
     let interactionLines = "";
@@ -142,7 +143,7 @@ export async function recallHandler(args: {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error("[recall] interaction search failed:", msg);
+      console.error(`[recall] interaction search failed: ${redactSecrets(msg)}`);
       interactionLines = "";
     }
 

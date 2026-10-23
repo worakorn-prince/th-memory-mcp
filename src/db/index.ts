@@ -15,6 +15,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { truncate } from "../lib/capture-core.js";
+import { redactSecrets } from "../lib/redact.js";
 import { serialize } from "../lib/embed.js";
 import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
@@ -34,7 +35,7 @@ function createRawDb(): DbInstance {
     return new Database(DB_PATH);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[th-memory-mcp] cannot open DB at ${DB_PATH}: ${msg}`);
+    console.error(`[th-memory-mcp] cannot open DB at ${DB_PATH}: ${redactSecrets(msg)}`);
     process.exit(1);
   }
 }
@@ -246,7 +247,7 @@ export function getAllEmbeddings(opts: {
       // return; if that query also fails, the error propagates below.
       const msg = e instanceof Error ? e.message : String(e);
       console.error(
-        `[db] getAllEmbeddings: scoped memories query failed (${msg}); ` +
+        `[db] getAllEmbeddings: scoped memories query failed (${redactSecrets(msg)}); ` +
           `returning legacy preferences/lessons embeddings only (fail-closed)`
       );
     }
@@ -290,5 +291,6 @@ export function ok(text: string): ToolResult {
 }
 
 export function err(text: string): ToolResult {
-  return { content: [{ type: "text", text: `error: ${truncate(text, 300)}` }], isError: true };
+  // P2-ERROR-REDACTION: never echo raw secrets through tool error text.
+  return { content: [{ type: "text", text: `error: ${truncate(redactSecrets(text), 300)}` }], isError: true };
 }

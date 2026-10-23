@@ -124,17 +124,19 @@ interface InteractionRow {
   meta: string | null;
 }
 
-function buildRow(
+export function buildRow(
   kind: CaptureKind,
   content: string,
   opts?: { sessionId?: string; meta?: unknown }
 ): InteractionRow {
+  const rawMeta = opts?.meta === undefined ? undefined : JSON.stringify(opts.meta);
   return {
     ts: new Date().toISOString(),
     session_id: opts?.sessionId ?? null,
     kind,
     content: truncate(filterSecrets(content), LIMITS[kind]),
-    meta: JSON.stringify(opts?.meta) ?? null,
+    // P2-ERROR-REDACTION: metadata can carry tokens (env, headers, args).
+    meta: rawMeta === undefined ? null : filterSecrets(rawMeta),
   };
 }
 
@@ -146,7 +148,7 @@ function makeQuietLog(label: string): (e: unknown) => void {
       warned = true;
       const msg = e instanceof Error ? e.message : String(e);
       try {
-        console.error(`[learning-capture] ${label}: ${msg} (further errors suppressed)`);
+        console.error(`[learning-capture] ${label}: ${filterSecrets(msg)} (further errors suppressed)`);
       } catch {}
     }
   };

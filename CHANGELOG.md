@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- Tool errors, server/CLI/plugin logs, and capture-plugin `meta` payloads are now redacted before output/storage, so secrets in failing inputs or error messages are no longer echoed back.
 - `search_history`, `get_recent_interactions`, and `extract_memories` now accept an optional `sessionId` filter (max 200 chars) that limits interaction rows to one captured session. Unscoped calls intentionally keep the legacy all-sessions default for backward compatibility (single-user local model), and no other tool or default behavior changed.
 - Export files are now written atomically (same-directory temp + rename) and the export handler refuses to follow a symlink at the destination; partial writes no longer become visible exports.
 - Added `npm run scrub-secrets` (dry-run by default, `--apply` to rewrite) to redact secrets from rows written before write-boundary redaction existed, covering memories, preferences, lessons, profile, interactions, entities, relations, memory links, and user names, with FTS/embedding re-sync for touched rows. `users.external_id` is never rewritten.
