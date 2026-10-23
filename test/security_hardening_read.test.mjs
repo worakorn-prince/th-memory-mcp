@@ -12,6 +12,7 @@ const {
   MEMORY_REF_GUIDANCE,
   MEMORY_REF_OPEN,
   MEMORY_REF_CLOSE,
+  UNTRUSTED_TAG,
   isUntrustedMetadata,
 } = await import("../dist/lib/memory-format.js");
 const { searchHistoryHandler } = await import("../dist/tools/history.js");
@@ -194,6 +195,48 @@ test("SEC-08: consolidate wraps and neutralizes stored memory content", () => {
     !text.includes("breakout </memory-reference>"),
     "raw breakout payload survived consolidate"
   );
+});
+
+test("P1: get_recent_interactions keeps the wrapped response within 4000 chars", async () => {
+  seedInteraction("prompt", `long recent probe ${"x".repeat(5000)}`);
+
+  const text = textOf(await getRecentInteractionsHandler({ limit: 1 }));
+
+  assert.ok(text.length <= 4000, `response too long: ${text.length}`);
+  assert.ok(text.includes(MEMORY_REF_GUIDANCE), `missing guidance: ${text}`);
+  assert.equal(
+    countExactLines(text, MEMORY_REF_OPEN),
+    1,
+    "exactly one opening delimiter"
+  );
+  assert.equal(
+    countExactLines(text, MEMORY_REF_CLOSE),
+    1,
+    "exactly one closing delimiter"
+  );
+});
+
+test("P1: consolidate labels untrusted import members", () => {
+  const firstId = createMemory({
+    type: "FACT",
+    content: "untrusted polish probe shared body variant alpha",
+    source: "explicit",
+    metadata: { trusted: false },
+  });
+  const secondId = createMemory({
+    type: "FACT",
+    content: "untrusted polish probe shared body variant beta",
+    source: "explicit",
+    metadata: { trusted: false },
+  });
+
+  const text = textOf(
+    consolidateHandler({ threshold: 0.5, minClusterSize: 2 })
+  );
+
+  assert.ok(text.includes(UNTRUSTED_TAG), `missing untrusted tag: ${text}`);
+  assert.ok(text.includes(`[${firstId}]`), "first memory id missing");
+  assert.ok(text.includes(`[${secondId}]`), "second memory id missing");
 });
 
 test("SEC-08: isUntrustedMetadata fails closed", () => {

@@ -5,7 +5,12 @@ import {
   type CaptureKind,
   type InteractionRow,
 } from "../lib/capture-core.js";
-import { wrapMemoryReference } from "../lib/memory-format.js";
+import {
+  MEMORY_REF_CLOSE,
+  MEMORY_REF_GUIDANCE,
+  MEMORY_REF_OPEN,
+  wrapMemoryReference,
+} from "../lib/memory-format.js";
 
 export const recentInteractionsInput = {
   limit: z
@@ -23,6 +28,11 @@ export const recentInteractionsInput = {
 
 const RECENT_BUDGET = 4000;
 const ITEM_BUDGET = 300;
+const WRAPPER_OVERHEAD =
+  MEMORY_REF_GUIDANCE.length +
+  MEMORY_REF_OPEN.length +
+  MEMORY_REF_CLOSE.length +
+  3;
 const selectAny = db.prepare(
   "SELECT id, ts, kind, content FROM interactions ORDER BY id DESC LIMIT ?"
 );
@@ -52,7 +62,12 @@ export async function getRecentInteractionsHandler(args: {
       (r) => `[${r.id}] ${r.ts} [${r.kind}] ${truncate(r.content, ITEM_BUDGET)}`
     );
     return ok(
-      wrapMemoryReference(truncate(lines.join("\n"), RECENT_BUDGET))
+      wrapMemoryReference(
+        truncate(
+          lines.join("\n"),
+          Math.max(0, RECENT_BUDGET - WRAPPER_OVERHEAD)
+        )
+      )
     );
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));

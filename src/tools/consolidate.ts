@@ -9,7 +9,11 @@ import {
   linkMemoriesBySharedEntities,
 } from "../core/entity-extractor.js";
 import { db, ok } from "../db/index.js";
-import { wrapMemoryReference } from "../lib/memory-format.js";
+import {
+  isUntrustedMetadata,
+  UNTRUSTED_TAG,
+  wrapMemoryReference,
+} from "../lib/memory-format.js";
 
 export const consolidateInput = {
   threshold: z
@@ -64,7 +68,7 @@ export function consolidateHandler(args: Record<string, unknown>) {
   const lines: string[] = [];
   const derivedIds: number[] = [];
   const memberRow = db.prepare(
-    "SELECT scope, project_id, session_id, user_id, content FROM memories WHERE id = ?"
+    "SELECT scope, project_id, session_id, user_id, content, metadata FROM memories WHERE id = ?"
   );
   for (const c of clusters) {
     const members = c.map((id) => {
@@ -75,11 +79,16 @@ export function consolidateHandler(args: Record<string, unknown>) {
             session_id: string | null;
             user_id: number | null;
             content: string;
+            metadata: string | null;
           }
         | undefined;
       return { id, content: m?.content ?? "?", row: m };
     });
-    const contents = members.map((m) => `  - [${m.id}] ${m.content}`);
+    const contents = members.map((m) => {
+      const tag =
+        m.row && isUntrustedMetadata(m.row.metadata) ? `${UNTRUSTED_TAG} ` : "";
+      return `  - [${m.id}] ${tag}${m.content}`;
+    });
     // Auto entity extraction (item 5): persist entities + co-occurrence, then
     // link memories in the cluster that share an entity.
     for (const m of members) {
