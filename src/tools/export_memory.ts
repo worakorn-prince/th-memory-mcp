@@ -4,8 +4,11 @@ import {
   statSync,
   statfsSync,
   chmodSync,
+  lstatSync,
+  renameSync,
+  unlinkSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { z } from "zod";
 import {
   db,
@@ -182,6 +185,31 @@ function sanitizeFilename(name: string): string | null {
   return name;
 }
 
+// P2-PATH-SANDBOX: write via a same-directory temp file and rename so a
+// partial write never becomes the visible export, and refuse to follow a
+// symlink planted at the destination (writeFileSync would clobber its target).
+function writeExportFileAtomic(filePath: string, json: string): void {
+  const existing = lstatSync(filePath, { throwIfNoEntry: false });
+  if (existing?.isSymbolicLink()) {
+    throw new Error("export target must not be a symlink");
+  }
+  const tmp = join(
+    dirname(filePath),
+    `.${basename(filePath)}.tmp-${process.pid}-${Date.now()}`
+  );
+  writeFileSync(tmp, json, { encoding: "utf8", mode: 0o600, flag: "wx" });
+  try {
+    renameSync(tmp, filePath);
+  } catch (e) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+      /* ignore cleanup failure, surface the original error */
+    }
+    throw e;
+  }
+}
+
 export async function exportMemoryHandler(args: {
   includeInteractions?: boolean;
   filename?: string;
@@ -261,7 +289,7 @@ export async function exportMemoryHandler(args: {
         return err("insufficient disk space for export");
     } catch {}
     const filePath = join(EXPORT_DIR, filename);
-    writeFileSync(filePath, json, { encoding: "utf8", mode: 0o600 });
+    writeExportFileAtomic(filePath, json);
     if (IS_POSIX) {
       try {
         chmodSync(filePath, 0o600);
