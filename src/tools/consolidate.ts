@@ -122,7 +122,16 @@ export function consolidateHandler(args: Record<string, unknown>) {
           userId: scope.userId,
         });
         derivedIds.push(did);
-        lines.push(`  => derived memory id=${did}`);
+        // P2-TRUST-PROPAGATION: label derived rows that inherited an
+        // untrusted source so callers never treat them as trusted data.
+        const derivedRow = db
+          .prepare("SELECT metadata FROM memories WHERE id = ?")
+          .get(did) as { metadata: string | null } | undefined;
+        const derivedTag =
+          derivedRow && isUntrustedMetadata(derivedRow.metadata)
+            ? `${UNTRUSTED_TAG} `
+            : "";
+        lines.push(`  => derived memory id=${did} ${derivedTag}`.trimEnd());
       }
     }
   }

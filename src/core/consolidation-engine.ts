@@ -4,6 +4,7 @@ import { createMemory } from "../db/repositories/memories.js";
 import { linkMemories } from "./graph-engine.js";
 import { resolveUserId } from "../db/repositories/users.js";
 import { isScopeVisible } from "../lib/scope.js";
+import { isUntrustedMetadata } from "../lib/memory-format.js";
 
 export interface ClusterOptions {
   threshold?: number;
@@ -257,6 +258,14 @@ export function resolveDerivedScope(
 
 // Create a derived/consolidated memory and link its sources via `derived_from` (spec §16)
 export function createDerivedMemory(input: DerivedMemoryInput): number {
+  // P2-TRUST-PROPAGATION: a derived memory inherits the weakest trust of its
+  // sources. If any source is untrusted (metadata.trusted=false, or malformed
+  // metadata that fails closed), the derived row is marked untrusted too.
+  const sourceMeta = db.prepare("SELECT metadata FROM memories WHERE id = ?");
+  const anyUntrusted = input.sourceIds.some((src) => {
+    const row = sourceMeta.get(src) as { metadata: string | null } | undefined;
+    return row ? isUntrustedMetadata(row.metadata) : false;
+  });
   const id = createMemory({
     type: "DERIVED",
     content: input.content,
@@ -265,6 +274,9 @@ export function createDerivedMemory(input: DerivedMemoryInput): number {
     projectId: input.projectId ?? null,
     sessionId: input.sessionId ?? null,
     userId: input.userId ?? null,
+    metadata: anyUntrusted
+      ? { trusted: false, derived_from: input.sourceIds }
+      : undefined,
   });
   for (const src of input.sourceIds) {
     if (src !== id) linkMemories(src, id, "derived_from");
