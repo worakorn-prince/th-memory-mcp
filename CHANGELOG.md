@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- Graph write paths now redact secrets: `createEntity` covers name/canonical/type/aliases, `addRelation` and `linkMemories` cover predicates/relations, and import apply covers entity/relation/link metadata plus user names. `users.external_id` remains unchanged as an identity key.
 - get_recent_interactions reserves wrapper overhead so the final response stays within 4000 chars; consolidate labels untrusted members with [untrusted-import] while keeping one wrapper per response.
 - Memory-reference sanitization now matches whitespace/attribute tag variants (`</memory-reference >`, `</memory-reference foo>`, newline forms, `<memory-reference data-x="1">`) in both `src/lib/memory-format.ts` and the capture plugin, using the hardened `/<\/?memory-reference\b[^>]*>/gi` pattern; `check:capture-sync` now requires that hardened form in both copies.
 - `forget(type="memory")` is now a true hard purge inside the existing transaction: it deletes the `memories` row, deletes `memory_links` on both sides, removes `search_index`/`embeddings` rows, nulls `relations.source_memory_id` (shared graph relations survive) and `memories.supersedes_id` on surviving rows. This intentionally breaks supersession chains, and legacy rows already marked `status='deleted'` can be purged.

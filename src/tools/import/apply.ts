@@ -2,7 +2,7 @@ import { db, nowISO, syncSearchIndex, upsertEmbedding } from "../../db/index.js"
 import { createMemory } from "../../db/repositories/memories.js";
 import { embed } from "../../lib/embed.js";
 import { isIsoDateString } from "../../lib/iso.js";
-import { redactSecrets } from "../../lib/redact.js";
+import { redactMetadata, redactSecrets } from "../../lib/redact.js";
 import type { MemoryType, SourceType } from "../../memory/types.js";
 import { withTrustedFlag } from "./common.js";
 import type {
@@ -13,6 +13,18 @@ import type {
   ValidatedRelation,
   ValidatedUser,
 } from "./types.js";
+
+function redactStoredMetadata(value: unknown): string {
+  if (value == null) return JSON.stringify({});
+  if (typeof value === "string") {
+    try {
+      return JSON.stringify(redactMetadata(JSON.parse(value)));
+    } catch {
+      return redactSecrets(value);
+    }
+  }
+  return JSON.stringify(redactMetadata(value));
+}
 
 export interface ApplyImportInput {
   userId?: string | null;
@@ -45,7 +57,8 @@ export function applyValidatedRows(
       const insertUser = db.prepare(
         "INSERT OR IGNORE INTO users (external_id, name, created_at) VALUES (?, ?, ?)"
       );
-      for (const u of input.validUsers) insertUser.run(u.external, u.name, u.created);
+      for (const u of input.validUsers)
+        insertUser.run(u.external, u.name == null ? null : redactSecrets(u.name), u.created);
 
       const updateStatus = db.prepare("UPDATE memories SET status = ? WHERE id = ?");
       for (const { it } of input.validMemories) {
@@ -83,27 +96,24 @@ export function applyValidatedRows(
       );
       const batchCanonical = new Map<string, number>();
       for (const { e, name, canonical } of input.validEntities) {
-        if (batchCanonical.has(canonical)) {
+        const safeName = redactSecrets(name).slice(0, 500);
+        const safeCanonical = redactSecrets(canonical);
+        if (batchCanonical.has(safeCanonical)) {
           if (typeof e.id === "number" && Number.isInteger(e.id))
-            importedEntityIds.set(e.id, batchCanonical.get(canonical)!);
+            importedEntityIds.set(e.id, batchCanonical.get(safeCanonical)!);
           continue;
         }
-        const existing = selEntity.get(canonical) as { id: number } | undefined;
+        const existing = selEntity.get(safeCanonical) as { id: number } | undefined;
         let newId: number;
         if (existing) {
           newId = existing.id;
         } else {
-          const type = typeof e.type === "string" ? (e.type as string).slice(0, 200) : "concept";
-          const meta =
-            e.metadata == null
-              ? JSON.stringify({})
-              : typeof e.metadata === "string"
-                ? (e.metadata as string)
-                : JSON.stringify(e.metadata);
-          const res = insEntity.run(name.slice(0, 500), canonical, type, meta);
+          const type = typeof e.type === "string" ? redactSecrets(e.type).slice(0, 200) : "concept";
+          const meta = redactStoredMetadata(e.metadata);
+          const res = insEntity.run(safeName, safeCanonical, type, meta);
           newId = Number((res as { lastInsertRowid: number | bigint }).lastInsertRowid);
         }
-        batchCanonical.set(canonical, newId);
+        batchCanonical.set(safeCanonical, newId);
         if (typeof e.id === "number" && Number.isInteger(e.id)) importedEntityIds.set(e.id, newId);
       }
 
@@ -121,7 +131,7 @@ export function applyValidatedRows(
           log.push(`invalid link ${link.sourceId}->${link.targetId}: unresolvable memory id`);
           continue;
         }
-        insLink.run(sourceId, link.relation, targetId, (link.confidence as number) ?? 0.5, nowISO());
+        insLink.run(sourceId, redactSecrets(link.relation), targetId, (link.confidence as number) ?? 0.5, nowISO());
       }
 
       const selEntityById = db.prepare("SELECT id FROM entities WHERE id = ?");
@@ -149,15 +159,11 @@ export function applyValidatedRows(
         else if (importedIds.has(v.oldMem)) newMem = importedIds.get(v.oldMem)!;
         else if (selMemById.get(v.oldMem)) newMem = v.oldMem;
         else newMem = null;
-        const dup = selRelation.get(newSource, v.predicate, newTarget, newMem) as { id: number } | undefined;
+        const predicate = redactSecrets(v.predicate);
+        const dup = selRelation.get(newSource, predicate, newTarget, newMem) as { id: number } | undefined;
         if (dup) continue;
-        const meta =
-          v.r.metadata == null
-            ? JSON.stringify({})
-            : typeof v.r.metadata === "string"
-              ? (v.r.metadata as string)
-              : JSON.stringify(v.r.metadata);
-        insRelation.run(newSource, v.predicate, newTarget, v.conf, v.vf, v.vu, newMem, meta);
+        const meta = redactStoredMetadata(v.r.metadata);
+        insRelation.run(newSource, predicate, newTarget, v.conf, v.vf, v.vu, newMem, meta);
       }
 
       // SEC-13: defense in depth — never apply auxiliary data unless the

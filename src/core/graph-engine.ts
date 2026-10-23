@@ -1,5 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { db, nowISO } from "../db/index.js";
+import { redactMetadata, redactSecrets } from "../lib/redact.js";
 
 export interface EntityInput {
   name: string;
@@ -23,14 +24,15 @@ function getInsertEntity(): BetterSqlite3.Statement {
 }
 
 export function createEntity(input: EntityInput): number {
-  const canonical = input.name.toLowerCase().trim();
+  const name = redactSecrets(input.name);
+  const canonical = name.toLowerCase().trim();
   const existing = getFindEntity().get(canonical) as { id: number } | undefined;
   if (existing) return existing.id;
   const info = getInsertEntity().run(
-    input.name,
+    name,
     canonical,
-    input.type ?? "concept",
-    JSON.stringify({ aliases: input.aliases ?? [] })
+    redactSecrets(input.type ?? "concept"),
+    JSON.stringify(redactMetadata({ aliases: input.aliases ?? [] }))
   );
   return Number(info.lastInsertRowid);
 }
@@ -64,16 +66,17 @@ export function addRelation(input: {
   // coalesced source_memory) so repeats return the existing row instead of
   // accumulating duplicates. SELECT-first keeps lastInsertRowid semantics
   // (INSERT OR IGNORE would report a stale rowid on conflict).
+  const predicate = redactSecrets(input.predicate);
   const existing = getFindRelation().get(
     input.subjectId,
-    input.predicate,
+    predicate,
     input.objectId,
     input.sourceMemoryId ?? null
   ) as { id: number } | undefined;
   if (existing) return existing.id;
   const info = getInsertRelation().run(
     input.subjectId,
-    input.predicate,
+    predicate,
     input.objectId,
     input.confidence ?? 0.5,
     input.sourceMemoryId ?? null,
@@ -96,7 +99,7 @@ export function linkMemories(
   targetId: number,
   relation: string
 ): void {
-  getInsertMemoryLink().run(sourceId, relation, targetId, nowISO());
+  getInsertMemoryLink().run(sourceId, redactSecrets(relation), targetId, nowISO());
 }
 
 export interface TraversalOptions {
