@@ -9,6 +9,7 @@ import {
   linkMemoriesBySharedEntities,
 } from "../core/entity-extractor.js";
 import { db, ok } from "../db/index.js";
+import { wrapMemoryReference } from "../lib/memory-format.js";
 
 export const consolidateInput = {
   threshold: z
@@ -122,5 +123,6 @@ export function consolidateHandler(args: Record<string, unknown>) {
       ? `, created ${derivedIds.length} derived memories`
       : ""
   }`;
-  return ok(header + "\n\n" + (lines.join("\n\n") || "(no clusters)"));
+  const body = lines.join("\n\n") || "(no clusters)";
+  return ok(header + "\n\n" + wrapMemoryReference(body));
 }

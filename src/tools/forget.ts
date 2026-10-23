@@ -28,13 +28,20 @@ const indexTables = db.prepare(
 const existsPreference = db.prepare("SELECT id FROM preferences WHERE id = ?");
 const existsLesson = db.prepare("SELECT id FROM lessons WHERE id = ?");
 const existsInteraction = db.prepare("SELECT id FROM interactions WHERE id = ?");
-const existsMemory = db.prepare("SELECT id FROM memories WHERE id = ? AND status <> 'deleted'");
+const existsMemory = db.prepare("SELECT id FROM memories WHERE id = ?");
 const delPreference = db.prepare("DELETE FROM preferences WHERE id = ?");
 const delLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
 const delInteraction = db.prepare("DELETE FROM interactions WHERE id = ?");
 const delMemoryLinks = db.prepare(
   "DELETE FROM memory_links WHERE source_memory_id = ? OR target_memory_id = ?"
 );
+const clearRelationSource = db.prepare(
+  "UPDATE relations SET source_memory_id = NULL WHERE source_memory_id = ?"
+);
+const clearSupersedes = db.prepare(
+  "UPDATE memories SET supersedes_id = NULL WHERE supersedes_id = ?"
+);
+const delMemory = db.prepare("DELETE FROM memories WHERE id = ?");
 
 type Kind = "memories" | "preferences" | "lessons" | "interactions";
 
@@ -99,18 +106,19 @@ export async function forgetHandler(args: {
       for (const kind of targets) {
         if (!existsIn(kind, id)) continue;
         if (kind === "memories") {
-          db.prepare("UPDATE memories SET status = 'deleted' WHERE id = ?").run(id);
-          removeSearchIndex("memories", id);
-          removeEmbedding("memories", id);
-          // Batch A: cascade-delete memory_links referencing this id on BOTH sides
-          // in the same transaction so forget never leaves dangling graph edges.
-          // NOTE: entities/relations are intentionally NOT deleted here — they are
-          // shared graph nodes that may still be referenced by other memories;
-          // deleting them would corrupt the graph. Orphaned rows stay harmless
-          // and can be reclaimed by consolidate/GC later.
+          // Hard purge: remove the row and every direct reference in the same
+          // transaction so no content/id survives in the DB. Graph entities and
+          // relations are shared nodes and stay; only their source pointer is
+          // cleared. Supersession chains are intentionally broken (referencing
+          // rows survive with supersedes_id = NULL).
           const info = delMemoryLinks.run(id, id) as unknown as { changes: number };
           const n = Number(info.changes ?? 0);
           linksRemoved += n;
+          clearRelationSource.run(id);
+          clearSupersedes.run(id);
+          removeSearchIndex("memories", id);
+          removeEmbedding("memories", id);
+          delMemory.run(id);
           removed.push(`memory #${id} (${n} link(s) removed)`);
         } else if (kind === "preferences") {
           delPreference.run(id);

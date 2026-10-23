@@ -2,6 +2,7 @@ import { db, nowISO, syncSearchIndex, upsertEmbedding } from "../../db/index.js"
 import { createMemory } from "../../db/repositories/memories.js";
 import { embed } from "../../lib/embed.js";
 import { isIsoDateString } from "../../lib/iso.js";
+import { redactSecrets } from "../../lib/redact.js";
 import type { MemoryType, SourceType } from "../../memory/types.js";
 import { withTrustedFlag } from "./common.js";
 import type {
@@ -176,28 +177,36 @@ export function applyValidatedRows(
           "INSERT INTO profile (section, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(section) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at"
         );
         for (const p of input.validPrefs) {
-          const existing = selectPref.get(p.category, p.key) as { id: number } | undefined;
+          const category = redactSecrets(p.category as string);
+          const key = redactSecrets(p.key as string);
+          const value = redactSecrets(p.value as string);
+          const existing = selectPref.get(category, key) as { id: number } | undefined;
           const conf = typeof p.confidence === "number" ? (p.confidence as number) : 0.5;
           const src = typeof p.source === "string" ? (p.source as string) : "imported";
           const ts = typeof p.updated_at === "string" && isIsoDateString(p.updated_at as string) ? (p.updated_at as string) : nowISO();
-          if (existing) updatePref.run(p.value, conf, src, ts, p.category, p.key);
-          else insertPref.run(p.category, p.key, p.value, conf, src, ts);
-          const row = selectPref.get(p.category, p.key) as { id: number } | undefined;
+          if (existing) updatePref.run(value, conf, src, ts, category, key);
+          else insertPref.run(category, key, value, conf, src, ts);
+          const row = selectPref.get(category, key) as { id: number } | undefined;
           if (row) {
-            syncSearchIndex("preferences", row.id, `${p.category}/${p.key}`, `${p.key}: ${p.value}`);
-            upsertEmbedding("preferences", row.id, embed(`${p.category} ${p.key} ${p.value}`));
+            syncSearchIndex("preferences", row.id, `${category}/${key}`, `${key}: ${value}`);
+            upsertEmbedding("preferences", row.id, embed(`${category} ${key} ${value}`));
           }
         }
         for (const l of input.validLessons) {
+          const situation = redactSecrets(l.situation as string);
+          const mistake = redactSecrets(l.mistake as string);
+          const correction = redactSecrets(l.correction as string);
           const ts = typeof l.created_at === "string" && isIsoDateString(l.created_at as string) ? (l.created_at as string) : nowISO();
-          const res = insertLesson.run(l.situation, l.mistake, l.correction, ts);
+          const res = insertLesson.run(situation, mistake, correction, ts);
           const id = Number((res as { lastInsertRowid: number | bigint }).lastInsertRowid);
-          syncSearchIndex("lessons", id, ((l.situation as string) ?? "").slice(0, 80), `${l.situation} | mistake: ${l.mistake} -> correction: ${l.correction}`);
-          upsertEmbedding("lessons", id, embed(`${l.situation} ${l.mistake} ${l.correction}`));
+          syncSearchIndex("lessons", id, situation.slice(0, 80), `${situation} | mistake: ${mistake} -> correction: ${correction}`);
+          upsertEmbedding("lessons", id, embed(`${situation} ${mistake} ${correction}`));
         }
         for (const pr of input.validProfiles) {
+          const section = redactSecrets(pr.section as string);
+          const content = redactSecrets(pr.content as string);
           const ts = typeof pr.updated_at === "string" && isIsoDateString(pr.updated_at as string) ? (pr.updated_at as string) : nowISO();
-          upsertProfile.run(pr.section, pr.content, ts);
+          upsertProfile.run(section, content, ts);
         }
       }
     });

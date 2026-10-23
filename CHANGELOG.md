@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- `forget(type="memory")` is now a true hard purge inside the existing transaction: it deletes the `memories` row, deletes `memory_links` on both sides, removes `search_index`/`embeddings` rows, nulls `relations.source_memory_id` (shared graph relations survive) and `memories.supersedes_id` on surviving rows. This intentionally breaks supersession chains, and legacy rows already marked `status='deleted'` can be purged.
+- `export_memory` now excludes `status='deleted'` memories, memory links touching deleted memories, and relations whose `source_memory_id` points at a deleted memory; relations with a `NULL` source remain. The `th-memory-mcp/v2` format is unchanged.
+- `search_history`, `get_recent_interactions`, `consolidate`, and the `extract_memories` dry-run preview now wrap returned memory text in `<memory-reference>` guidance and neutralize embedded delimiter payloads.
+- `isUntrustedMetadata` now fails closed: unparseable JSON and non-object metadata are treated as untrusted.
+- Secrets are now redacted at explicit write boundaries: memory content/summary, preference key/value, lesson fields, `update_memory` in-place fields, and trusted-import auxiliary rows pass through `filterSecrets` before persistence and FTS/embedding indexing; metadata strings are recursively redacted. Graph entity/relation fields remain out of scope.
+
 ## [2.3.6] - 2026-10-23
 
 ### Security

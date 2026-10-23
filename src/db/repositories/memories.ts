@@ -6,6 +6,7 @@ import {
   nowISO,
 } from "../../db/index.js";
 import { embed } from "../../lib/embed.js";
+import { redactMetadata, redactSecrets } from "../../lib/redact.js";
 import { ensureUser } from "./users.js";
 import type {
   MemoryType,
@@ -34,6 +35,10 @@ export interface CreateMemoryInput {
 
 function insertMemoryAtomic(input: CreateMemoryInput): number {
   const ts = nowISO();
+  const content = redactSecrets(input.content);
+  const summary = input.summary != null ? redactSecrets(input.summary) : null;
+  const metadata =
+    input.metadata != null ? redactMetadata(input.metadata) : null;
   const uid = input.userId ? ensureUser(input.userId) : null;
   const scope: Scope = input.sessionId
     ? "SESSION"
@@ -53,8 +58,8 @@ function insertMemoryAtomic(input: CreateMemoryInput): number {
     )
     .run({
       type: input.type,
-      content: input.content,
-      summary: input.summary ?? null,
+      content,
+      summary,
       status: input.status ?? "active",
       source: input.source ?? "explicit",
       confidence: input.confidence ?? 0.5,
@@ -67,11 +72,10 @@ function insertMemoryAtomic(input: CreateMemoryInput): number {
         ts,
       validFrom: input.validFrom ?? null,
       validUntil: input.validUntil ?? null,
-      metadata:
-        input.metadata != null ? JSON.stringify(input.metadata) : null,
+      metadata: metadata != null ? JSON.stringify(metadata) : null,
     });
   const id = Number(info.lastInsertRowid);
-  syncMemoryIndex(id, input.type, input.content);
+  syncMemoryIndex(id, input.type, content);
   return id;
 }
 

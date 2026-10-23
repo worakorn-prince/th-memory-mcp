@@ -13,6 +13,7 @@ import {
 } from "../db/repositories/memories.js";
 import { supersede } from "../core/lifecycle-engine.js";
 import { isoDateTimeSchema, isIsoDateString } from "../lib/iso.js";
+import { redactMetadata, redactSecrets } from "../lib/redact.js";
 import type { MemoryType, SourceType } from "../memory/types.js";
 
 type MetadataObject = Record<string, unknown>;
@@ -105,6 +106,12 @@ export function updateMemoryHandler(args: {
   supersede?: boolean;
 }): ToolResult {
   try {
+    const content =
+      args.content !== undefined ? redactSecrets(args.content) : undefined;
+    const summary =
+      args.summary != null ? redactSecrets(args.summary) : args.summary;
+    const metadata =
+      args.metadata !== undefined ? redactMetadata(args.metadata) : undefined;
     const mem = getMemoryById(args.id);
     if (!mem) return err(`memory ${args.id} not found`);
     if (mem.status === "deleted")
@@ -143,7 +150,7 @@ export function updateMemoryHandler(args: {
     }
 
     const supersedeContent =
-      args.content !== undefined && (args.supersede ?? true);
+      content !== undefined && (args.supersede ?? true);
 
     if (supersedeContent) {
       const externalId = mem.user_id
@@ -155,8 +162,8 @@ export function updateMemoryHandler(args: {
         : null;
       const newId = createMemory({
         type: mem.type as MemoryType,
-        content: args.content as string,
-        summary: args.summary ?? mem.summary,
+        content: content as string,
+        summary: summary ?? mem.summary,
         source: mem.source as SourceType,
         confidence: args.confidence ?? mem.confidence,
         importance: args.importance ?? mem.importance,
@@ -168,7 +175,7 @@ export function updateMemoryHandler(args: {
           args.validFrom !== undefined ? args.validFrom : mem.valid_from,
         validUntil:
           args.validUntil !== undefined ? args.validUntil : mem.valid_until,
-        metadata: normalizeMetadata(mem.metadata, args.metadata),
+        metadata: normalizeMetadata(mem.metadata, metadata),
       });
       supersede(mem.id, newId);
       return ok(
@@ -178,9 +185,9 @@ export function updateMemoryHandler(args: {
 
     const sets: string[] = [];
     const vals: unknown[] = [];
-    if (args.summary !== undefined) {
+    if (summary !== undefined) {
       sets.push("summary = ?");
-      vals.push(args.summary);
+      vals.push(summary);
     }
     if (args.importance !== undefined) {
       sets.push("importance = ?");
@@ -198,14 +205,14 @@ export function updateMemoryHandler(args: {
       sets.push("valid_until = ?");
       vals.push(args.validUntil);
     }
-    if (args.metadata !== undefined) {
-      const normalized = normalizeMetadata(mem.metadata, args.metadata);
+    if (metadata !== undefined) {
+      const normalized = normalizeMetadata(mem.metadata, metadata);
       sets.push("metadata = ?");
       vals.push(normalized === null ? null : JSON.stringify(normalized));
     }
-    if (args.content !== undefined) {
+    if (content !== undefined) {
       sets.push("content = ?");
-      vals.push(args.content);
+      vals.push(content);
     }
     if (sets.length === 0)
       return ok(`no mutable fields provided; memory ${mem.id} unchanged`);
@@ -215,7 +222,7 @@ export function updateMemoryHandler(args: {
     db.prepare(`UPDATE memories SET ${sets.join(", ")} WHERE id = ?`).run(
       ...vals
     );
-    if (args.content !== undefined) {
+    if (content !== undefined) {
       const m = getMemoryById(mem.id);
       if (m) syncMemoryIndex(m.id, m.type, m.content);
     }

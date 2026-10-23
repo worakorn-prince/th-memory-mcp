@@ -7,6 +7,7 @@ import {
   err,
   type ToolResult,
 } from "../db/index.js";
+import { wrapMemoryReference } from "../lib/memory-format.js";
 
 export const searchHistoryInput = {
   query: z.string().min(1).max(500).describe("Text to search in past prompts"),
@@ -41,7 +42,7 @@ export async function searchHistoryHandler(args: {
     const lines = rows.map(
       (r) => `- [${r.ts}] ${truncate(r.content, ITEM_BUDGET)}`
     );
-    return ok(lines.join("\n"));
+    return ok(wrapMemoryReference(lines.join("\n")));
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }

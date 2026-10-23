@@ -293,7 +293,10 @@ try {
     { limit: 5, kind: "prompt" },
     "9e. get_recent_interactions kind=prompt"
   );
-  const promptLines = recentPrompt.text.trim().split("\n");
+  const promptLines = recentPrompt.text
+    .trim()
+    .split("\n")
+    .filter((l) => /^\[\d+\] \S+ \[(?:prompt|tool_call|error)\] /.test(l));
   report(
     !recentPrompt.isError && promptLines.length === 2 && promptLines.every((l) => l.includes("[prompt]")),
     "9f. kind=prompt filters to exactly the 2 prompt rows",

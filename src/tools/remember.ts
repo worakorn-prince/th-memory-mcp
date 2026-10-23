@@ -9,6 +9,7 @@ import {
   type ToolResult,
 } from "../db/index.js";
 import { embed } from "../lib/embed.js";
+import { redactSecrets } from "../lib/redact.js";
 
 export const rememberInput = {
   category: z
@@ -73,9 +74,11 @@ const applyRemember = db.transaction(
 
 export async function rememberHandler(args: RememberArgs): Promise<ToolResult> {
   try {
-    const { id, confidence } = applyRemember(args);
+    const key = redactSecrets(args.key);
+    const value = redactSecrets(args.value);
+    const { id, confidence } = applyRemember({ ...args, key, value });
     return ok(
-      `remembered [${args.category}] ${args.key} = ${args.value} (preference id=${id}, confidence=${confidence.toFixed(2)})`
+      `remembered [${args.category}] ${key} = ${value} (preference id=${id}, confidence=${confidence.toFixed(2)})`
     );
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));

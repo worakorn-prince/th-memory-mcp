@@ -5,6 +5,7 @@ import {
   type CaptureKind,
   type InteractionRow,
 } from "../lib/capture-core.js";
+import { wrapMemoryReference } from "../lib/memory-format.js";
 
 export const recentInteractionsInput = {
   limit: z
@@ -50,7 +51,9 @@ export async function getRecentInteractionsHandler(args: {
     const lines = rows.map(
       (r) => `[${r.id}] ${r.ts} [${r.kind}] ${truncate(r.content, ITEM_BUDGET)}`
     );
-    return ok(truncate(lines.join("\n"), RECENT_BUDGET));
+    return ok(
+      wrapMemoryReference(truncate(lines.join("\n"), RECENT_BUDGET))
+    );
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }

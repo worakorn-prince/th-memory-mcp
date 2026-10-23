@@ -15,7 +15,7 @@ const { db } = await import("../dist/db/index.js");
 const { createEntity, addRelation } = await import("../dist/core/graph-engine.js");
 const { ensureUser } = await import("../dist/db/repositories/users.js");
 
-test("v2 export includes memories and graph links; import preserves lifecycle", async () => {
+test("v2 export includes memories and graph links; import preserves lifecycle and forget hard-purges", async () => {
   const first = createMemory({ type: "FACT", content: "export v2 first", projectId: "project-a" });
   const second = createMemory({ type: "DECISION", content: "export v2 second", status: "archived" });
   db.prepare("INSERT INTO memory_links (source_memory_id, relation, target_memory_id, confidence, created_at) VALUES (?, ?, ?, ?, ?)")
@@ -42,7 +42,11 @@ test("v2 export includes memories and graph links; import preserves lifecycle", 
 
   const forgotten = await forgetHandler({ target_id: restored.id, type: "memory" });
   assert.match(forgotten.content[0].text, /forgot memory/);
-  assert.equal(db.prepare("SELECT status FROM memories WHERE id = ?").get(restored.id).status, "deleted");
+  assert.equal(
+    db.prepare("SELECT id FROM memories WHERE id = ?").get(restored.id),
+    undefined,
+    "forget must hard-delete the memories row, not soft-delete it"
+  );
 });
 
 test("Batch A: entities/relations/users round-trip via export/import", async () => {

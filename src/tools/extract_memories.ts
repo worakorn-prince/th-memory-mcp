@@ -5,6 +5,7 @@ import { resolveUserId } from "../db/repositories/users.js";
 import { deduplicate } from "../memory/deduplicator.js";
 import { MEMORY_TYPES } from "../memory/types.js";
 import type { MemoryType } from "../memory/types.js";
+import { wrapMemoryReference } from "../lib/memory-format.js";
 
 // Deterministic, LLM-free intent heuristics (spec §19 "optional extraction").
 // Scans captured interactions and proposes memory candidates. Safe by default:
@@ -123,7 +124,7 @@ export function extractMemoriesHandler(args: {
         .map((c) => `[${c.type}] ${c.content}`)
         .join("\n") || "(no candidates)";
     return ok(
-      `proposed ${distinct.length} memory candidate(s) from ${rows.length} ${kind} interactions (dry-run; pass apply=true to create):\n${preview}`
+      `proposed ${distinct.length} memory candidate(s) from ${rows.length} ${kind} interactions (dry-run; pass apply=true to create):\n${wrapMemoryReference(preview)}`
     );
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));

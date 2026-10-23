@@ -111,11 +111,17 @@ const selectMemories = db.prepare(`
          m.valid_from AS validFrom, m.valid_until AS validUntil, m.metadata
   FROM memories m
   LEFT JOIN users u ON u.id = m.user_id
+  WHERE m.status <> 'deleted'
   ORDER BY m.id
 `);
-const selectMemoryLinks = db.prepare(
-  "SELECT source_memory_id AS sourceId, relation, target_memory_id AS targetId, confidence, created_at AS createdAt FROM memory_links ORDER BY source_memory_id, target_memory_id"
-);
+const selectMemoryLinks = db.prepare(`
+  SELECT l.source_memory_id AS sourceId, l.relation,
+         l.target_memory_id AS targetId, l.confidence, l.created_at AS createdAt
+  FROM memory_links l
+  JOIN memories s ON s.id = l.source_memory_id AND s.status <> 'deleted'
+  JOIN memories t ON t.id = l.target_memory_id AND t.status <> 'deleted'
+  ORDER BY l.source_memory_id, l.target_memory_id
+`);
 // Batch A gap-close: export users/entities/relations so backup/restore is complete.
 // FORMAT DECISION: keep `th-memory-mcp/v2` (do NOT bump to v3) and add the three
 // new top-level fields as additive/optional. Rationale: existing consumers and
@@ -128,9 +134,16 @@ const selectUsers = db.prepare(
 const selectEntities = db.prepare(
   "SELECT id, name, canonical_name AS canonicalName, type, metadata FROM entities ORDER BY id"
 );
-const selectRelations = db.prepare(
-  "SELECT id, source_entity_id AS sourceEntityId, relation, target_entity_id AS targetEntityId, confidence, valid_from AS validFrom, valid_until AS validUntil, source_memory_id AS sourceMemoryId, metadata FROM relations ORDER BY id"
-);
+const selectRelations = db.prepare(`
+  SELECT r.id, r.source_entity_id AS sourceEntityId, r.relation,
+         r.target_entity_id AS targetEntityId, r.confidence,
+         r.valid_from AS validFrom, r.valid_until AS validUntil,
+         r.source_memory_id AS sourceMemoryId, r.metadata
+  FROM relations r
+  LEFT JOIN memories m ON m.id = r.source_memory_id
+  WHERE r.source_memory_id IS NULL OR m.status <> 'deleted'
+  ORDER BY r.id
+`);
 
 function parseMetadata(raw: string | null): unknown {
   if (raw == null) return null;

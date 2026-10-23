@@ -24,7 +24,8 @@ test("Batch B-2: isUntrustedMetadata reads the import flag only", () => {
   assert.equal(fmt.isUntrustedMetadata(JSON.stringify({ trusted: false })), true);
   assert.equal(fmt.isUntrustedMetadata(JSON.stringify({ value: "x" })), false);
   assert.equal(fmt.isUntrustedMetadata(JSON.stringify({ value: "x", trusted: false })), true);
-  assert.equal(fmt.isUntrustedMetadata("not-json"), false);
+  assert.equal(fmt.isUntrustedMetadata("not-json"), true);
+  assert.equal(fmt.isUntrustedMetadata(JSON.stringify(["trusted"])), true);
 });
 
 test("Batch B-2: get_context wraps memory as reference, labels untrusted", () => {

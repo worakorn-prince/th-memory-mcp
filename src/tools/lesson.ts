@@ -9,6 +9,7 @@ import {
   type ToolResult,
 } from "../db/index.js";
 import { embed } from "../lib/embed.js";
+import { redactSecrets } from "../lib/redact.js";
 
 export const saveLessonInput = {
   situation: z.string().min(1).max(1000).describe("The original situation/context"),
@@ -52,7 +53,11 @@ const applyLesson = db.transaction((args: LessonArgs): { id: number } => {
 
 export async function saveLessonHandler(args: LessonArgs): Promise<ToolResult> {
   try {
-    const { id } = applyLesson(args);
+    const { id } = applyLesson({
+      situation: redactSecrets(args.situation),
+      mistake: redactSecrets(args.mistake),
+      correction: redactSecrets(args.correction),
+    });
     return ok(`lesson saved (lesson id=${id})`);
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
