@@ -42,6 +42,11 @@ export const extractMemoriesInput = {
     .enum(["prompt", "tool_call", "error"])
     .optional()
     .describe("Interaction kind to scan (default prompt)"),
+  sessionId: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("Filter by captured session id (default: all sessions)"),
   apply: z
     .boolean()
     .optional()
@@ -56,17 +61,22 @@ export const extractMemoriesInput = {
 export function extractMemoriesHandler(args: {
   limit?: number;
   kind?: "prompt" | "tool_call" | "error";
+  sessionId?: string;
   apply?: boolean;
   userId?: string | null;
 }): ToolResult {
   try {
     const limit = args.limit ?? 50;
     const kind = args.kind ?? "prompt";
+    const sessionId = args.sessionId ?? null;
     const rows = db
       .prepare(
-        "SELECT id, content FROM interactions WHERE kind = ? ORDER BY id DESC LIMIT ?"
+        "SELECT id, content FROM interactions WHERE kind = ? AND (? IS NULL OR session_id = ?) ORDER BY id DESC LIMIT ?"
       )
-      .all(kind, limit) as Array<{ id: number; content: string }>;
+      .all(kind, sessionId, sessionId, limit) as Array<{
+      id: number;
+      content: string;
+    }>;
 
     const candidates: Array<{ interactionId: number; type: MemoryType; content: string }> =
       [];

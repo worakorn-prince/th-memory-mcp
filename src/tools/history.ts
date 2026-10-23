@@ -18,21 +18,28 @@ export const searchHistoryInput = {
     .max(50)
     .default(10)
     .describe("Max results (default 10)"),
+  sessionId: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("Filter by captured session id (default: all sessions)"),
 };
 
 const ITEM_BUDGET = 200;
 const searchPrompts = db.prepare(
-  "SELECT ts, content FROM interactions WHERE kind = 'prompt' AND content LIKE ? ESCAPE '\\' ORDER BY ts DESC LIMIT ?"
+  "SELECT ts, content FROM interactions WHERE kind = 'prompt' AND content LIKE ? ESCAPE '\\' AND (? IS NULL OR session_id = ?) ORDER BY ts DESC LIMIT ?"
 );
 
 export async function searchHistoryHandler(args: {
   query: string;
   limit: number;
+  sessionId?: string;
 }): Promise<ToolResult> {
   try {
     const limit = args.limit ?? 10;
+    const sessionId = args.sessionId ?? null;
     const like = `%${escapeLike(args.query)}%`;
-    const rows = searchPrompts.all(like, limit) as {
+    const rows = searchPrompts.all(like, sessionId, sessionId, limit) as {
       ts: string;
       content: string;
     }[];

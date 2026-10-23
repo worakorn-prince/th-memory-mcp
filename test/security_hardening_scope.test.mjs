@@ -15,6 +15,13 @@ const { getProfileHandler } = await import("../dist/tools/profile.js");
 const { updateMemoryHandler } = await import("../dist/tools/update_memory.js");
 const { contextHandler } = await import("../dist/tools/context.js");
 const { isScopeVisible } = await import("../dist/lib/scope.js");
+const { searchHistoryHandler } = await import("../dist/tools/history.js");
+const { getRecentInteractionsHandler } = await import(
+  "../dist/tools/recent_interactions.js"
+);
+const { extractMemoriesHandler } = await import(
+  "../dist/tools/extract_memories.js"
+);
 const { db } = await import("../dist/db/index.js");
 
 after(() => {
@@ -35,6 +42,12 @@ function textOf(r) {
 function metadataOf(id) {
   const row = db.prepare("SELECT metadata FROM memories WHERE id = ?").get(id);
   return row?.metadata ? JSON.parse(row.metadata) : null;
+}
+
+function seedInteraction(sessionId, kind, content) {
+  db.prepare(
+    "INSERT INTO interactions (ts, session_id, kind, content) VALUES (?, ?, ?, ?)"
+  ).run(new Date().toISOString(), sessionId, kind, content);
 }
 
 test("SEC-01: get_profile filters memories by scope and fails closed without args", async () => {
@@ -230,6 +243,71 @@ test("SEC-14: isScopeVisible fails closed on unknown scope values", () => {
       projectId: "p1",
     }),
     false
+  );
+});
+
+test("P2: history, recent interactions, and extraction accept an optional session filter", async () => {
+  seedInteraction("s-a", "prompt", "remember that scope audit marker alpha-s-a");
+  seedInteraction("s-a", "tool_call", "scope audit marker beta-s-a");
+  seedInteraction("s-b", "prompt", "remember that scope audit marker gamma-s-b");
+  seedInteraction("s-b", "tool_call", "scope audit marker delta-s-b");
+
+  const scopedHistory = textOf(
+    await searchHistoryHandler({
+      query: "scope audit",
+      limit: 10,
+      sessionId: "s-a",
+    })
+  );
+  assert.ok(scopedHistory.includes("alpha-s-a"), scopedHistory);
+  assert.ok(
+    !scopedHistory.includes("gamma-s-b"),
+    `scoped history leaked another session: ${scopedHistory}`
+  );
+
+  const unscopedHistory = textOf(
+    await searchHistoryHandler({ query: "scope audit", limit: 10 })
+  );
+  assert.ok(unscopedHistory.includes("alpha-s-a"), unscopedHistory);
+  assert.ok(
+    unscopedHistory.includes("gamma-s-b"),
+    `unscoped history must keep both sessions: ${unscopedHistory}`
+  );
+
+  const scopedRecent = textOf(
+    await getRecentInteractionsHandler({ limit: 10, sessionId: "s-a" })
+  );
+  assert.ok(scopedRecent.includes("alpha-s-a"), scopedRecent);
+  assert.ok(scopedRecent.includes("beta-s-a"), scopedRecent);
+  assert.ok(
+    !scopedRecent.includes("gamma-s-b") && !scopedRecent.includes("delta-s-b"),
+    `scoped recent leaked another session: ${scopedRecent}`
+  );
+
+  const unscopedRecent = textOf(
+    await getRecentInteractionsHandler({ limit: 10 })
+  );
+  for (const marker of ["alpha-s-a", "beta-s-a", "gamma-s-b", "delta-s-b"]) {
+    assert.ok(
+      unscopedRecent.includes(marker),
+      `unscoped recent must keep ${marker}: ${unscopedRecent}`
+    );
+  }
+
+  const scopedExtract = textOf(
+    extractMemoriesHandler({ dryRun: true, sessionId: "s-a" })
+  );
+  assert.ok(scopedExtract.includes("alpha-s-a"), scopedExtract);
+  assert.ok(
+    !scopedExtract.includes("gamma-s-b"),
+    `scoped extraction leaked another session: ${scopedExtract}`
+  );
+
+  const unscopedExtract = textOf(extractMemoriesHandler({ dryRun: true }));
+  assert.ok(unscopedExtract.includes("alpha-s-a"), unscopedExtract);
+  assert.ok(
+    unscopedExtract.includes("gamma-s-b"),
+    `unscoped extraction must keep both sessions: ${unscopedExtract}`
   );
 });
 

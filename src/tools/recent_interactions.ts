@@ -24,6 +24,11 @@ export const recentInteractionsInput = {
     .enum(CAPTURE_KINDS)
     .optional()
     .describe("Filter by kind (prompt / tool_call / error)"),
+  sessionId: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("Filter by captured session id (default: all sessions)"),
 };
 
 const RECENT_BUDGET = 4000;
@@ -34,22 +39,24 @@ const WRAPPER_OVERHEAD =
   MEMORY_REF_CLOSE.length +
   3;
 const selectAny = db.prepare(
-  "SELECT id, ts, kind, content FROM interactions ORDER BY id DESC LIMIT ?"
+  "SELECT id, ts, kind, content FROM interactions WHERE (? IS NULL OR session_id = ?) ORDER BY id DESC LIMIT ?"
 );
 const selectByKind = db.prepare(
-  "SELECT id, ts, kind, content FROM interactions WHERE kind = ? ORDER BY id DESC LIMIT ?"
+  "SELECT id, ts, kind, content FROM interactions WHERE kind = ? AND (? IS NULL OR session_id = ?) ORDER BY id DESC LIMIT ?"
 );
 
 export async function getRecentInteractionsHandler(args: {
   limit: number;
   kind?: CaptureKind;
+  sessionId?: string;
 }): Promise<ToolResult> {
   try {
     const limit = args.limit ?? 20;
+    const sessionId = args.sessionId ?? null;
     const rows = (
       args.kind
-        ? selectByKind.all(args.kind, limit)
-        : selectAny.all(limit)
+        ? selectByKind.all(args.kind, sessionId, sessionId, limit)
+        : selectAny.all(sessionId, sessionId, limit)
     ) as InteractionRow[];
 
     if (rows.length === 0) {
