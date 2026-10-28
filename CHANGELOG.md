@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.4.1] - 2026-10-28
 
 ### Added
 - Learning-capture plugin is now dual-mode: the default export exposes `id` + `setup(ctx)` for OpenCode V2 (domain hooks for `prompt`, `tool.execute.after`, `compaction`, plus a `session.execution.failed` subscription for errors) and keeps `server()` for OpenCode V1 (1.18.29+). The named `LearningCapture` export is unchanged, and `@opencode/plugin` is imported with `import type` only, so the standalone deploy still has no runtime dependency on it.
@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Plugin deploy path is now the V2 directory layout `~/.config/opencode/plugins/learning-capture/index.ts`; a legacy single-file `plugins/learning-capture.ts` is renamed to `.bak-<timestamp>` (never deleted) by `npm run quickstart`.
 - `scripts/quickstart.mjs` now prefers an existing `opencode.jsonc`, parses JSONC comment/trailing-comma safe, and leaves the config untouched with a warning when parsing fails; `--dry-run` performs no filesystem or environment changes.
+- Documentation consistency pass for the release: version references (`package.json`, `server.json`, `src/lib/config.ts`, `ARCHITECTURE_v2.md`, `design.md`), `SECURITY.md` supported line (`2.4.x`), `PUBLISH.md`/`PUBLISH.th.md` plugin registration (V2 directory layout), and test counts across docs now match the shipped tree (46 test files / 148 tests: 147 pass, 1 skip).
 
 ## [2.4.0] - 2026-10-24
 
@@ -125,7 +126,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.6...v2.4.0
 [2.3.6]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.6
 [2.3.3]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.3

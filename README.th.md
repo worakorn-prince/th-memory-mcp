@@ -30,7 +30,7 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 
 ## Quick Start (เริ่มใช้งานไว)
 
-**ทางที่เร็วที่สุด:** `npm run quickstart` (หลัง clone) — build, ต่อไฟล์ `opencode.json`, วาง plugin และตั้ง `MEMORY_DB_PATH` ให้ในคำสั่งเดียว (ขั้นตอนด้านล่างคือสิ่งที่สคริปต์ทำ) **ติดตั้งผ่าน npm (อีกทาง):** `npm install -g th-memory-mcp` (หรือ `npx th-memory-mcp`) แล้วชี้ `mcp.command` ไปที่ `th-memory-mcp` แทน `dist/index.js` (plugin ยังมาจาก repo นี้; ไม่พับลิชขึ้น GitHub Packages แล้ว)
+**ทางที่เร็วที่สุด:** `npm run quickstart` (หลัง clone) — build, ต่อไฟล์ `opencode.json`/`opencode.jsonc`, วาง plugin และตั้ง `MEMORY_DB_PATH` ให้ในคำสั่งเดียว (ขั้นตอนด้านล่างคือสิ่งที่สคริปต์ทำ) **ติดตั้งผ่าน npm (อีกทาง):** `npm install -g th-memory-mcp` (หรือ `npx th-memory-mcp`) แล้วชี้ `mcp.command` ไปที่ `th-memory-mcp` แทน `dist/index.js` (plugin ยังมาจาก repo นี้; ไม่พับลิชขึ้น GitHub Packages แล้ว)
 
 ```bash
 # 1. Clone และ build
@@ -74,7 +74,7 @@ OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | build + เทสทั้งชุด (32 ไฟล์, 75 tests) |
+| `npm test` | build + เทสทั้งชุด (46 ไฟล์, 148 tests: ผ่าน 147, skip 1) |
 | `node test/<name>.test.mjs` | รันทีละ suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security` |
 | `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (16 tools) |
 

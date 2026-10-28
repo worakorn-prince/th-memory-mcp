@@ -23,7 +23,7 @@
 
 ## Quick Start
 
-**Fastest path:** `npm run quickstart` (after cloning) builds, wires `opencode.json`, deploys the plugin, and sets `MEMORY_DB_PATH` — the steps below are the manual equivalent. **npm alternative:** `npm install -g th-memory-mcp` (or `npx th-memory-mcp`) and point `mcp.command` to `th-memory-mcp` instead of `dist/index.js` (plugin still from this repo; not on GitHub Packages anymore).
+**Fastest path:** `npm run quickstart` (after cloning) builds, wires `opencode.json`/`opencode.jsonc`, deploys the plugin, and sets `MEMORY_DB_PATH` — the steps below are the manual equivalent. **npm alternative:** `npm install -g th-memory-mcp` (or `npx th-memory-mcp`) and point `mcp.command` to `th-memory-mcp` instead of `dist/index.js` (plugin still from this repo; not on GitHub Packages anymore).
 
 ```bash
 # 1. Clone and build
@@ -87,7 +87,7 @@ A standard MCP server: 16 tools anywhere MCP-over-stdio works; all harnesses sha
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune old data (`RETENTION_DAYS`, default 30) |
-| `npm test` | build + full suite (32 files, 75 tests) |
+| `npm test` | build + full suite (46 files, 148 tests: 147 pass, 1 skip) |
 | `node test/<name>.test.mjs` | run one suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security` |
 | `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (16 tools) |
 
