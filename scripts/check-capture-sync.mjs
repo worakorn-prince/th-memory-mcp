@@ -1,12 +1,15 @@
 // scripts/check-capture-sync.mjs
 // Guards secret-filtering drift between capture core and the deployed hook.
 // Compares src/lib/capture-core.ts (single source of truth, built) with
-// src/plugin/learning-capture.ts (standalone bun:sqlite plugin, excluded
-// from tsc build via tsconfig.json "exclude": ["src/plugin"]).
+// src/plugin/learning-capture.ts (standalone dual-mode V1/V2 plugin, checked
+// separately via tsconfig.plugin.json and excluded from the main tsc build via
+// tsconfig.json "exclude": ["src/plugin"]).
 //
-// Why not re-include src/plugin in build: learning-capture.ts imports
-// "bun:sqlite", which tsc/node CI cannot resolve — re-including breaks
-// `npm run build`. The lighter guard is this sync check (+ test/).
+// Why not re-include src/plugin in build: learning-capture.ts resolves
+// "node:sqlite"/"bun:sqlite" at runtime and imports @opencode/plugin types
+// only, so its typecheck uses a dedicated noEmit config
+// (`npm run typecheck:plugin`) instead of the main build. The lighter guard
+// here is this sync check (+ test/).
 //
 // The checks live in runCaptureSyncChecks() so test/capture-sync.test.mjs
 // can import the same logic (single source of truth) instead of duplicating

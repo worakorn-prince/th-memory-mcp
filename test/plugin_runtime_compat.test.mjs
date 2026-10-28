@@ -31,6 +31,19 @@ const [major, minor] = process.versions.node.split(".").map(Number);
 const nodeCanStripTypes = major > 22 || (major === 22 && minor >= 6);
 
 test(
+  "learning-capture plugin exposes both V2 (id/setup) and V1 (server) entrypoints",
+  { skip: !nodeCanStripTypes },
+  async () => {
+    const mod = await import(pathToFileURL(pluginPath).href);
+    assert.equal(mod.default.id, "learning-capture");
+    assert.equal(typeof mod.default.setup, "function");
+    assert.equal(typeof mod.default.server, "function");
+    assert.equal(typeof mod.LearningCapture, "function");
+    assert.equal(mod.default.server, mod.LearningCapture);
+  }
+);
+
+test(
   "learning-capture plugin loads and captures a prompt under Node",
   { skip: !nodeCanStripTypes },
   () => {

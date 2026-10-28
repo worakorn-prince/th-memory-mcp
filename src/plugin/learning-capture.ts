@@ -1,10 +1,21 @@
 // learning-capture: OpenCode plugin — auto-captures user prompts, tool calls
 // and session errors into data/memory.db (table `interactions`).
-// Deployed as a SINGLE standalone file (~/.config/opencode/plugins/), so all
-// logic below is an inline copy kept IN SYNC with src/lib/capture-core.ts.
+//
+// Dual mode (V1 + V2):
+//   V1 (<= 1.18.x): default export exposes `server`, and OpenCode calls it to
+//   get the legacy hook object (`event`, `tool.execute.after`,
+//   `experimental.session.compacting`).
+//   V2 (>= 2.2.0): OpenCode calls `setup(ctx)` and hooks are registered on the
+//   domain context (`ctx.session.hook`, `ctx.tool.hook`, `ctx.event.subscribe`).
+//
+// Deployed as a standalone file/directory under ~/.config/opencode/plugins/, so
+// @opencode/plugin is imported with `import type` only (erased at runtime) and
+// every helper below is an inline copy kept IN SYNC with
+// src/lib/capture-core.ts.
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Plugin } from "@opencode/plugin";
 
 // OpenCode Desktop loads plugins with a Node ESM loader, while the CLI can run
 // on Bun. A static `bun:sqlite` import fails before any hook executes under
@@ -16,6 +27,7 @@ interface SqliteStatement {
 interface SqliteDb {
   exec(sql: string): unknown;
   prepare(sql: string): SqliteStatement;
+  close?(): void;
 }
 
 async function openDatabase(path: string): Promise<SqliteDb> {
@@ -240,33 +252,97 @@ function buildProfileText(dbi: SqliteDb | null): string {
   }
 }
 
-export const LearningCapture = async (ctx?: PluginContext) => {
-  let db: SqliteDb | null = null;
-  const initLog = makeQuietLog("init");
-  try {
-    const path =
-      typeof process.env.MEMORY_DB_PATH === "string" && process.env.MEMORY_DB_PATH
-        ? process.env.MEMORY_DB_PATH
-        : DEFAULT_DB_PATH;
-    mkdirSync(dirname(path), { recursive: true });
-    db = await openDatabase(path);
-    db.exec("PRAGMA journal_mode=WAL");
-    db.exec("PRAGMA busy_timeout=5000");
-    db.exec(INTERACTIONS_DDL);
-  } catch (e) {
-    initLog(e);
-  }
+// --- shared store (one DB handle + one prepared statement per process) ---
+interface CaptureStore {
+  db: SqliteDb;
+  insert(kind: CaptureKind, content: string, opts?: { sessionId?: string; meta?: unknown }): void;
+}
 
-  let insertStmt: ReturnType<SqliteDb["prepare"]> | null = null;
+const initLog = makeQuietLog("init");
+
+async function openStore(path: string): Promise<CaptureStore> {
+  mkdirSync(dirname(path), { recursive: true });
+  const db = await openDatabase(path);
+  db.exec("PRAGMA journal_mode=WAL");
+  db.exec("PRAGMA busy_timeout=5000");
+  db.exec(INTERACTIONS_DDL);
+
+  let insertStmt: SqliteStatement | null = null;
+  return {
+    db,
+    insert(kind, content, opts) {
+      if (!insertStmt) insertStmt = db.prepare(INSERT_SQL);
+      const row = buildRow(kind, content, opts);
+      insertStmt.run(row.ts, row.session_id, row.kind, row.content, row.meta);
+    },
+  };
+}
+
+function resolveDbPath(): string {
+  const env = process.env.MEMORY_DB_PATH;
+  return typeof env === "string" && env ? env : DEFAULT_DB_PATH;
+}
+
+let storePromise: Promise<CaptureStore | null> | null = null;
+let storePath: string | null = null;
+let storeAttempt = 0;
+
+function getStore(): Promise<CaptureStore | null> {
+  const path = resolveDbPath();
+  if (!storePromise || storePath !== path) {
+    const attempt = ++storeAttempt;
+    storePath = path;
+    storePromise = openStore(path).catch((e) => {
+      initLog(e);
+      // Never cache a failed open: the next hook call retries (e.g. the DB
+      // directory appeared after startup). Only clear our own attempt so a
+      // newer store for the same or another path is left untouched.
+      if (attempt === storeAttempt && storePath === path) {
+        storePromise = null;
+        storePath = null;
+      }
+      return null;
+    });
+  }
+  return storePromise;
+}
+
+function requireStore(store: CaptureStore | null): CaptureStore {
+  if (!store) throw new Error("memory.db not open");
+  return store;
+}
+
+// Releases the shared handle. Hosts do not need this (the process owns the DB
+// for its lifetime); tests use it so temp directories can be removed.
+export async function closeCaptureStore(): Promise<void> {
+  const pending = storePromise;
+  storePromise = null;
+  storePath = null;
+  if (!pending) return;
+  try {
+    const store = await pending;
+    store?.db.close?.();
+  } catch {}
+}
+
+function isAbortError(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    (e as { name?: unknown }).name === "AbortError"
+  );
+}
+
+// --- V1 factory (OpenCode <= 1.18.x) ---
+export const LearningCapture = async (ctx?: PluginContext) => {
+  const store = await getStore();
+
   function insert(
     kind: CaptureKind,
     content: string,
     opts?: { sessionId?: string; meta?: unknown }
   ): void {
-    if (!db) throw new Error("memory.db not open");
-    if (!insertStmt) insertStmt = db.prepare(INSERT_SQL);
-    const row = buildRow(kind, content, opts);
-    insertStmt.run(row.ts, row.session_id, row.kind, row.content, row.meta);
+    requireStore(store).insert(kind, content, opts);
   }
 
   const promptDedupe = createDedupe();
@@ -347,7 +423,7 @@ export const LearningCapture = async (ctx?: PluginContext) => {
       output?: AnyRecord
     ) => {
       try {
-        const txt = buildProfileText(db);
+        const txt = buildProfileText(store?.db ?? null);
         if (txt && output?.context && typeof output.context.push === "function") {
           output.context.push(wrapMemoryReference(txt));
         }
@@ -355,3 +431,102 @@ export const LearningCapture = async (ctx?: PluginContext) => {
     },
   };
 };
+
+// --- V2 setup (OpenCode >= 2.2.0) ---
+// Registers the same four capture paths through domain hooks. Every callback
+// swallows its own errors (quiet log, first error only) so a capture failure
+// can never break the host session.
+async function setup(ctx: Plugin.Context): Promise<() => void> {
+  const promptDedupe = createDedupe();
+  const toolDedupe = createDedupe();
+  const promptLog = makeQuietLog("v2 prompt hook");
+  const toolLog = makeQuietLog("v2 tool.execute.after hook");
+  const compactionLog = makeQuietLog("v2 compaction hook");
+  const eventLog = makeQuietLog("v2 session.execution.failed hook");
+
+  async function insert(
+    kind: CaptureKind,
+    content: string,
+    opts?: { sessionId?: string; meta?: unknown }
+  ): Promise<void> {
+    const store = await getStore();
+    requireStore(store).insert(kind, content, opts);
+  }
+
+  function sessionIdOf(value: unknown): string | undefined {
+    return typeof value === "string" && value ? value : undefined;
+  }
+
+  await ctx.session.hook("prompt", async (event) => {
+    try {
+      const msgId = event?.messageID === undefined ? "" : String(event.messageID);
+      if (!msgId || promptDedupe.seen(msgId)) return;
+      const text = event?.prompt?.text;
+      if (typeof text !== "string" || !text.trim()) return;
+      await insert("prompt", text, { sessionId: sessionIdOf(event.sessionID) });
+    } catch (e) {
+      promptLog(e);
+    }
+  });
+
+  await ctx.tool.hook("execute.after", async (event) => {
+    try {
+      const callID = event?.id === undefined ? "" : String(event.id);
+      if (!callID || toolDedupe.seen(callID)) return;
+      await insert("tool_call", `tool=${event.tool} status=${event.status}`, {
+        sessionId: sessionIdOf(event.sessionID),
+        meta: {
+          callID: event.id,
+          status: event.status === "error" ? "error" : "success",
+        },
+      });
+    } catch (e) {
+      toolLog(e);
+    }
+  });
+
+  await ctx.session.hook("compaction", async (event) => {
+    try {
+      const store = await getStore();
+      const txt = buildProfileText(store?.db ?? null);
+      if (txt && Array.isArray(event?.system)) {
+        event.system.push({ type: "text", text: wrapMemoryReference(txt) });
+      }
+    } catch (e) {
+      compactionLog(e);
+    }
+  });
+
+  const controller = new AbortController();
+  void (async () => {
+    try {
+      const stream = ctx.event.subscribe({
+        types: ["session.execution.failed"],
+        signal: controller.signal,
+      });
+      for await (const event of stream) {
+        try {
+          const data = (event as any)?.data;
+          if (!data) continue;
+          await insert("error", JSON.stringify(data.error ?? data), {
+            sessionId: sessionIdOf(data.sessionID),
+          });
+        } catch (e) {
+          eventLog(e);
+        }
+      }
+    } catch (e) {
+      if (!isAbortError(e)) eventLog(e);
+    }
+  })();
+
+  return () => controller.abort();
+}
+
+const plugin: Plugin.Plugin & { server: typeof LearningCapture } = {
+  id: "learning-capture",
+  setup,
+  server: LearningCapture,
+};
+
+export default plugin;

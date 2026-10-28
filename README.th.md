@@ -48,14 +48,16 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"      # Windows (PowerShell)
   "mcp": { "memory": { "type": "local", "command": ["node", "<REPO>/dist/index.js"], "enabled": true, "environment": { "MEMORY_DB_PATH": "<REPO>/data/memory.db" } } } }
 ```
 
-4. (Optional) เปิด auto-capture: คัดลอก `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/`
+4. (Optional) เปิด auto-capture: deploy plugin แบบ dual-mode ลง **โฟลเดอร์** (OpenCode V2 auto-discover local plugin จากโฟลเดอร์เท่านั้น) — `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/learning-capture/index.ts`
 5. **Restart OpenCode** (config โหลดตอน start เท่านั้น) แล้วลองใช้: *"จำไว้ว่าฉันชอบใช้ pnpm"* → เปิด session ใหม่ → *"ฉันชอบ package manager อะไร?"*
 
-ถ้าตอน start แจ้ง `Failed to load plugin ... Received protocol 'bun:'` แสดงว่าคัดลอก plugin เวอร์ชันเก่า — ให้คัดลอก `src/plugin/learning-capture.ts` ตัวล่าสุดอีกครั้ง ซึ่งจะลอง `node:sqlite` ก่อนและ fallback ไป `bun:sqlite` เฉพาะตอนรันบน Bun
+plugin ไฟล์เดียวรองรับทั้งสองโหมด: OpenCode V2 เรียก `id` + `setup(ctx)` จาก default export (ลงทะเบียน domain hooks สำหรับ prompt/tool/compaction/event ล้มเหลว) ส่วน V1 (1.18.29+) เรียก `server()` จาก default export เดียวกันเพื่อรับ legacy hook object — ไม่มี runtime import ของ `@opencode/plugin` (ใช้ `import type` เท่านั้น) จึงโหลดได้ทั้ง Node และ Bun
+
+ถ้าตอน start แจ้ง `Failed to load plugin ... Received protocol 'bun:'` หรือ V2 ไม่โหลด plugin เลย แสดงว่าใช้ layout การติดตั้งแบบเก่า — ให้ deploy `src/plugin/learning-capture.ts` ตัวล่าสุดไปที่ `~/.config/opencode/plugins/learning-capture/index.ts`; ไฟล์เก่า `~/.config/opencode/plugins/learning-capture.ts` จะถูก `npm run quickstart` เปลี่ยนชื่อเป็น `.bak-<timestamp>` (ไม่ลบ) และตัว plugin จะลอง `node:sqlite` ก่อนแล้ว fallback ไป `bun:sqlite` เฉพาะตอนรันบน Bun
 
 ## สถาปัตยกรรม
 
-OpenCode โหลดสองส่วน: **plugin** `learning-capture` (Node/Bun) — จับ prompt/tool/error ลง DB อัตโนมัติและฉีด profile กลับตอน compaction — และ **MCP server** `th-memory-mcp` (Node stdio) เปิด 16 tools บน SQLite DB เดียวกัน; กฎกลาง (`memory-protocol.md`) สอน AI ให้ใช้ tools
+OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-mode V1/V2, Node/Bun) — จับ prompt/tool/error ลง DB อัตโนมัติและฉีด profile กลับตอน compaction — และ **MCP server** `th-memory-mcp` (Node stdio) เปิด 16 tools บน SQLite DB เดียวกัน; กฎกลาง (`memory-protocol.md`) สอน AI ให้ใช้ tools
 
 ## ทำไมต้องใช้ th-memory-mcp?
 

@@ -41,14 +41,16 @@ setx MEMORY_DB_PATH "$PWD/data/memory.db"      # Windows (PowerShell)
   "mcp": { "memory": { "type": "local", "command": ["node", "<REPO>/dist/index.js"], "enabled": true, "environment": { "MEMORY_DB_PATH": "<REPO>/data/memory.db" } } } }
 ```
 
-4. (Optional) Auto-capture: copy `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/`
+4. (Optional) Auto-capture: deploy the dual-mode plugin to a **directory** (OpenCode V2 only auto-discovers local plugins from a folder) — `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/learning-capture/index.ts`
 5. **Restart OpenCode** (config loads at startup only), then try: *"Remember that I prefer pnpm"* → new session → *"What package manager do I prefer?"*
 
-If startup reports `Failed to load plugin ... Received protocol 'bun:'`, you copied an older plugin. Re-copy the current `src/plugin/learning-capture.ts`; it loads `node:sqlite` first and only falls back to `bun:sqlite` under Bun.
+The plugin works in both modes: OpenCode V2 calls the default export's `id` + `setup(ctx)` (domain hooks for prompt/tool/compaction/failure events), while V1 (1.18.29+) calls the same default export's `server()`, which returns the legacy hook object. One file, no runtime import of `@opencode/plugin` (types only), so it loads under both Node and Bun.
+
+If startup reports `Failed to load plugin ... Received protocol 'bun:'` or the plugin is silently ignored on V2, you are on an older install layout. Re-deploy the current `src/plugin/learning-capture.ts` to `~/.config/opencode/plugins/learning-capture/index.ts`; a legacy `~/.config/opencode/plugins/learning-capture.ts` is renamed to `.bak-<timestamp>` by `npm run quickstart` (never deleted). It loads `node:sqlite` first and only falls back to `bun:sqlite` under Bun.
 
 ## Architecture
 
-OpenCode loads the plugin `learning-capture` (Node/Bun) — auto-captures prompt/tool/error into the DB, injects the profile on compaction — and the MCP server `th-memory-mcp` (Node stdio) exposing the 16 tools on that same SQLite DB; global rules (`memory-protocol.md`) teach the AI to use them.
+OpenCode loads the plugin `learning-capture` (dual-mode V1/V2, Node/Bun) — auto-captures prompt/tool/error into the DB, injects the profile on compaction — and the MCP server `th-memory-mcp` (Node stdio) exposing the 16 tools on that same SQLite DB; global rules (`memory-protocol.md`) teach the AI to use them.
 
 ## Why th-memory-mcp?
 

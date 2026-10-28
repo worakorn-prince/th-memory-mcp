@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Learning-capture plugin is now dual-mode: the default export exposes `id` + `setup(ctx)` for OpenCode V2 (domain hooks for `prompt`, `tool.execute.after`, `compaction`, plus a `session.execution.failed` subscription for errors) and keeps `server()` for OpenCode V1 (1.18.29+). The named `LearningCapture` export is unchanged, and `@opencode/plugin` is imported with `import type` only, so the standalone deploy still has no runtime dependency on it.
+- `npm run typecheck:plugin` (`tsconfig.plugin.json`) typechecks `src/plugin/**/*.ts` with `noEmit`, separate from the main build that excludes the plugin.
+- New `test/plugin_v2.test.mjs` (fake V2 context: prompt/tool/error capture, compaction `<memory-reference>` injection, dedupe, cleanup abort) and extended `test/plugin_runtime_compat.test.mjs` to assert both V1 (`server`) and V2 (`id`/`setup`) entrypoints.
+- `src/plugin/bun-sqlite.d.ts` declares the optional Bun driver so the dynamic `bun:sqlite` fallback typechecks without Bun installed.
+
+### Changed
+- Plugin deploy path is now the V2 directory layout `~/.config/opencode/plugins/learning-capture/index.ts`; a legacy single-file `plugins/learning-capture.ts` is renamed to `.bak-<timestamp>` (never deleted) by `npm run quickstart`.
+- `scripts/quickstart.mjs` now prefers an existing `opencode.jsonc`, parses JSONC comment/trailing-comma safe, and leaves the config untouched with a warning when parsing fails; `--dry-run` performs no filesystem or environment changes.
+
 ## [2.4.0] - 2026-10-24
 
 ### Security
