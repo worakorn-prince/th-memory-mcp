@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-11-03
+
+### Security
+- Bumped `zod` from `^3.25.0` to `^4.6.7` to resolve GHSA-mrhx-c7xc-m3w5 (memory exhaustion while validating oversized constrained collections). `zod` is a direct dependency, so the fix is applied in `dependencies` rather than `overrides`.
+- Added `body-parser: ^2.4.0` to `overrides` to resolve GHSA-27r3-jxmh-p828 (denial of service via trailing bytes after a compressed request body). `body-parser` is a transitive dependency, so the fix is applied via `overrides`.
+- `npm audit --omit=dev --audit-level=high` now exits 0; the only remaining advisory is a `moderate` one in `@hono/node-server` (GHSA-rmxm-3fg6-px4f), which the CI gate does not fail on.
+
+### Changed
+- `package-lock.json` regenerated for the new dependency ranges.
+- Version references synced to `2.4.2` across `package.json`, `package-lock.json`, `server.json`, `src/lib/config.ts`, `ARCHITECTURE_v2.md`, and `design.md`.
+- This release restores green CI on `master`: the `v2.4.1` push failed `npm audit` on all three Node versions (22 / 24 / 26), and the fix commit is included here.
+
+### Verification
+- `npm run version:check` — exit 0
+- `npm run build` — exit 0
+- `npx tsc -p tsconfig.plugin.json` — exit 0
+- `node scripts/check-capture-sync.mjs` — exit 0
+- `npm test` — 148 tests, 147 pass, 0 fail, 1 skip (unchanged; `zod` v4 required no API changes)
+- `npm audit --omit=dev --audit-level=high` — exit 0
+
 ## [2.4.1] - 2026-10-28
 
 ### Added
@@ -126,7 +146,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.1...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.2...HEAD
+[2.4.2]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.6...v2.4.0
 [2.3.6]: https://github.com/worakorn-prince/th-memory-mcp/releases/tag/v2.3.6
