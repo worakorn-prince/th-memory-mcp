@@ -8,7 +8,7 @@
 
 [![npm version](https://img.shields.io/npm/v/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp) [![npm downloads](https://img.shields.io/npm/dm/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-brightgreen.svg)](https://nodejs.org) [![CI](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/ci.yml) [![Version Sync](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/version-sync.yml/badge.svg)](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/version-sync.yml)
 
-[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/worakorn-prince/th-memory-mcp) [![th-memory-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/score.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp) [![Th Memory MCP on mcprush](https://mcprush.com/badge/th-memory-mcp/score.svg)](https://mcprush.com/to/th-memory-mcp?ref=badge)
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/worakorn-prince/th-memory-mcp) [![th-memory-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/score.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp) [![Th Memory MCP on mcprush](https://mcprush.com/badge/th-memory-mcp/score.svg)](https://mcprush.com/to/th-memory-mcp?ref=badge) [![Tested by AddonAudit](https://addonaudit.com/badges/tested.svg)](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/)
 
 </div>
 
@@ -20,6 +20,8 @@
 - **OS: Windows / macOS / Linux** — cross-platform (Node); Windows: set `MEMORY_DB_PATH` with `setx`, macOS/Linux: `export` in your shell profile.
 
 > **Security:** Use a patched Node.js release — check your runtime with `npx is-my-node-vulnerable`. `npm audit` covers npm dependencies only, not Node.js core CVEs.
+
+> **Audit:** Independently smoke-tested by [AddonAudit](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/) on v2.4.1 — an automated test, not a security guarantee; the one high advisory it found was fixed in 2.4.2, and fresh installs from 2.4.3 onward report 0 critical/high advisories.
 
 ## Quick Start
 

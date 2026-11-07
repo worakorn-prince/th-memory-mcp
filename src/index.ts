@@ -221,7 +221,7 @@ function isSupportedHarness(): boolean {
 async function main(): Promise<void> {
   if (!isSupportedHarness()) {
     console.error(
-      "[th-memory-mcp] warning: running outside OpenCode/Claude Code — auto-capture unavailable, MCP tools still work. See README 'Works with other harnesses'."
+      "[th-memory-mcp] note: running outside OpenCode/Claude Code — auto-capture unavailable, MCP tools still work. See README 'Works with other harnesses'."
     );
   }
   const transport = new StdioServerTransport();

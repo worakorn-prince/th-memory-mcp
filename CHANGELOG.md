@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.3] - 2026-11-08
+
+### Security
+- `package-lock.json` now resolves the transitive `@hono/node-server` at `2.1.6` (was `2.1.1`), clearing GHSA-rmxm-3fg6-px4f (`moderate`); `npm audit --omit=dev` reports 0 vulnerabilities at every severity.
+- No dependency ranges changed for this lockfile refresh — `dependencies` are untouched and no override was removed. The published `2.4.2` already resolved `@hono/node-server@2.1.6` on fresh installs; this release aligns the repo lockfile with that tree.
+- Cleared the remaining dev-only advisories by adding `glob` `^14.0.4` and `minimatch` `^11.0.5` to both `overrides` and `pnpm.overrides` in `package.json` (GHSA-3g3m-2fjr-6pw4, GHSA-g3hv-75wg-m249); full `npm audit` now reports 0 vulnerabilities at every severity, dev dependencies included. The affected tree is reached only through `@opencode/plugin` → `@opencode/util` → `@npmcli/*` / `pacote` / `sigstore` → `rimraf` → `glob`, and `@opencode/plugin` is imported with `import type` only, so none of it is executed at build, test, or runtime.
+
+### Changed
+- Harness notice on stderr is now prefixed `[th-memory-mcp] note:` instead of `[th-memory-mcp] warning:` when running outside OpenCode/Claude Code. The rest of the message (including the README pointer) is unchanged, and no tool behavior changed.
+
+### Added
+- `README.md` / `README.th.md`: "Tested by AddonAudit" badge in the directory/aggregator badge row, plus a short note near the security note — independent automated smoke audit by AddonAudit (an automated test, not a security guarantee), with 0 critical/high advisories expected on fresh installs from 2.4.3 onward.
+
+### Verification
+- `npm run version:check` — exit 0 (`package.json` 2.4.3 matches `ARCHITECTURE_v2.md`, `design.md`, `server.json`, `src/lib/config.ts`)
+- `npm run build` — exit 0
+- `npm run typecheck:plugin` — exit 0
+- `node scripts/check-capture-sync.mjs` — exit 0 (12 `SECRET_PATTERNS`, limits in sync)
+- `npm test` — 148 tests, 147 pass, 0 fail, 1 skip (unchanged)
+- `npm audit --omit=dev --audit-level=high` — exit 0, found 0 vulnerabilities
+- `npm audit --omit=dev` — 0 vulnerabilities (info 0 / low 0 / moderate 0 / high 0 / critical 0)
+- `npm audit` (full, dev dependencies included) — 0 vulnerabilities (info 0 / low 0 / moderate 0 / high 0 / critical 0)
+- `npm ls glob minimatch` — `glob@14.0.4` and `minimatch@11.0.5` everywhere, all `deduped`, no `invalid`
+- `npm ls @hono/node-server` — `@hono/node-server@2.1.6` under `@modelcontextprotocol/sdk@1.32.1`
+
 ## [2.4.2] - 2026-11-03
 
 ### Security
@@ -146,7 +171,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.2...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.3...HEAD
+[2.4.3]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.2...v2.4.3
 [2.4.2]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.3.6...v2.4.0

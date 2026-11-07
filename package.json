@@ -1,6 +1,6 @@
 {
   "name": "th-memory-mcp",
-  "version": "2.4.2",
+  "version": "2.4.3",
   "mcpName": "io.github.worakorn-prince/th-memory-mcp",
   "description": "Adaptive Memory MCP server - SQLite-backed memory for OpenCode",
   "author": "worakorn-prince",
@@ -59,7 +59,9 @@
     "proxy-addr": "^2.0.8",
     "ip-address": "^10.7.4",
     "qs": "^6.16.1",
-    "body-parser": "^2.4.0"
+    "body-parser": "^2.4.0",
+    "glob": "^14.0.4",
+    "minimatch": "^11.0.5"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -70,7 +72,9 @@
       "fast-uri": "^3.1.9",
       "proxy-addr": "^2.0.8",
       "ip-address": "^10.7.4",
-      "qs": "^6.16.1"
+      "qs": "^6.16.1",
+      "glob": "^14.0.4",
+      "minimatch": "^11.0.5"
     }
   },
   "devDependencies": {
