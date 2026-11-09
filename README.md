@@ -67,7 +67,7 @@ OpenCode loads the plugin `learning-capture` (dual-mode V1/V2, Node/Bun) — aut
 - **Lifecycle, temporal & conflict-aware** — states (active/stale/superseded/archived), confidence/importance/salience scoring, per-type decay, validity intervals for point-in-time truth and supersession chains; duplicate/contradiction resolution keeps both sides of ambiguous evidence.
 - **Hybrid retrieval** — `get_context` blends FTS5 keyword search with dependency-free lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) via RRF fusion, then assembles a token-budgeted context with optional memory-graph expansion.
 - **Consolidation** — clusters similar memories into derived ones with full provenance (`derived_from` links).
-- **First-class Thai / i18n** — Thai-aware tokenization in distill; Thai and English accepted interchangeably.
+- **First-class Thai / i18n** — Thai-aware FTS5: Thai text is word-segmented (`Intl.Segmenter`) and indexed with a mark-aware tokenizer, so words inside unspaced Thai text are searchable and tone marks stay significant (`ติดตัง` ≠ `ติดตั้ง`); Thai and English are accepted interchangeably.
 
 ## Works with other harnesses
 
@@ -89,8 +89,8 @@ A standard MCP server: 16 tools anywhere MCP-over-stdio works; all harnesses sha
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune old data (`RETENTION_DAYS`, default 30) |
-| `npm test` | build + full suite (46 files, 148 tests: 147 pass, 1 skip) |
-| `node test/<name>.test.mjs` | run one suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security` |
+| `npm test` | build + full suite (47 files, 155 tests: 154 pass, 1 skip) |
+| `node test/<name>.test.mjs` | run one suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security`, `thai_fts` |
 | `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (16 tools) |
 
 ## Tools (16)

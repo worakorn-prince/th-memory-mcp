@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-11-09
+
+### Fixed
+- Thai words inside unspaced Thai text are now found by keyword search in `recall`, `get_context`, and `ftsSearch`. The default FTS5 `unicode61` tokenizer treated Thai combining marks (Unicode category M — vowels and tone marks) as separators, so a word like `ติดตั้ง` was stored as consonant fragments and matched nothing; only the vector blend could surface it. `search_index` now uses `tokenize = "unicode61 categories 'L* N* Co M*'"` so marks stay inside tokens, and Thai text is word-segmented with the built-in `Intl.Segmenter("th")` before indexing. Matching is tone-mark sensitive (`ติดตัง` ≠ `ติดตั้ง`, `ขาวผัด` ≠ `ข้าวผัด`, `นัง` ≠ `นั่ง`, `ดือ` ≠ `ดื้อ`). Non-Thai text and query behavior is unchanged.
+
+### Added
+- `src/lib/thai-segment.ts` — zero-dependency Thai word segmentation for indexing and query building; falls back to the previous behavior when `Intl.Segmenter` is unavailable.
+- `src/db/search-index-schema.ts` — single source of truth for the `search_index` DDL and its mark-aware tokenizer.
+- Migration `010_search_index_thai` — rebuilds the existing `search_index` once with the new tokenizer and re-segments stored rows; rows stream through a TEMP table, the row count is preserved, and re-running is idempotent.
+- `test/thai_fts.test.mjs` — segmentation/idempotency, phrase query building, Thai word lookup, tone-mark precision, ranking, migration, and a tokenizer schema guard.
+
+### Verification
+- `npm run build` — exit 0
+- `npm run version:check` — exit 0
+- `npm test` — 155 tests, 154 pass, 0 fail, 1 skip (47 files)
+
 ## [2.4.3] - 2026-11-08
 
 ### Security
@@ -171,7 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.3...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.3...v2.5.0
 [2.4.3]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.2...v2.4.3
 [2.4.2]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.0...v2.4.1

@@ -2,6 +2,8 @@ import type BetterSqlite3 from "better-sqlite3";
 import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { embed, serialize } from "../lib/embed.js";
+import { segmentForIndex } from "../lib/thai-segment.js";
+import { SEARCH_INDEX_DDL } from "./search-index-schema.js";
 
 type DB = BetterSqlite3.Database;
 
@@ -260,6 +262,57 @@ const M009_relations_unique: Migration = {
   },
 };
 
+// FTS5 cannot change the tokenizer of an existing table, so this migration
+// rebuilds search_index with the mark-aware tokenizer from
+// search-index-schema.ts and re-segments every Thai row on the way through.
+// Rows are copied into a TEMP table and read back in bounded batches, so a
+// large index is never loaded into JS memory. (better-sqlite3 refuses to run
+// an INSERT while an iterate() cursor is open on the same connection, hence
+// rowid paging instead of a single iterator.) Idempotent: segmentForIndex is
+// byte-idempotent and the table is always rebuilt from its own contents.
+// Old migrations are NOT edited (see M009) — this rebuild covers M005 rows.
+const M010_search_index_thai: Migration = {
+  id: "010_search_index_thai",
+  up(db) {
+    // IF NOT EXISTS: a fresh or partially-migrated DB may lack the source.
+    db.exec(SEARCH_INDEX_DDL);
+    db.exec("DROP TABLE IF EXISTS temp._fts_rebuild;");
+    db.exec(
+      "CREATE TEMP TABLE _fts_rebuild AS SELECT ref_table, ref_id, title, body FROM search_index;"
+    );
+    db.exec("DROP TABLE IF EXISTS search_index;");
+    db.exec(SEARCH_INDEX_DDL);
+    const insert = db.prepare(
+      "INSERT INTO search_index (ref_table, ref_id, title, body) VALUES (?, ?, ?, ?)"
+    );
+    const batch = db.prepare(
+      `SELECT rowid AS rid, ref_table, ref_id, title, body
+       FROM temp._fts_rebuild WHERE rowid > ? ORDER BY rowid LIMIT 200`
+    );
+    let lastRowid = 0;
+    for (;;) {
+      const rows = batch.all(lastRowid) as Array<{
+        rid: number;
+        ref_table: string;
+        ref_id: number;
+        title: string | null;
+        body: string | null;
+      }>;
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        insert.run(
+          row.ref_table,
+          row.ref_id,
+          segmentForIndex(row.title ?? ""),
+          segmentForIndex(row.body ?? "")
+        );
+        lastRowid = row.rid;
+      }
+    }
+    db.exec("DROP TABLE IF EXISTS temp._fts_rebuild;");
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -270,6 +323,7 @@ export const MIGRATIONS: Migration[] = [
   M007_user,
   M008_perf_indexes,
   M009_relations_unique,
+  M010_search_index_thai,
 ];
 
 const KEEP_BACKUPS = 5;

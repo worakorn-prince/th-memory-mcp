@@ -17,9 +17,11 @@ import { dirname } from "node:path";
 import { truncate } from "../lib/capture-core.js";
 import { redactSecrets } from "../lib/redact.js";
 import { serialize } from "../lib/embed.js";
+import { hasThai, segmentForIndex, segmentQueryChunk } from "../lib/thai-segment.js";
 import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
+import { SEARCH_INDEX_DDL } from "./search-index-schema.js";
 
 type DbInstance = BetterSqlite3.Database;
 
@@ -83,9 +85,7 @@ CREATE TABLE IF NOT EXISTS profile (
   updated_at TEXT NOT NULL
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-  ref_table, ref_id, title, body
-);
+${SEARCH_INDEX_DDL}
 
 CREATE TABLE IF NOT EXISTS embeddings (
   ref_table TEXT NOT NULL,
@@ -126,12 +126,19 @@ export function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, (c) => "\\" + c);
 }
 
+function quoteFtsToken(t: string): string {
+  return t.replace(/\\/g, "\\\\").replace(/"/g, '""');
+}
+
 export function buildFtsMatch(query: string): string {
-  const tokens = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
-  return tokens
-    .map((t) => {
-      const safe = t.replace(/\\/g, "\\\\").replace(/"/g, '""');
-      return `"${safe}"`;
+  const chunks = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  return chunks
+    .map((chunk) => {
+      // A Thai chunk becomes an FTS5 phrase of its words: "ติด ตั้ง เร็ว"
+      // matches the words in order, mirroring how the index was segmented.
+      const words = hasThai(chunk) ? segmentQueryChunk(chunk) : [chunk];
+      const phrase = (words.length > 0 ? words : [chunk]).map(quoteFtsToken).join(" ");
+      return `"${phrase}"`;
     })
     .join(" OR ");
 }
@@ -156,7 +163,12 @@ export function syncSearchIndex(
   body: string
 ): void {
   getDeleteSearchIndex().run(refTable, refId);
-  getInsertSearchIndex().run(refTable, refId, title, body);
+  getInsertSearchIndex().run(
+    refTable,
+    refId,
+    segmentForIndex(title),
+    segmentForIndex(body)
+  );
 }
 
 export function removeSearchIndex(refTable: string, refId: number): void {

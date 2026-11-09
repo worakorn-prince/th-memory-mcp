@@ -4,10 +4,10 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.4.x   | :white_check_mark: |
-| < 2.4   | :x:                |
+| 2.5.x   | :white_check_mark: |
+| < 2.5   | :x:                |
 
-We support the latest `2.4.x` release line. Older major/minor lines receive no security updates.
+We support the latest `2.5.x` release line. Older major/minor lines receive no security updates.
 
 ## Runtime security baseline
 

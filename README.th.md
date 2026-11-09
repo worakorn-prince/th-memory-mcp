@@ -68,7 +68,7 @@ OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-
 - **เบา ทนทาน เปิดกว้าง** — tool calls มีเพดาน (latency < 10 ms, ขนาด output จำกัด) และ graceful degradation เมื่อ DB ไม่พร้อม; Node + `better-sqlite3` เท่านั้น; MIT license, 16 tools, rule-based distill, plugin auto-capture
 - **Lifecycle & temporal** — states (active/stale/superseded/archived), confidence/importance/salience, decay ต่อ type, validity intervals รองรับ point-in-time truth และ supersession chains
 - **Conflict-aware & consolidation** — ตรวจจับ duplicate/contradiction และเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้ง; คลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from`)
-- **Hybrid retrieval & ไทย** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion) แบบ token budget พร้อมขยายผ่าน memory graph; tokenize ไทยใน distill และรับไทย/อังกฤษสลับกันได้
+- **Hybrid retrieval & ไทย** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion) แบบ token budget พร้อมขยายผ่าน memory graph; tokenize ไทยใน distill และ Thai-aware FTS5 แบ่งคำไทยด้วย `Intl.Segmenter` + tokenizer ที่เก็บวรรณยุกต์/สระไว้ใน token ทำให้ค้นคำไทยในข้อความที่เขียนติดกันได้ และวรรณยุกต์ยังมีผลต่อการ match (`ติดตัง` ≠ `ติดตั้ง`); รับไทย/อังกฤษสลับกันได้
 
 ## Scripts
 
@@ -77,7 +77,7 @@ OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | build + เทสทั้งชุด (46 ไฟล์, 148 tests: ผ่าน 147, skip 1) |
+| `npm test` | build + เทสทั้งชุด (47 ไฟล์, 155 tests: ผ่าน 154, skip 1) |
 | `node test/<name>.test.mjs` | รันทีละ suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security` |
 | `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (16 tools) |
 
