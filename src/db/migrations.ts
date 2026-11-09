@@ -313,6 +313,71 @@ const M010_search_index_thai: Migration = {
   },
 };
 
+// EMBED's tokenizer changed to segment Thai runs into word tokens
+// (TASK-THAI-EMBED), so every stored vector is stale the moment this ships.
+// Recompute each embedding row from its source row (memories.content,
+// preferences.category/key/value, lessons.situation/mistake/correction) with
+// the new embed(). Mirrors M010's batched, idempotent, row-count-preserving
+// style: page over embeddings by rowid in bounded batches and recompute in
+// place via UPSERT on the PK (ref_table, ref_id), so no row is dropped or
+// duplicated and the count is preserved. embed() is deterministic, so a
+// re-run yields byte-identical vectors. A row whose source is missing is left
+// untouched (it cannot be recomputed) — which also preserves the count.
+// Old migrations are NOT edited.
+const M011_embeddings_segmenter: Migration = {
+  id: "011_embeddings_segmenter",
+  up(db) {
+    const memSource = db.prepare("SELECT content FROM memories WHERE id = ?");
+    const prefSource = db.prepare(
+      "SELECT category, key, value FROM preferences WHERE id = ?"
+    );
+    const lessonSource = db.prepare(
+      "SELECT situation, mistake, correction FROM lessons WHERE id = ?"
+    );
+    const batch = db.prepare(
+      `SELECT rowid AS rid, ref_table, ref_id
+       FROM embeddings WHERE rowid > ? ORDER BY rowid LIMIT 200`
+    );
+    const upsert = db.prepare(
+      `INSERT INTO embeddings (ref_table, ref_id, vec) VALUES (?, ?, ?)
+       ON CONFLICT(ref_table, ref_id) DO UPDATE SET vec = excluded.vec`
+    );
+    let lastRowid = 0;
+    for (;;) {
+      const rows = batch.all(lastRowid) as Array<{
+        rid: number;
+        ref_table: string;
+        ref_id: number;
+      }>;
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        lastRowid = row.rid;
+        let source: string | null = null;
+        if (row.ref_table === "memories") {
+          const r = memSource.get(row.ref_id) as
+            | { content: string }
+            | undefined;
+          source = r ? r.content : null;
+        } else if (row.ref_table === "preferences") {
+          const r = prefSource.get(row.ref_id) as
+            | { category: string; key: string; value: string }
+            | undefined;
+          // Mirrors remember.ts / import apply: `${category} ${key} ${value}`.
+          source = r ? `${r.category} ${r.key} ${r.value}` : null;
+        } else if (row.ref_table === "lessons") {
+          const r = lessonSource.get(row.ref_id) as
+            | { situation: string; mistake: string; correction: string }
+            | undefined;
+          // Mirrors lesson.ts: `${situation} ${mistake} ${correction}`.
+          source = r ? `${r.situation} ${r.mistake} ${r.correction}` : null;
+        }
+        if (source == null) continue;
+        upsert.run(row.ref_table, row.ref_id, serialize(embed(source)));
+      }
+    }
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -324,6 +389,7 @@ export const MIGRATIONS: Migration[] = [
   M008_perf_indexes,
   M009_relations_unique,
   M010_search_index_thai,
+  M011_embeddings_segmenter,
 ];
 
 const KEEP_BACKUPS = 5;

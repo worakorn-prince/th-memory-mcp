@@ -6,7 +6,15 @@
 // in recall(). It is intentionally dependency-free to keep th-memory-mcp
 // lightweight and offline — swap `embed()` for a real local model (e.g.
 // transformers.js) if you need transformer-grade semantics.
+//
+// Thai is word-aware: every Thai run is fed through the shared segmenter
+// (`wordTokens` from ./thai-segment.js, the same single source of truth the
+// FTS indexer uses), so "ติดตั้งโปรแกรม" contributes the word tokens
+// ["ติดตั้ง", "โปรแกรม"] instead of a single opaque run. English stays a
+// plain lowercase alpha-numeric split, and the character n-gram channel
+// (g:...) remains as a secondary spelling-tolerance signal.
 import { createHash } from "node:crypto";
+import { wordTokens } from "./thai-segment.js";
 
 export const EMBED_DIM = 512;
 
@@ -24,12 +32,14 @@ function hashToken(token: string): number {
 }
 
 function tokenize(text: string): string[] {
-  const lower = text.toLowerCase();
+  const input = text || "";
+  const lower = input.toLowerCase();
   const tokens: string[] = [];
-  const matches = lower.match(/[a-z0-9ก-์]+/gi);
-  if (matches) {
-    for (const m of matches) tokens.push(m);
-  }
+  // Word-level channel: English keeps its current lowercase alpha-numeric
+  // tokens; each Thai run is segmented into word tokens via the shared
+  // thai-segment core (e.g. ติดตั้งโปรแกรม -> [ติดตั้ง, โปรแกรม]).
+  tokens.push(...wordTokens(input));
+  // Character n-gram channel (secondary, spelling tolerance).
   const chars = Array.from(lower.replace(/\s+/g, ""));
   if (chars.length >= 3) {
     for (let i = 0; i < chars.length - 2; i++) {
