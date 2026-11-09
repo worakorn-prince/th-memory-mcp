@@ -13,7 +13,7 @@
 
 [![th-memory-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/score.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp)
 [![Th Memory MCP on mcprush](https://mcprush.com/badge/th-memory-mcp/score.svg)](https://mcprush.com/to/th-memory-mcp?ref=badge)
-[![Tested by AddonAudit](https://addonaudit.com/badges/tested.svg)](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/)
+[![Audited by AddonAudit](https://addonaudit.com/badges/audited.svg)](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/)
 
 </div>
 
@@ -29,7 +29,7 @@ MCP server ความจำระยะยาวสำหรับ OpenCode �
 
 > **ความปลอดภัย:** ใช้ Node.js รุ่นที่ได้รับ patch — ตรวจ runtime ด้วย `npx is-my-node-vulnerable`; `npm audit` ครอบคลุมเฉพาะ dependencies ของ npm ไม่ครอบคลุม CVE ใน Node.js core
 
-> **การตรวจสอบ:** ผ่านการ smoke audit อัตโนมัติโดย [AddonAudit](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/) บนเวอร์ชัน 2.4.1 — เป็นการทดสอบอัตโนมัติ ไม่ใช่การรับประกันความปลอดภัย; advisory ระดับ high ที่พบได้รับการแก้ใน 2.4.2 แล้ว และการติดตั้งใหม่ตั้งแต่ 2.4.3 เป็นต้นไปไม่มี advisory ระดับ critical/high
+> **การตรวจสอบ:** ผ่านการ audit โดย [AddonAudit](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/) — v2.4.3 ผ่านทุกข้อที่เผยแพร่ด้วย 0 advisories (critical/high/medium/low, ตรวจเมื่อ 9 พ.ย. 2026) เป็นการทดสอบอัตโนมัติ ไม่ใช่การรับประกันความปลอดภัย
 
 ## Quick Start (เริ่มใช้งานไว)
 

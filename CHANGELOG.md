@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Harness notice on stderr is now prefixed `[th-memory-mcp] note:` instead of `[th-memory-mcp] warning:` when running outside OpenCode/Claude Code. The rest of the message (including the README pointer) is unchanged, and no tool behavior changed.
 
 ### Added
-- `README.md` / `README.th.md`: "Tested by AddonAudit" badge in the directory/aggregator badge row, plus a short note near the security note — independent automated smoke audit by AddonAudit (an automated test, not a security guarantee), with 0 critical/high advisories expected on fresh installs from 2.4.3 onward.
+- `README.md` / `README.th.md`: "Audited by AddonAudit" badge in the directory/aggregator badge row, plus a short note near the security note — independent automated smoke audit by AddonAudit (an automated test, not a security guarantee). The 9 Nov 2026 re-audit of `2.4.3` passed every published check with 0 advisories (critical/high/medium/low).
 
 ### Verification
 - `npm run version:check` — exit 0 (`package.json` 2.4.3 matches `ARCHITECTURE_v2.md`, `design.md`, `server.json`, `src/lib/config.ts`)
