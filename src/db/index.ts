@@ -18,6 +18,7 @@ import { truncate } from "../lib/capture-core.js";
 import { redactSecrets } from "../lib/redact.js";
 import { serialize } from "../lib/embed.js";
 import { hasThai, segmentForIndex, segmentQueryChunk } from "../lib/thai-segment.js";
+import { expandChunkSynonyms, expandIndexedText } from "../lib/thai-synonyms.js";
 import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
@@ -136,9 +137,27 @@ export function buildFtsMatch(query: string): string {
     .map((chunk) => {
       // A Thai chunk becomes an FTS5 phrase of its words: "ติด ตั้ง เร็ว"
       // matches the words in order, mirroring how the index was segmented.
+      // Thai chunks are NEVER OR-expanded here (even when the chunk is a known
+      // synonym): the locked thai_fts.test.mjs requires
+      // buildFtsMatch("ติดตั้ง") to stay a single ordered phrase, and the
+      // TH->EN bridge is already covered at index time (expandIndexedText) plus
+      // the ASCII-chunk expansion below.
       const words = hasThai(chunk) ? segmentQueryChunk(chunk) : [chunk];
       const phrase = (words.length > 0 ? words : [chunk]).map(quoteFtsToken).join(" ");
-      return `"${phrase}"`;
+      const base = `"${phrase}"`;
+      if (hasThai(chunk)) return base;
+      // Known ASCII chunk: OR the transliteration counterpart phrase(s) in, so
+      // e.g. `deploy` also matches the Thai "ดี พลอย" token stream.
+      const variants = expandChunkSynonyms(chunk);
+      if (variants.length <= 1) return base;
+      const alternatives = variants
+        .slice(1)
+        .map((v) => {
+          const vw = hasThai(v) ? segmentQueryChunk(v) : [v];
+          const vp = (vw.length > 0 ? vw : [v]).map(quoteFtsToken).join(" ");
+          return `"${vp}"`;
+        });
+      return [base, ...alternatives].join(" OR ");
     })
     .join(" OR ");
 }
@@ -163,11 +182,17 @@ export function syncSearchIndex(
   body: string
 ): void {
   getDeleteSearchIndex().run(refTable, refId);
+  // The stored text keeps the strict precedence of segmentForIndex plus (for
+  // Thai-containing or known-term text) appended transliteration synonyms from
+  // expandIndexedText. Display text always reads from the source tables, so
+  // the appended terms never surface to output. expandIndexedText is
+  // byte-idempotent under a second pass, so re-indexing an already-indexed row
+  // is a fixed point.
   getInsertSearchIndex().run(
     refTable,
     refId,
-    segmentForIndex(title),
-    segmentForIndex(body)
+    expandIndexedText(segmentForIndex(title)),
+    expandIndexedText(segmentForIndex(body))
   );
 }
 

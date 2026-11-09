@@ -3,6 +3,7 @@ import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { embed, serialize } from "../lib/embed.js";
 import { segmentForIndex } from "../lib/thai-segment.js";
+import { expandIndexedText } from "../lib/thai-synonyms.js";
 import { SEARCH_INDEX_DDL } from "./search-index-schema.js";
 
 type DB = BetterSqlite3.Database;
@@ -378,6 +379,57 @@ const M011_embeddings_segmenter: Migration = {
   },
 };
 
+// SYN adds transliteration synonyms (TASK-THAI-SYN) on BOTH index and query
+// sides. Existing search_index rows were written by the pre-synonym writer, so
+// they must be rebuilt with the new index-writing logic to carry the appended
+// transliteration tokens. Mirrors M010's batched, temp-table, rowid-paging,
+// row-count-preserving style: the rebuild re-reads the CURRENT indexed text
+// (already segmented by M010) through segmentForIndex (a byte-idempotent no-op
+// here) and expandIndexedText (idempotent fixed point), so re-running the
+// migration yields byte-identical rows and the same row count. The mark-aware
+// tokenizer DDL from search-index-schema.ts is preserved (SEARCH_INDEX_DDL).
+// Old migrations are NOT edited.
+const M012_search_index_synonyms: Migration = {
+  id: "012_search_index_synonyms",
+  up(db) {
+    db.exec(SEARCH_INDEX_DDL);
+    db.exec("DROP TABLE IF EXISTS temp._fts_syn_rebuild;");
+    db.exec(
+      "CREATE TEMP TABLE _fts_syn_rebuild AS SELECT ref_table, ref_id, title, body FROM search_index;"
+    );
+    db.exec("DROP TABLE IF EXISTS search_index;");
+    db.exec(SEARCH_INDEX_DDL);
+    const insert = db.prepare(
+      "INSERT INTO search_index (ref_table, ref_id, title, body) VALUES (?, ?, ?, ?)"
+    );
+    const batch = db.prepare(
+      `SELECT rowid AS rid, ref_table, ref_id, title, body
+       FROM temp._fts_syn_rebuild WHERE rowid > ? ORDER BY rowid LIMIT 200`
+    );
+    let lastRowid = 0;
+    for (;;) {
+      const rows = batch.all(lastRowid) as Array<{
+        rid: number;
+        ref_table: string;
+        ref_id: number;
+        title: string | null;
+        body: string | null;
+      }>;
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        lastRowid = row.rid;
+        insert.run(
+          row.ref_table,
+          row.ref_id,
+          expandIndexedText(segmentForIndex(row.title ?? "")),
+          expandIndexedText(segmentForIndex(row.body ?? ""))
+        );
+      }
+    }
+    db.exec("DROP TABLE IF EXISTS temp._fts_syn_rebuild;");
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -390,6 +442,7 @@ export const MIGRATIONS: Migration[] = [
   M009_relations_unique,
   M010_search_index_thai,
   M011_embeddings_segmenter,
+  M012_search_index_synonyms,
 ];
 
 const KEEP_BACKUPS = 5;
