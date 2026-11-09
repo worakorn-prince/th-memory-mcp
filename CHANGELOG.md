@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2026-11-10
+
+### Added
+- **Thai lexical layer v2** — zero-dependency follow-up to the 2.5.0 Thai-aware FTS5, making Thai retrieval word-aware, typo-tolerant, cross-language, and personal:
+  - `src/lib/thai-segment.ts` — `looseForm()` (de-accented/tone-tolerant form, keeps vowels), a built-in ~230-word dictionary fallback for runtimes without `Intl.Segmenter`, and `wordTokens()` as the single mixed TH/EN word tokenizer. `Intl.Segmenter` stays the primary path; `test/thai_segment_core.test.mjs` covers both paths.
+  - **Word-aware embeddings** — `src/lib/embed.ts` feeds Thai runs through `wordTokens` (≈ word vectors instead of one opaque run); migration `011_embeddings_segmenter` recomputes stored vectors (batched, idempotent, row-count-preserving). `test/embed_thai.test.mjs`.
+  - **TH↔EN transliteration synonyms** — `src/lib/thai-synonyms.ts` (deploy↔ดีพลอย, install↔ติดตั้ง, … ) applied at index and query (whole-term only, precision-first); migration `012_search_index_synonyms` re-expands existing rows. `test/thai_synonyms.test.mjs`.
+  - **Tone-tolerant search** — `search_index_loose` fallback channel lets a tone-mark typo (ติดตัง) still surface the correctly-marked document, always ranked below the tone-exact strict channel; migration `013_search_index_loose`; merged in `ftsSearch` and `recall` (deterministic strict-then-loose). `test/thai_loose.test.mjs`.
+  - **Personal Thai dictionary** — `src/db/thai-dict.ts` stores synonym/segment overrides in a new `thai_dict` table (migration `014_thai_dict`), auto-learns known transliterations from `lessons`, and injects them into the pure modules through provider seams (no DB imports in lib/); `th-memory thai-dict` CLI subcommand. `test/thai_learn.test.mjs`.
+  - **`thai-fts` CLI + docs** — a zero-dependency standalone CLI (`segment`/`loose`/`synonyms`/`check`, `--json`) registered as `bin.thai-fts`, plus `docs/thai-fts.md` documenting how to copy the reusable module into any Node project. `test/thai_cli.test.mjs`.
+
+### Verification
+- `npm run build` — exit 0
+- `npm run version:check` — exit 0
+- `npm test` — 194 tests, 193 pass, 0 fail, 1 skip
+
 ## [2.5.0] - 2026-11-09
 
 ### Fixed
@@ -187,7 +203,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark scope metric 0.75 → 0 (critical) and conflict 0 → 1; profiles rescaled to 5K / 20K / 100K; graph hop-1 0.52 → 1.0.
 - Benchmark viewer: header + `detectProfile` synced to the rescaled profiles.
 
-[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.5.1...HEAD
+[2.5.1]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.3...v2.5.0
 [2.4.3]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.2...v2.4.3
 [2.4.2]: https://github.com/worakorn-prince/th-memory-mcp/compare/v2.4.1...v2.4.2
