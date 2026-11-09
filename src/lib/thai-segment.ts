@@ -1,3 +1,22 @@
+/**
+ * Zero-dependency Thai lexical utilities: word segmentation for unspaced Thai,
+ * a tone-tolerant `looseForm`, and Thai detection. Pure — imports no `node:`
+ * modules, no `db/`, and no npm packages. Copy this single file into any
+ * Node/TS project (ESM or CJS) and call the functions directly:
+ *
+ * ```ts
+ * import { hasThai, segmentForIndex, looseForm, wordTokens } from "./thai-segment.js";
+ * hasThai("ติดตั้งโปรแกรม");            // → true
+ * hasThai("hello world");               // → false
+ * looseForm("ติดตั้ง");                  // → "ติดตัง" (tone marks stripped)
+ * wordTokens("ติดตั้งโปรแกรม");          // → ≥2 tokens that rejoin to the input
+ * segmentForIndex("ติดตั้ง");            // → " ติด ตั้ง " (space-delimited run)
+ * ```
+ *
+ * `wordTokens`/`segmentForIndex` prefer `Intl.Segmenter` (full-ICU) and fall
+ * back to a built-in dict + syllable heuristic on small-icu runtimes — the
+ * exact token split differs by runtime, but tokens never drop characters.
+ */
 // thai-segment: word segmentation for Thai text before it reaches FTS5.
 //
 // Thai is written without spaces between words. SQLite's default FTS5

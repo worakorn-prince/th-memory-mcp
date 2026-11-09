@@ -13,10 +13,12 @@
   "main": "dist/index.js",
   "bin": {
     "th-memory-mcp": "dist/index.js",
-    "th-memory": "dist/cli.js"
+    "th-memory": "dist/cli.js",
+    "thai-fts": "dist/thai-cli.js"
   },
   "files": [
     "dist",
+    "docs/thai-fts.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",

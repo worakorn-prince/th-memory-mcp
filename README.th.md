@@ -68,7 +68,7 @@ OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-
 - **เบา ทนทาน เปิดกว้าง** — tool calls มีเพดาน (latency < 10 ms, ขนาด output จำกัด) และ graceful degradation เมื่อ DB ไม่พร้อม; Node + `better-sqlite3` เท่านั้น; MIT license, 16 tools, rule-based distill, plugin auto-capture
 - **Lifecycle & temporal** — states (active/stale/superseded/archived), confidence/importance/salience, decay ต่อ type, validity intervals รองรับ point-in-time truth และ supersession chains
 - **Conflict-aware & consolidation** — ตรวจจับ duplicate/contradiction และเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้ง; คลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from`)
-- **Hybrid retrieval & ไทย** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion) แบบ token budget พร้อมขยายผ่าน memory graph; tokenize ไทยใน distill และ Thai-aware FTS5 แบ่งคำไทยด้วย `Intl.Segmenter` + tokenizer ที่เก็บวรรณยุกต์/สระไว้ใน token ทำให้ค้นคำไทยในข้อความที่เขียนติดกันได้ และวรรณยุกต์ยังมีผลต่อการ match (`ติดตัง` ≠ `ติดตั้ง`); รับไทย/อังกฤษสลับกันได้
+- **Hybrid retrieval & ไทย** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion) แบบ token budget พร้อมขยายผ่าน memory graph; tokenize ไทยใน distill และ Thai-aware FTS5 แบ่งคำไทยด้วย `Intl.Segmenter` + tokenizer ที่เก็บวรรณยุกต์/สระไว้ใน token ทำให้ค้นคำไทยในข้อความที่เขียนติดกันได้ และวรรณยุกต์ยังมีผลต่อการ match (`ติดตัง` ≠ `ติดตั้ง`); มีช่องแบบทนวรรณยุกต์ (`looseForm`), คำพ้อง TH↔EN และพจนานุกรมไทยส่วนตัว นำกลับไปใช้ standalone ได้ผ่าน CLI ไร้ dependency `thai-fts` ([docs/thai-fts.md](docs/thai-fts.md)); รับไทย/อังกฤษสลับกันได้
 
 ## Scripts
 

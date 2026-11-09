@@ -67,7 +67,7 @@ OpenCode loads the plugin `learning-capture` (dual-mode V1/V2, Node/Bun) — aut
 - **Lifecycle, temporal & conflict-aware** — states (active/stale/superseded/archived), confidence/importance/salience scoring, per-type decay, validity intervals for point-in-time truth and supersession chains; duplicate/contradiction resolution keeps both sides of ambiguous evidence.
 - **Hybrid retrieval** — `get_context` blends FTS5 keyword search with dependency-free lexical fuzzy matching (hashed n-gram similarity, 512-dim FNV-1a) via RRF fusion, then assembles a token-budgeted context with optional memory-graph expansion.
 - **Consolidation** — clusters similar memories into derived ones with full provenance (`derived_from` links).
-- **First-class Thai / i18n** — Thai-aware FTS5: Thai text is word-segmented (`Intl.Segmenter`) and indexed with a mark-aware tokenizer, so words inside unspaced Thai text are searchable and tone marks stay significant (`ติดตัง` ≠ `ติดตั้ง`); Thai and English are accepted interchangeably.
+- **First-class Thai / i18n** — Thai-aware FTS5: Thai text is word-segmented (`Intl.Segmenter`) and indexed with a mark-aware tokenizer, so words inside unspaced Thai text are searchable and tone marks stay significant (`ติดตัง` ≠ `ติดตั้ง`); a tone-tolerant `looseForm` channel, curated TH↔EN synonyms, and a personal Thai dict round it out — all reusable standalone via the zero-dep `thai-fts` CLI ([docs/thai-fts.md](docs/thai-fts.md)); Thai and English are accepted interchangeably.
 
 ## Works with other harnesses
 

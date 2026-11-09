@@ -1,3 +1,19 @@
+/**
+ * Curated TH<->EN transliteration/semantic synonym layer for the dev/tech
+ * domain. Zero-dependency: imports only `./thai-segment.js` (itself pure), no
+ * `node:` modules, no `db/`, no npm packages. Copy the two files together into
+ * any Node project and call it directly:
+ *
+ * ```ts
+ * import { expandSynonyms } from "./thai-synonyms.js";
+ * expandSynonyms("deploy");          // → ["deploy", "ดีพลอย"]
+ * expandSynonyms("ติดตั้ง");          // → ["ติดตั้ง", "install"]
+ * expandSynonyms("nope");            // → ["nope"]
+ * ```
+ *
+ * The lookup is bidirectional and whole-term only; `expandChunkSynonyms` and
+ * `expandIndexedText` are the FTS-payload helpers used by the server.
+ */
 // thai-synonyms: a small curated TH<->EN transliteration/semantic synonym
 // layer for the dev/tech domain (TASK-THAI-SYN).
 //
