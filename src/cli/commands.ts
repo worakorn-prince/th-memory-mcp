@@ -5,6 +5,7 @@ import { runHighlight } from "./commands/highlight.js";
 import { runHistory, runProfile, runRecent, runStats } from "./commands/reports.js";
 import { runRecall } from "./commands/recall.js";
 import { runRemember } from "./commands/remember.js";
+import { runThaiDict } from "./commands/thai-dict.js";
 import { fail, type Globals } from "./commands/shared.js";
 
 interface Parsed {
@@ -86,6 +87,9 @@ function parseArgv(argv: string[]): Parsed {
     "--kind",
     "--topic",
     "-q",
+    "--term",
+    "--pair",
+    "--project",
     "--db",
   ]);
   const boolOpts = new Set([
@@ -200,6 +204,8 @@ export async function runCli(argv: string[]): Promise<number> {
       return runRecent(opts, pos, g);
     case "highlight":
       return runHighlight(opts, pos, g);
+    case "thai-dict":
+      return runThaiDict(opts, pos, g);
     default:
       fail(`unknown command "${cmd}" (see --help)`, g.json);
   }

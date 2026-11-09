@@ -64,22 +64,73 @@ function buildLookup(
 
 const STATIC_LOOKUP: Map<string, readonly string[]> = buildLookup(THAI_SYNONYMS);
 
+// --- dynamic provider seam (TASK-THAI-LEARN) --------------------------------
+//
+// The LEARN task registers a module-level *provider* here (wired by
+// src/db/thai-dict.ts, which owns the DB). This file stays pure: it never
+// touches the DB, it only calls `provider()` — a cheap function that hands
+// back the same in-memory array until refreshed. When no provider is set (the
+// default), behavior is byte-identical to the static-only path below.
+export type SynonymProvider = () => Array<readonly [string, string]> | null;
+
+let synonymProvider: SynonymProvider | null = null;
+let synonymProviderCached: SynonymProvider | null | undefined;
+let synonymDynamicBase: Map<string, readonly string[]> | null = null;
+
+/** Set the dynamic synonym provider (no argument / null clears it → static
+ * only). Each re-set invalidates the cached merged lookup, so the DB layer can
+ * bounce it after every registry write. The provider must be cheap to call. */
+export function setSynonymProvider(fn?: SynonymProvider | null): void {
+  synonymProvider = fn ?? null;
+  synonymProviderCached = undefined;
+  synonymDynamicBase = null;
+}
+
+/** Static map + provider pairs, cached until the provider is re-set. The
+ * returned map is the bidirectional lookup (same shape as STATIC_LOOKUP). */
+function getDynamicBase(): Map<string, readonly string[]> | null {
+  if (!synonymProvider) return null;
+  if (synonymProviderCached !== synonymProvider) {
+    const pairs = synonymProvider() ?? [];
+    const merged = new Map<string, readonly string[]>(STATIC_LOOKUP);
+    mergeLookup(merged, buildLookup(pairs));
+    synonymDynamicBase = merged;
+    synonymProviderCached = synonymProvider;
+  }
+  return synonymDynamicBase;
+}
+
+function mergeLookup(
+  target: Map<string, readonly string[]>,
+  source: ReadonlyMap<string, readonly string[]>
+): void {
+  for (const [k, v] of source) {
+    const cur = target.get(k);
+    const arr = cur ? [...cur] : [];
+    for (const x of v) if (!arr.includes(x)) arr.push(x);
+    target.set(k, arr);
+  }
+}
+
 /**
  * Static map optionally merged with runtime-injected pairs and cached for the
  * static-only path. The `extra` seam exists so the later LEARN task can add
- * learned transliterations without reopening this file.
+ * learned transliterations without reopening this file. A module-level
+ * provider (setSynonymProvider) merges into the same path too.
  */
 function lookupFor(
   extra?: Iterable<readonly [string, string]>
 ): Map<string, readonly string[]> {
-  if (!extra) return STATIC_LOOKUP;
-  const merged = new Map<string, readonly string[]>(STATIC_LOOKUP);
-  for (const [k, v] of buildLookup(extra)) {
-    const cur = merged.get(k);
-    const arr = cur ? [...cur] : [];
-    for (const x of v) if (!arr.includes(x)) arr.push(x);
-    merged.set(k, arr);
+  const dyn = getDynamicBase();
+  if (dyn === null) {
+    if (!extra) return STATIC_LOOKUP;
+    const merged = new Map<string, readonly string[]>(STATIC_LOOKUP);
+    mergeLookup(merged, buildLookup(extra));
+    return merged;
   }
+  if (!extra) return dyn;
+  const merged = new Map<string, readonly string[]>(dyn);
+  mergeLookup(merged, buildLookup(extra));
   return merged;
 }
 

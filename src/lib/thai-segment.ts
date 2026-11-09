@@ -202,15 +202,122 @@ function dictSegment(run: string): string[] {
 
 /** Split one run of Thai characters into words (shared core of the module). */
 function thaiTokens(run: string, seg: Segmenter | null): string[] {
+  const out: string[] = [];
   if (seg) {
-    const out: string[] = [];
     for (const s of seg.segment(run)) {
       const w = s.segment.trim();
       if (w) out.push(w);
     }
-    return out;
+  } else {
+    out.push(...dictSegment(run));
   }
-  return dictSegment(run);
+  return applyOverrideMerges(run, out);
+}
+
+// --- segment-override provider seam (TASK-THAI-LEARN) -----------------------
+//
+// A dependency-inverted injection point: src/db/thai-dict.ts registers a
+// provider that hands back this module's list of FORCED compounds (term → the
+// single token it must stay). This module stays pure — it never imports the DB;
+// it only calls `provider()` for a cached in-memory list. When no provider is
+// set (default), every function below behaves byte-identically to before.
+//
+// Semantics: when a segmented Thai run contains the registered `term` as a
+// contiguous token-aligned sequence (the segmenter split it apart), those
+// tokens are re-merged into one token (`fixed`, normally == `term`). Only
+// whole-token-aligned matches merge — a term that straddles a token boundary
+// is skipped (safe no-op), so segmentation never drops characters and is
+// deterministic and idempotent: after a merge the run holds the single forced
+// token, and a second pass re-finds it as one token.
+export type SegmentOverride = { term: string; fixed: string };
+export type SegmentOverrideProvider = () => SegmentOverride[] | null;
+
+let overrideProvider: SegmentOverrideProvider | null = null;
+let overrideProviderCached: SegmentOverrideProvider | null | undefined;
+let overrideTermMap: Map<string, string> | null = null;
+
+/** Set the forced-compound provider (no argument / null clears it → built-in
+ * behavior). Re-set to invalidate the cached list after a registry write. */
+export function setSegmentOverrideProvider(fn?: SegmentOverrideProvider | null): void {
+  overrideProvider = fn ?? null;
+  overrideProviderCached = undefined;
+  overrideTermMap = null;
+}
+
+/** Cached term → fixed map from the provider; null when unset/empty. */
+function getOverrideTermMap(): Map<string, string> | null {
+  const provider = overrideProvider;
+  if (!provider) return null;
+  if (overrideProviderCached !== provider) {
+    let list: SegmentOverride[] | null = null;
+    try {
+      list = provider() ?? null;
+    } catch {
+      list = null;
+    }
+    const map = new Map<string, string>();
+    if (list) {
+      for (const o of list) {
+        const t = String(o?.term ?? "").trim();
+        const f = String(o?.fixed ?? "").trim();
+        if (t && f) map.set(t, f);
+      }
+    }
+    overrideTermMap = map;
+    overrideProviderCached = provider;
+  }
+  return overrideTermMap;
+}
+
+function mergeForcedTokens(
+  tokens: readonly string[],
+  term: string,
+  fixed: string
+): readonly string[] | null {
+  const out: string[] = [];
+  let changed = false;
+  let i = 0;
+  while (i < tokens.length) {
+    const head = tokens[i] ?? "";
+    if (head === term) {
+      out.push(fixed);
+      changed = true;
+      i += 1;
+      continue;
+    }
+    if (head.length < term.length) {
+      let acc = head;
+      let j = i + 1;
+      while (j < tokens.length && acc.length < term.length) {
+        acc += tokens[j] ?? "";
+        j += 1;
+      }
+      if (acc === term) {
+        out.push(fixed);
+        changed = true;
+        i = j;
+        continue;
+      }
+    }
+    out.push(head);
+    i += 1;
+  }
+  return changed ? out : null;
+}
+
+function applyOverrideMerges(run: string, tokens: readonly string[]): string[] {
+  const map = getOverrideTermMap();
+  if (map === null || map.size === 0) return [...tokens];
+  const terms = [...map.keys()]
+    .filter((t) => run.includes(t))
+    .sort((a, b) => b.length - a.length);
+  if (terms.length === 0) return [...tokens];
+  let out: readonly string[] = tokens;
+  for (const term of terms) {
+    const merged = mergeForcedTokens(out, term, map.get(term) ?? term);
+    if (merged) out = merged;
+  }
+  return [...out];
 }
 
 export function hasThai(text: string): boolean {

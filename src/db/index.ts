@@ -22,6 +22,7 @@ import { expandChunkSynonyms, expandIndexedText } from "../lib/thai-synonyms.js"
 import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
+import { learnFromLessons, refreshDictProvider } from "./thai-dict.js";
 import { SEARCH_INDEX_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
 
 type DbInstance = BetterSqlite3.Database;
@@ -98,7 +99,14 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 `);
   runMigrations(instance);
+  // thai-dict's registry + learn use the same `db` proxy (getDb), so the
+  // initialize flag is raised BEFORE the warm-up calls to keep a nested
+  // getDb() from re-entering ensureDbInitialized (idempotent, safe, cheap:
+  // learnFromLessons is guarded by a schema_meta marker and no-ops when no
+  // lesson changed).
   _dbInitialized = true;
+  learnFromLessons();
+  refreshDictProvider();
 }
 
 export function getDb(): DbInstance {

@@ -14,6 +14,7 @@ export const COMMANDS = [
   "history",
   "recent",
   "highlight",
+  "thai-dict",
 ];
 
 export const GLOBAL_HELP = `th-memory ${VERSION} - local memory CLI (zero-dep)
@@ -38,6 +39,7 @@ Commands:
   history [--query <q>] [--limit <n>]               search past prompts (no query = recent prompts)
   recent [--limit <n>] [--kind <k>]                 recent interactions
   highlight [text...] -q <topic> [--limit <n>]      highlight topic matches (empty text = stdin)
+  thai-dict <list|add|rm|learn> [opts]              personal Thai lexeme registry
 
 Examples:
   th-memory remember --category coding_pref --key package_manager --value pnpm
@@ -87,6 +89,13 @@ export const COMMAND_HELP: Record<string, string> = {
   [text...]        text to highlight (empty = read from stdin pipe)
   -q, --topic <t>  topic to highlight (required)
   --limit <n>      max highlight matches (positive integer)`,
+  "thai-dict": `Usage: th-memory thai-dict <list|add|rm|learn> [opts]
+
+  list                            show every registry entry (term, kind, pair, source)
+  add --kind <synonym|segment> --term <t> --pair <p> [--project <id>]
+                                  add or replace a registry entry (default kind: synonym)
+  rm --term <t>                   remove a registry entry by surface term
+  learn                           re-run auto-learn from lessons now`,
 };
 
 export function printHelp(cmd: string | undefined): void {

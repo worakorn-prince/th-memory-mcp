@@ -481,6 +481,28 @@ const M013_search_index_loose: Migration = {
   },
 };
 
+// PERSONAL Thai dictionary (TASK-THAI-LEARN): the registry that lets the
+// user's own lessons + manual entries drive synonym expansion and seg- ment
+// overrides. Purely additive table — the FTS tables and their tokenizers are
+// untouched (SYN/LOOSE own those). Idempotent via IF NOT EXISTS. Old
+// migrations are NOT edited.
+const M014_thai_dict: Migration = {
+  id: "014_thai_dict",
+  up(db) {
+    db.exec(`CREATE TABLE IF NOT EXISTS thai_dict (
+      term       TEXT PRIMARY KEY,                    -- surface form, lowercased
+      kind       TEXT NOT NULL CHECK (kind IN ('synonym','segment')),
+      pair       TEXT NOT NULL,                       -- synonym: counterpart; segment: forced single token
+      source     TEXT NOT NULL DEFAULT 'manual',      -- 'manual' | 'lesson'
+      project_id TEXT,                                -- NULL = global
+      created_at TEXT NOT NULL
+    );`);
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_thai_dict_kind ON thai_dict(kind);`
+    );
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -495,6 +517,7 @@ export const MIGRATIONS: Migration[] = [
   M011_embeddings_segmenter,
   M012_search_index_synonyms,
   M013_search_index_loose,
+  M014_thai_dict,
 ];
 
 const KEEP_BACKUPS = 5;
