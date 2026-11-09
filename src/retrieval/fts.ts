@@ -1,10 +1,41 @@
-import { db, buildFtsMatch } from "../db/index.js";
+import { db, buildFtsMatch, buildLooseFtsMatch } from "../db/index.js";
 import { resolveUserId } from "../db/repositories/users.js";
 import { buildScopeClause } from "../lib/scope.js";
 
 export interface RankedId {
   id: number;
   rank: number;
+}
+
+type FtsChannel = "search_index" | "search_index_loose";
+
+// Shared shape of the scope clause + named params (alias is fixed to "m").
+interface ChannelContext {
+  statusClause: string;
+  scope: ReturnType<typeof buildScopeClause>;
+}
+
+function runChannel(
+  table: FtsChannel,
+  match: string,
+  limit: number,
+  ctx: ChannelContext
+): number[] {
+  const rows = db
+    .prepare(
+      `SELECT m.id FROM memories m
+       JOIN ${table} ON ${table}.ref_table = 'memories' AND ${table}.ref_id = m.id
+       WHERE ${table} MATCH @match ${ctx.statusClause}
+         AND ${ctx.scope.sql}
+       ORDER BY rank
+       LIMIT @limit`
+    )
+    .all({
+      match,
+      limit,
+      ...ctx.scope.params,
+    }) as Array<{ id: number }>;
+  return rows.map((r) => Number(r.id));
 }
 
 export function ftsSearch(
@@ -31,25 +62,28 @@ export function ftsSearch(
     sessionId: opts.sessionId,
     projectId: opts.projectId,
   });
-  const rows = db
-    .prepare(
-      `SELECT m.id, m.scope, m.project_id, m.session_id, m.user_id FROM memories m
-       JOIN search_index ON search_index.ref_table = 'memories' AND search_index.ref_id = m.id
-       WHERE search_index MATCH @match ${statusClause}
-         AND ${scope.sql}
-       ORDER BY rank
-       LIMIT @limit`
-    )
-    .all({
-      match: buildFtsMatch(query),
-      limit,
-      ...scope.params,
-    }) as Array<{
-      id: number;
-      scope: string;
-      project_id: string | null;
-      session_id: string | null;
-      user_id: number | null;
-    }>;
-  return rows.map((r, i) => ({ id: r.id, rank: i + 1 }));
+  const ctx: ChannelContext = { statusClause, scope };
+
+  // STRICT channel is the authoritative, higher-ranked path (tone marks stay
+  // significant): ติดตั้ง ≠ ติดตัง.
+  const strict = runChannel("search_index", buildFtsMatch(query), limit, ctx);
+  const out: RankedId[] = strict.map((id, i) => ({ id, rank: i + 1 }));
+
+  // LOOSE fallback channel (TASK-THAI-LOOSE): only consulted when the strict
+  // channel is short of the limit, so a tone-typo query (ติดตัง) can still
+  // surface the correctly-marked document. Loose-only hits are appended BELOW
+  // strict hits, deduped by id, and never displace a strict hit. Same
+  // scope/status predicates and the same LIMIT clamp are applied on both
+  // channels, so the merge is deterministic (strict-then-loose).
+  if (strict.length < limit) {
+    const loose = runChannel("search_index_loose", buildLooseFtsMatch(query), limit, ctx);
+    const seen = new Set<number>(strict);
+    for (const id of loose) {
+      if (out.length >= limit) break;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push({ id, rank: out.length + 1 });
+    }
+  }
+  return out;
 }

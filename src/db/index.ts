@@ -17,12 +17,12 @@ import { dirname } from "node:path";
 import { truncate } from "../lib/capture-core.js";
 import { redactSecrets } from "../lib/redact.js";
 import { serialize } from "../lib/embed.js";
-import { hasThai, segmentForIndex, segmentQueryChunk } from "../lib/thai-segment.js";
+import { hasThai, looseForm, segmentForIndex, segmentQueryChunk } from "../lib/thai-segment.js";
 import { expandChunkSynonyms, expandIndexedText } from "../lib/thai-synonyms.js";
 import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
-import { SEARCH_INDEX_DDL } from "./search-index-schema.js";
+import { SEARCH_INDEX_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
 
 type DbInstance = BetterSqlite3.Database;
 
@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS profile (
 );
 
 ${SEARCH_INDEX_DDL}
+
+${SEARCH_INDEX_LOOSE_DDL}
 
 CREATE TABLE IF NOT EXISTS embeddings (
   ref_table TEXT NOT NULL,
@@ -162,6 +164,43 @@ export function buildFtsMatch(query: string): string {
     .join(" OR ");
 }
 
+/**
+ * Query-side twin of buildFtsMatch for the de-accented LOOSE channel. Mirrors
+ * buildFtsMatch's structure exactly — Thai chunk -> single ordered phrase,
+ * ASCII chunk -> OR the transliteration counterpart(s) in — but every chunk is
+ * first routed through looseForm() (strips only Thai tone-level marks, keeps
+ * vowels, lowercases). This is what makes the transform chain agree with the
+ * loose index rows (which store looseForm of the strict payload): "ติดตั้ง"
+ * and "ติดตัง" both become the same loose phrase here, so a tone-mark typo can
+ * still match the correctly-marked document. For pure-ASCII queries
+ * looseForm is only a lowercase, so buildLooseFtsMatch ≡ buildFtsMatch's match
+ * set (FTS5 case-folds) and the loose channel adds nothing.
+ */
+export function buildLooseFtsMatch(query: string): string {
+  const chunks = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  return chunks
+    .map((chunkRaw) => {
+      const chunk = looseForm(chunkRaw);
+      const thai = hasThai(chunk);
+      const words = thai ? segmentQueryChunk(chunk) : [chunk];
+      const phrase = (words.length > 0 ? words : [chunk]).map(quoteFtsToken).join(" ");
+      const base = `"${phrase}"`;
+      if (thai) return base;
+      const variants = expandChunkSynonyms(chunk);
+      if (variants.length <= 1) return base;
+      const alternatives = variants
+        .slice(1)
+        .map((v) => {
+          const vl = looseForm(v);
+          const vw = hasThai(vl) ? segmentQueryChunk(vl) : [vl];
+          const vp = (vw.length > 0 ? vw : [vl]).map(quoteFtsToken).join(" ");
+          return `"${vp}"`;
+        });
+      return [base, ...alternatives].join(" OR ");
+    })
+    .join(" OR ");
+}
+
 let _insertSearchIndex: BetterSqlite3.Statement | null = null;
 function getInsertSearchIndex(): BetterSqlite3.Statement {
   return (_insertSearchIndex ??= db.prepare(
@@ -174,6 +213,18 @@ function getDeleteSearchIndex(): BetterSqlite3.Statement {
     "DELETE FROM search_index WHERE ref_table = ? AND ref_id = ?"
   ));
 }
+let _insertLooseSearchIndex: BetterSqlite3.Statement | null = null;
+function getInsertLooseSearchIndex(): BetterSqlite3.Statement {
+  return (_insertLooseSearchIndex ??= db.prepare(
+    "INSERT INTO search_index_loose (ref_table, ref_id, title, body) VALUES (?, ?, ?, ?)"
+  ));
+}
+let _deleteLooseSearchIndex: BetterSqlite3.Statement | null = null;
+function getDeleteLooseSearchIndex(): BetterSqlite3.Statement {
+  return (_deleteLooseSearchIndex ??= db.prepare(
+    "DELETE FROM search_index_loose WHERE ref_table = ? AND ref_id = ?"
+  ));
+}
 
 export function syncSearchIndex(
   refTable: string,
@@ -182,22 +233,32 @@ export function syncSearchIndex(
   body: string
 ): void {
   getDeleteSearchIndex().run(refTable, refId);
+  getDeleteLooseSearchIndex().run(refTable, refId);
   // The stored text keeps the strict precedence of segmentForIndex plus (for
   // Thai-containing or known-term text) appended transliteration synonyms from
   // expandIndexedText. Display text always reads from the source tables, so
   // the appended terms never surface to output. expandIndexedText is
   // byte-idempotent under a second pass, so re-indexing an already-indexed row
   // is a fixed point.
-  getInsertSearchIndex().run(
+  const strictTitle = expandIndexedText(segmentForIndex(title));
+  const strictBody = expandIndexedText(segmentForIndex(body));
+  getInsertSearchIndex().run(refTable, refId, strictTitle, strictBody);
+  // LOOSE channel (TASK-THAI-LOOSE): the loose row stores the de-accented
+  // (tone-tolerant) form of the SAME strict payload, so the loose index and
+  // query side always agree. looseForm(strict) is a fixed point (looseForm is
+  // idempotent and the strict text is deterministic), so re-indexing a row is
+  // byte-idempotent here too, exactly like the strict half.
+  getInsertLooseSearchIndex().run(
     refTable,
     refId,
-    expandIndexedText(segmentForIndex(title)),
-    expandIndexedText(segmentForIndex(body))
+    looseForm(strictTitle),
+    looseForm(strictBody)
   );
 }
 
 export function removeSearchIndex(refTable: string, refId: number): void {
   getDeleteSearchIndex().run(refTable, refId);
+  getDeleteLooseSearchIndex().run(refTable, refId);
 }
 
 // --- vector embeddings (lightweight local semantic search) ---

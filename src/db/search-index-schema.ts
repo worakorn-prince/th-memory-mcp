@@ -16,3 +16,14 @@ export const SEARCH_INDEX_DDL = `CREATE VIRTUAL TABLE IF NOT EXISTS search_index
   ref_table, ref_id, title, body,
   tokenize = "unicode61 categories 'L* N* Co M*'"
 );`;
+
+// LOOSE fallback channel (TASK-THAI-LOOSE): same columns, same mark-aware
+// tokenizer, but rows store the de-accented looseForm() of the segmented text,
+// so a tone-mark typo (ติดตัง) can still match a correctly-marked document
+// (ติดตั้ง) — always ranked BELOW the strict channel. Derived from
+// SEARCH_INDEX_DDL by renaming only the table, so the tokenizer stays in
+// lockstep with the strict index forever.
+export const SEARCH_INDEX_LOOSE_DDL = SEARCH_INDEX_DDL.replace(
+  "CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(",
+  "CREATE VIRTUAL TABLE IF NOT EXISTS search_index_loose USING fts5("
+);

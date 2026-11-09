@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   db,
   buildFtsMatch,
+  buildLooseFtsMatch,
   escapeLike,
   truncate,
   getAllEmbeddings,
@@ -29,6 +30,12 @@ const RECENT_INTERACTIONS_LIMIT = 20;
 const SEMANTIC_FLOOR = 0.15;
 const searchIndexed = db.prepare(
   "SELECT ref_table, ref_id, title, body FROM search_index WHERE search_index MATCH ? AND ref_table IN ('preferences','lessons') LIMIT ?"
+);
+// LOOSE channel (TASK-THAI-LOOSE): de-accented fallback on search_index_loose,
+// only consulted when the strict path yields fewer than `limit` rows, and its
+// hits are always appended BELOW strict hits (never displacing them).
+const searchIndexedLoose = db.prepare(
+  "SELECT ref_table, ref_id, title, body FROM search_index_loose WHERE search_index_loose MATCH ? AND ref_table IN ('preferences','lessons') LIMIT ?"
 );
 const recentInteractions = db.prepare(
   `SELECT ts, kind, content FROM interactions WHERE content LIKE ? ESCAPE '\\' ORDER BY ts DESC LIMIT ${RECENT_INTERACTIONS_LIMIT}`
@@ -67,12 +74,34 @@ export async function recallHandler(args: {
     let prefLines = "";
     let lessonLines = "";
     try {
-      const rows = searchIndexed.all(buildFtsMatch(args.topic), limit) as {
+      const strictRows = searchIndexed.all(buildFtsMatch(args.topic), limit) as {
         ref_table: string;
         ref_id: number;
         title: string;
         body: string;
       }[];
+      const rows = [...strictRows];
+      if (strictRows.length < limit) {
+        const seenLoose = new Set<string>(
+          strictRows.map((r) => `${String(r.ref_table)}:${String(r.ref_id)}`)
+        );
+        const looseRows = searchIndexedLoose.all(
+          buildLooseFtsMatch(args.topic),
+          limit
+        ) as {
+          ref_table: string;
+          ref_id: number;
+          title: string;
+          body: string;
+        }[];
+        for (const r of looseRows) {
+          if (rows.length >= limit) break;
+          const key = `${String(r.ref_table)}:${String(r.ref_id)}`;
+          if (seenLoose.has(key)) continue;
+          seenLoose.add(key);
+          rows.push(r);
+        }
+      }
       for (const r of rows) {
         if (r.ref_table === "preferences") {
           const line = prefLine(Number(r.ref_id));

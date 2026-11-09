@@ -2,9 +2,9 @@ import type BetterSqlite3 from "better-sqlite3";
 import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { embed, serialize } from "../lib/embed.js";
-import { segmentForIndex } from "../lib/thai-segment.js";
+import { segmentForIndex, looseForm } from "../lib/thai-segment.js";
 import { expandIndexedText } from "../lib/thai-synonyms.js";
-import { SEARCH_INDEX_DDL } from "./search-index-schema.js";
+import { SEARCH_INDEX_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
 
 type DB = BetterSqlite3.Database;
 
@@ -430,6 +430,57 @@ const M012_search_index_synonyms: Migration = {
   },
 };
 
+// LOOSE channel (TASK-THAI-LOOSE): build the de-accented search_index_loose
+// table from the current search_index rows. Each search_index row already
+// carries the canonical strict payload (expandIndexedText(segmentForIndex(...))),
+// so the loose row is looseForm() of it — exactly what the dual-write write
+// path (syncSearchIndex) produces, keeping the index and query sides in
+// lockstep. Mirrors M010/M012's batched, temp-table, rowid-paging,
+// row-count-preserving style. Idempotent: looseForm is idempotent and
+// search_index is unchanged by this migration, so a re-run yields byte-
+// identical loose rows and the same row count. The mark-aware tokenizer DDL
+// is preserved (SEARCH_INDEX_LOOSE_DDL). Old migrations are NOT edited.
+const M013_search_index_loose: Migration = {
+  id: "013_search_index_loose",
+  up(db) {
+    db.exec(SEARCH_INDEX_LOOSE_DDL);
+    db.exec("DROP TABLE IF EXISTS temp._fts_loose_rebuild;");
+    db.exec(
+      "CREATE TEMP TABLE _fts_loose_rebuild AS SELECT ref_table, ref_id, title, body FROM search_index;"
+    );
+    db.exec("DROP TABLE IF EXISTS search_index_loose;");
+    db.exec(SEARCH_INDEX_LOOSE_DDL);
+    const insert = db.prepare(
+      "INSERT INTO search_index_loose (ref_table, ref_id, title, body) VALUES (?, ?, ?, ?)"
+    );
+    const batch = db.prepare(
+      `SELECT rowid AS rid, ref_table, ref_id, title, body
+       FROM temp._fts_loose_rebuild WHERE rowid > ? ORDER BY rowid LIMIT 200`
+    );
+    let lastRowid = 0;
+    for (;;) {
+      const rows = batch.all(lastRowid) as Array<{
+        rid: number;
+        ref_table: string;
+        ref_id: number;
+        title: string | null;
+        body: string | null;
+      }>;
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        lastRowid = row.rid;
+        insert.run(
+          row.ref_table,
+          row.ref_id,
+          looseForm(row.title ?? ""),
+          looseForm(row.body ?? "")
+        );
+      }
+    }
+    db.exec("DROP TABLE IF EXISTS temp._fts_loose_rebuild;");
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -443,6 +494,7 @@ export const MIGRATIONS: Migration[] = [
   M010_search_index_thai,
   M011_embeddings_segmenter,
   M012_search_index_synonyms,
+  M013_search_index_loose,
 ];
 
 const KEEP_BACKUPS = 5;
