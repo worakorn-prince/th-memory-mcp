@@ -136,6 +136,16 @@ echo "I prefer pnpm for installs" | th-memory highlight -q pnpm
 
 จุดเพิ่มเติมจาก Quick Start: ตั้ง `MEMORY_DB_PATH` เป็น env var ระดับระบบ/ผู้ใช้ (เช่น `setx MEMORY_DB_PATH "D:/path/to/memory.db"`) จะครอบทั้ง server และ plugin โดยอัตโนมัติทุกโปรเจกต์ (plugin รันใน process เดียวกับ OpenCode); ส่วน `environment` ใน mcp ครอบเฉพาะ server — ใช้ [`opencode.example.json`](opencode.example.json) เป็นบล็อกสำเร็จรูป (global หรือ project) และกฎความจำตัวอย่างใน [`AGENTS.memory.example.md`](AGENTS.memory.example.md) (แนบระดับโปรเจกต์แทนได้)
 
+## ใช้งานกับ DeepSeek Harness (dsh)
+
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`, agent harness แบบ everything-is-a-plugin ของ DeepSeek AI) มี MCP client ในตัว (`@deepseek-ai/dsh-mcp-client`) — ต่อ th-memory-mcp ผ่าน MCP bridge ได้โดยไม่ต้องเขียนปลั๊กอิน: 16 tools ถูก expose เป็น `mcp__memory__<tool>` (เช่น `mcp__memory__remember`)
+
+**ไม่ซ้ำซ้อน** — dsh มีความจำระดับ session (session persistence, compaction, ค้น session เก่า) แต่ตั้งใจ delegate **ความจำระยะยาวข้าม session** ไปยัง memory MCP server (ซึ่งคือจุดที่ th-memory-mcp ถนัด: hybrid retrieval, conflict/temporal, ภาษาไทย)
+
+วิธีติดตั้ง: [DSH_SETUP.md](DSH_SETUP.md) · ไฟล์ patch สำเร็จรูป: [`dsh/cordis.memory.example.yml`](dsh/cordis.memory.example.yml)
+
+> dsh ยังเป็น developer preview (มี breaking changes ได้) — ใช้ช่อง MCP bridge ซึ่งเป็นขอบเขตที่เสถียร; auto-capture แบบ `learning-capture` ยังไม่รองรับบน dsh — ใช้การเรียก `mcp__memory__*` ชัดเจน + model instruction สั้นๆ แทน เหมือน Cursor/Codex
+
 ## การใช้งานประจำวัน
 
 AI รับไทย/อังกฤษสลับกันได้ตลอด; ดูแลระยะยาว: รัน `npm run distill` เป็นครั้งคราวเพื่อสรุปสถิติ + ลบ interactions เก่าเกิน 30 วัน

@@ -73,14 +73,14 @@ OpenCode loads the plugin `learning-capture` (dual-mode V1/V2, Node/Bun) — aut
 
 A standard MCP server: 16 tools anywhere MCP-over-stdio works; all harnesses share one SQLite file via `MEMORY_DB_PATH`. Auto-capture needs a hook runtime (built into OpenCode, bridged for Claude Code).
 
-| Feature | OpenCode | Claude Code | Qwen Code | Codex | Cursor |
-|---|---|---|---|---|---|
-| 16 MCP tools | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Auto-capture (background) | ✅ plugin | ✅ [hooks](CLAUDE_CODE_HOOKS.md) | ⚠️ adapter | ❌ manual | ❌ Rules |
-| Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ `get_profile` | ❌ `get_profile` | ❌ `get_profile` |
-| Lexical fuzzy matching | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) |
+| Feature | OpenCode | Claude Code | Qwen Code | Codex | Cursor | DeepSeek Harness (dsh) |
+|---|---|---|---|---|---|---|
+| 16 MCP tools | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ `mcp__memory__*` |
+| Auto-capture (background) | ✅ plugin | ✅ [hooks](CLAUDE_CODE_HOOKS.md) | ⚠️ adapter | ❌ manual | ❌ Rules | ❌ manual |
+| Profile injection | ✅ compaction | ✅ UserPromptSubmit | ❌ `get_profile` | ❌ `get_profile` | ❌ `get_profile` | ❌ `get_context` |
+| Lexical fuzzy matching | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) | ✅ (v2.0) |
 
-- **Claude Code** ([CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md)) — drop-in hooks replace the plugin: capture + profile injection on `UserPromptSubmit`/`PreCompact`, distill on `SessionEnd`. **Qwen Code** ([QWEN_SETUP.md](QWEN_SETUP.md)) — MCP fully; hooks need a small Gemini-CLI adapter. **Codex** ([CODEX_SETUP.md](CODEX_SETUP.md)) · **Cursor** ([CURSOR_SETUP.md](CURSOR_SETUP.md)) — manual tools.
+- **Claude Code** ([CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md)) — drop-in hooks replace the plugin: capture + profile injection on `UserPromptSubmit`/`PreCompact`, distill on `SessionEnd`. **Qwen Code** ([QWEN_SETUP.md](QWEN_SETUP.md)) — MCP fully; hooks need a small Gemini-CLI adapter. **Codex** ([CODEX_SETUP.md](CODEX_SETUP.md)) · **Cursor** ([CURSOR_SETUP.md](CURSOR_SETUP.md)) — manual tools. **DeepSeek Harness** ([DSH_SETUP.md](DSH_SETUP.md)) — official MCP bridge (`@deepseek-ai/dsh-mcp-client`), tools exposed as `mcp__memory__*`; no auto-capture — rely on explicit `remember`/`recall` plus a short shared model instruction.
 
 ## Scripts
 

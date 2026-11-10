@@ -1,0 +1,31 @@
+# th-memory-mcp on DeepSeek Harness (dsh) — MCP bridge patch
+#
+# Usage:
+#   - One-shot:    dsh web --patch "<REPO>/dsh/cordis.memory.example.yml"
+#   - Persistent:  merge the single `insert` row into
+#                  $DSH_HOME/cordis.patch.yml (every profile on the machine) or
+#                  $DSH_HOME/profiles/<name>/cordis.patch.yml (one profile).
+#                  Don't overwrite an existing file — it may already hold
+#                  unrelated user patches.
+#
+# After startup, the 16 memory tools appear as mcp__memory__<tool>, e.g.
+# mcp__memory__remember, mcp__memory__recall, mcp__memory__get_context.
+# Discovery is async: wait for the mcp__memory__* tools before the first prompt.
+- insert:
+    - id: memory-th-memory-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: memory
+        transport: stdio
+        # Either the globally installed npm binary (npm i -g th-memory-mcp) ...
+        command: th-memory-mcp
+        args: []
+        # ... or run straight from this repo:
+        # command: node
+        # args: ['<ABSOLUTE_REPO>/dist/index.js']
+        env:
+          # Point at the SAME SQLite file used by every other harness so memory
+          # is shared. dsh scrubs credential-looking ambient env (KEY/PASSWORD/
+          # SECRET/TOKEN names and DSH_*), so set it here explicitly.
+          MEMORY_DB_PATH: '<ABSOLUTE_REPO>/data/memory.db'
+        cwd: !!js process.cwd()
