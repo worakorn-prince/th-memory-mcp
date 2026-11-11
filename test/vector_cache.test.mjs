@@ -337,6 +337,81 @@ test("tiny budget stays under the byte limit and still returns correct results",
   }
 });
 
+test("a table larger than the capacity cap matches cache-off and stays warm", () => {
+  cache.setVectorCacheBudgetMb(0);
+  const reference = vectorSearch(TOPIC, { limit: 50 });
+
+  cache.setVectorCacheBudgetMb(0.1); // ~105 KB -> 38 slots, below the ~300 rows
+  try {
+    const first = vectorSearch(TOPIC, { limit: 50 });
+    assert.deepStrictEqual(first, reference, "over-cap rows must still be scored");
+    const afterFirst = cache.vectorCacheStats();
+    assert.ok(afterFirst.hits > 0, "the resident rows must come from the matrix");
+    assert.ok(afterFirst.bytes > 0);
+    assert.ok(
+      afterFirst.bytes <= afterFirst.budgetBytes,
+      `bytes ${afterFirst.bytes} > budget ${afterFirst.budgetBytes}`
+    );
+
+    const second = vectorSearch(TOPIC, { limit: 50 });
+    assert.deepStrictEqual(second, reference, "the second query must be exact too");
+    const afterSecond = cache.vectorCacheStats();
+    assert.ok(
+      afterSecond.hits > afterFirst.hits,
+      "the resident rows must be hits on the second query, not a fresh fill"
+    );
+    assert.ok(
+      afterSecond.misses > afterFirst.misses,
+      "only the over-cap rows are refetched"
+    );
+    assert.equal(
+      afterSecond.bytes,
+      afterFirst.bytes,
+      "the matrix must not be reallocated per query"
+    );
+    assert.ok(afterSecond.bytes <= afterSecond.budgetBytes);
+  } finally {
+    cache.setVectorCacheBudgetMb(64);
+  }
+});
+
+test("a capacity cap that holds no vector still returns cache-off results", () => {
+  cache.setVectorCacheBudgetMb(0);
+  const reference = vectorSearch(TOPIC, { limit: 50 });
+
+  cache.setVectorCacheBudgetMb(0.001); // ~1 KB, less than one 2 KB slot
+  try {
+    assert.deepStrictEqual(vectorSearch(TOPIC, { limit: 50 }), reference);
+    const stats = cache.vectorCacheStats();
+    assert.ok(stats.enabled);
+    assert.equal(stats.entries, 0);
+    assert.equal(stats.bytes, 0);
+    assert.ok(stats.misses > 0, "every row must be a miss under a zero cap");
+  } finally {
+    cache.setVectorCacheBudgetMb(64);
+  }
+});
+
+test("recall matches cache-off when the capacity cap holds only a few vectors", async () => {
+  cache.setVectorCacheBudgetMb(0);
+  const referenceText = textOf(await recallHandler({ topic: TOPIC, limit: 5 }));
+  try {
+    for (const mb of [0.1, 0.001]) {
+      cache.setVectorCacheBudgetMb(mb);
+      const text = textOf(await recallHandler({ topic: TOPIC, limit: 5 }));
+      assert.equal(
+        text,
+        referenceText,
+        `budget ${mb} MB must produce identical recall text`
+      );
+      const stats = cache.vectorCacheStats();
+      assert.ok(stats.bytes <= stats.budgetBytes);
+    }
+  } finally {
+    cache.setVectorCacheBudgetMb(64);
+  }
+});
+
 test("MEMORY_VECTOR_CACHE_MB=0 path matches the cached path exactly", () => {
   const cachedResults = vectorSearch(TOPIC, { limit: 50 });
   cache.setVectorCacheBudgetMb(0);

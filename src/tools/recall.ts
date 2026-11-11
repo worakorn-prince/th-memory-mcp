@@ -16,9 +16,12 @@ import {
 } from "../db/index.js";
 import { embed, cosine, deserialize } from "../lib/embed.js";
 import {
-  getVector,
+  accumulateScores,
+  ensureVectors,
   isVectorCacheEnabled,
+  patchVectorSlots,
   vectorKey,
+  withVectorQuery,
 } from "../retrieval/vector-cache.js";
 import { redactSecrets } from "../lib/redact.js";
 import { wrapMemoryReference } from "../lib/memory-format.js";
@@ -55,6 +58,19 @@ const prefById = db.prepare(
 const lessonById = db.prepare(
   "SELECT situation, mistake, correction FROM lessons WHERE id = ?"
 );
+
+// TASK-PERF-MATRIX: one resolved table slice of the semantic blend — the ids
+// read in `getAllEmbeddingKeys()` order, their matrix slots, the row index each
+// id came from (so the scored list can be rebuilt in the original order), and
+// the vectors the miss fill fetched (used for rows that cannot be resident:
+// no row, or a table bigger than the per-bucket capacity cap).
+interface RecallGroup {
+  table: string;
+  ids: Int32Array;
+  rows: Int32Array;
+  slots: Int32Array;
+  fetched: Map<string, Float32Array> | null;
+}
 
 function prefLine(id: number): string | null {
   const r = prefById.get(id) as
@@ -153,40 +169,98 @@ export async function recallHandler(args: {
         // misses are filled with one batched BLOB read. The ids read and the
         // fill share one deferred snapshot (see withVectorSnapshot) so a
         // concurrent writer cannot drop or reuse a row between the statements.
-        // Each key is looked up exactly once: resolving it a second time in the
-        // scoring loop both doubled the lookups and inflated the hit/miss
-        // counters.
-        const { entries, kept, fetched } = withVectorSnapshot(() => {
-          const keys = getAllEmbeddingKeys();
-          const entries = keys.map((k) => ({
-            table: k.ref_table,
-            id: k.ref_id,
-            key: vectorKey(k.ref_table, k.ref_id),
-          }));
-          const kept = entries.map((e) => getVector(e.key));
-          const missing: EmbeddingKey[] = [];
-          for (let i = 0; i < entries.length; i++) {
-            if (!kept[i]) {
-              missing.push({
-                ref_table: entries[i]!.table,
-                ref_id: entries[i]!.id,
+        // TASK-PERF-MATRIX: the vectors are grouped per ref_table because the
+        // cache holds one contiguous matrix per table; slots are resolved once
+        // per table and the dot products run in one linear pass per matrix.
+        // The scored list is rebuilt in `getAllEmbeddingKeys()` order, so the
+        // stable sort keeps the same tie order as before.
+        const ordered = withVectorQuery(
+          ["memories", "preferences", "lessons"],
+          () => {
+            const { keys, groups } = withVectorSnapshot(() => {
+              const keys = getAllEmbeddingKeys();
+              const byTable = new Map<
+                string,
+                { ids: number[]; rows: number[] }
+              >();
+              for (let i = 0; i < keys.length; i++) {
+                const k = keys[i]!;
+                let group = byTable.get(k.ref_table);
+                if (!group) {
+                  group = { ids: [], rows: [] };
+                  byTable.set(k.ref_table, group);
+                }
+                group.ids.push(k.ref_id);
+                group.rows.push(i);
+              }
+              const groups: RecallGroup[] = [];
+              for (const [table, group] of byTable) {
+                const ids = Int32Array.from(group.ids);
+                const slots = ensureVectors(table, ids);
+                let missing = 0;
+                for (let i = 0; i < ids.length; i++) {
+                  if (slots[i]! < 0) missing++;
+                }
+                let fetched: Map<string, Float32Array> | null = null;
+                if (missing > 0) {
+                  const missKeys: EmbeddingKey[] = [];
+                  for (let i = 0; i < ids.length; i++) {
+                    if (slots[i]! < 0) {
+                      missKeys.push({ ref_table: table, ref_id: ids[i]! });
+                    }
+                  }
+                  fetched = getEmbeddingsByKeys(missKeys);
+                  patchVectorSlots(table, ids, slots);
+                }
+                groups.push({
+                  table,
+                  ids,
+                  rows: Int32Array.from(group.rows),
+                  slots,
+                  fetched,
+                });
+              }
+              return { keys, groups };
+            });
+
+            const rowScores = new Float64Array(keys.length);
+            const rowHasScore = new Uint8Array(keys.length);
+            for (const group of groups) {
+              const scores = accumulateScores(group.table, topicVec);
+              for (let i = 0; i < group.ids.length; i++) {
+                const slot = group.slots[i]!;
+                let score: number;
+                if (slot >= 0 && scores) {
+                  score = scores[slot]!;
+                } else {
+                  // Not resident (no row, or over the bucket's capacity cap):
+                  // score the fetched vector exactly like the cache-off path.
+                  const vec = group.fetched?.get(
+                    vectorKey(group.table, group.ids[i]!)
+                  );
+                  if (!vec) continue;
+                  score = cosine(topicVec, vec);
+                }
+                const row = group.rows[i]!;
+                rowScores[row] = score;
+                rowHasScore[row] = 1;
+              }
+            }
+
+            const out: Array<{ table: string; id: number; score: number }> = [];
+            for (let i = 0; i < keys.length; i++) {
+              if (!rowHasScore[i]) continue;
+              const k = keys[i]!;
+              out.push({
+                table: k.ref_table,
+                id: k.ref_id,
+                score: rowScores[i]!,
               });
             }
+            return out;
           }
-          const fetched =
-            missing.length > 0 ? getEmbeddingsByKeys(missing) : null;
-          return { entries, kept, fetched };
-        });
-        for (let i = 0; i < entries.length; i++) {
-          const e = entries[i]!;
-          const vec = kept[i] ?? fetched?.get(e.key);
-          if (!vec) continue;
-          scored.push({
-            table: e.table,
-            id: e.id,
-            score: cosine(topicVec, vec),
-          });
-        }
+        );
+        scored.push(...ordered);
       }
       const top = scored
         .filter((x) => x.score >= SEMANTIC_FLOOR)
