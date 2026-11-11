@@ -65,10 +65,24 @@ OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-
 ## ทำไมต้องใช้ th-memory-mcp?
 
 - **Context-based learning, local 100%** — จับความชอบ/การถูกแก้/พฤติกรรม แล้วเรียกกลับเข้า context ครั้งหน้า โดยไม่ส่งข้อมูลออกนอกเครื่อง; SQLite ไฟล์เดียว ไม่มีคลาวด์/external API และกรอง secret (`api_key=`, `password:`, `token`) ก่อนบันทึกเสมอ
-- **เบา ทนทาน เปิดกว้าง** — tool calls มีเพดาน (latency < 10 ms, ขนาด output จำกัด) และ graceful degradation เมื่อ DB ไม่พร้อม; Node + `better-sqlite3` เท่านั้น; MIT license, 16 tools, rule-based distill, plugin auto-capture
+- **เบา ทนทาน เปิดกว้าง** — tool calls มีเพดาน (ขนาด output จำกัด, ระดับ ms ที่ DB ขนาดปกติ) และ graceful degradation เมื่อ DB ไม่พร้อม; ที่ 20,000 memories `retrieve` ใช้ ~90 ms — ดู [docs/PERFORMANCE.md](docs/PERFORMANCE.md); Node + `better-sqlite3` เท่านั้น; MIT license, 16 tools, rule-based distill, plugin auto-capture
 - **Lifecycle & temporal** — states (active/stale/superseded/archived), confidence/importance/salience, decay ต่อ type, validity intervals รองรับ point-in-time truth และ supersession chains
 - **Conflict-aware & consolidation** — ตรวจจับ duplicate/contradiction และเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้ง; คลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from`)
 - **Hybrid retrieval & ไทย** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion) แบบ token budget พร้อมขยายผ่าน memory graph; tokenize ไทยใน distill และ Thai-aware FTS5 แบ่งคำไทยด้วย `Intl.Segmenter` + tokenizer ที่เก็บวรรณยุกต์/สระไว้ใน token ทำให้ค้นคำไทยในข้อความที่เขียนติดกันได้ และวรรณยุกต์ยังมีผลต่อการ match (`ติดตัง` ≠ `ติดตั้ง`); มีช่องแบบทนวรรณยุกต์ (`looseForm`), คำพ้อง TH↔EN และพจนานุกรมไทยส่วนตัว นำกลับไปใช้ standalone ได้ผ่าน CLI ไร้ dependency `thai-fts` ([docs/thai-fts.md](docs/thai-fts.md)); รับไทย/อังกฤษสลับกันได้
+
+## Performance (ประสิทธิภาพ)
+
+วัดด้วย benchmark harness ภายในที่ **20,000 memories / 5,000 queries** (เครื่องเดียวกัน, seed เดียวกัน) — ตัวเลขสัมบูรณ์ขึ้นกับเครื่อง แต่ทิศทางของส่วนต่างทำซ้ำได้; วิธีวัดและ trade-off ทั้งหมดอยู่ที่ **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**
+
+| metric | 2.5.1 | 2.5.2 | Δ |
+|---|---:|---:|---:|
+| ความเร็วการเขียน | 73.6 mem/s | **320.5 mem/s** (320–352 ตามรอบ) | **+335%** |
+| `retrieve` (20k memories) | 363 ms | **90 ms** | −75% |
+| `get_context` (20k memories) | 357 ms | **86 ms** | −76% |
+| `recall` p95 | 3 ms | **1 ms** | −67% |
+| คุณภาพการค้น (scope / supersession / MRR) | 100% / 100% / 0.955 | ไม่เปลี่ยน | — |
+
+แก้ที่ต้นเหตุ 2 จุด ไม่ใช่จูนค่า: การเขียน index บน FTS5 เคยสแกนทั้งตารางต่อ record (ทำให้ write เป็น O(n) ตามขนาด DB) และการค้นทุกครั้งเคยอ่าน+decode embedding BLOB ทั้งหมดใหม่ — cache ฝั่งค้นเป็นการสแกนแบบ **exact** (ไม่ใช่ ANN/ประมาณผล) จำกัดด้วย `MEMORY_VECTOR_CACHE_MB` (default 64 MB, `0` = ปิด)
 
 ## Scripts
 
@@ -77,7 +91,7 @@ OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | build + เทสทั้งชุด (47 ไฟล์, 155 tests: ผ่าน 154, skip 1) |
+| `npm test` | build + เทสทั้งชุด (57 ไฟล์, 255 tests: ผ่าน 254, skip 1) |
 | `node test/<name>.test.mjs` | รันทีละ suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security` |
 | `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (16 tools) |
 

@@ -42,6 +42,7 @@ README-viewer.md
 scopeboard/
 docs/*
 !docs/thai-fts.md
+!docs/PERFORMANCE.md
 run_dashboard.bat
 run_dashboard.sh
 scripts/*.py

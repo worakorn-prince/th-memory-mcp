@@ -58,8 +58,27 @@ OpenCode loads the plugin `learning-capture` (dual-mode V1/V2, Node/Bun) — aut
 
 - **Context-based learning, not fine-tuning** — captures your preferences, corrections, and habits, then recalls them next session; no data leaves your machine.
 - **100% local & private** — one SQLite file, no cloud, no external API; secrets (`api_key=`, `password:`, `token`) filtered before storage.
-- **Low overhead & resilient** — tool calls are capped (latency < 10 ms, bounded output) and degrade gracefully if the DB is unavailable.
+- **Low overhead & resilient** — tool calls are capped (bounded output, low single-digit ms on typical databases) and degrade gracefully if the DB is unavailable; at 20,000 memories a full `retrieve` is ~90 ms — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 - **Open & extensible** — MIT licensed; 16 documented tools, rule-based distill, auto-capture plugin; Node + `better-sqlite3` only (no extra native extensions).
+
+## Performance
+
+Measured with the internal benchmark harness at **20,000 memories / 5,000 queries** (same machine,
+deterministic seed). Numbers are machine-specific; the deltas are not. Full method, per-step
+breakdown and trade-offs: **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**.
+
+| metric | 2.5.1 | 2.5.2 | Δ |
+|---|---:|---:|---:|
+| write throughput | 73.6 mem/s | **320.5 mem/s** (320–352 across runs) | **+335%** |
+| `retrieve` (20k memories) | 363 ms | **90 ms** | −75% |
+| `get_context` (20k memories) | 357 ms | **86 ms** | −76% |
+| `recall` p95 | 3 ms | **1 ms** | −67% |
+| retrieval quality (scope / supersession / MRR) | 100% / 100% / 0.955 | unchanged | — |
+
+Two root causes were removed rather than tuned: FTS5 index writes did a full-table scan per record
+(so writes were O(n) in database size), and every retrieval re-read and re-decoded all embedding
+BLOBs. The retrieval cache is an **exact** contiguous scan — no ANN, no approximation — bounded by
+`MEMORY_VECTOR_CACHE_MB` (default 64 MB, `0` disables it).
 
 ## Highlights
 
@@ -89,7 +108,7 @@ A standard MCP server: 16 tools anywhere MCP-over-stdio works; all harnesses sha
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune old data (`RETENTION_DAYS`, default 30) |
-| `npm test` | build + full suite (47 files, 155 tests: 154 pass, 1 skip) |
+| `npm test` | build + full suite (57 files, 255 tests: 254 pass, 1 skip) |
 | `node test/<name>.test.mjs` | run one suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security`, `thai_fts` |
 | `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (16 tools) |
 
