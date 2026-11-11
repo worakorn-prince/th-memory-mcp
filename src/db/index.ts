@@ -23,7 +23,7 @@ import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
 import { learnFromLessons, refreshDictProvider } from "./thai-dict.js";
-import { SEARCH_INDEX_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
+import { SEARCH_INDEX_DDL, SEARCH_INDEX_KEYS_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
 
 type DbInstance = BetterSqlite3.Database;
 
@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS profile (
 ${SEARCH_INDEX_DDL}
 
 ${SEARCH_INDEX_LOOSE_DDL}
+
+${SEARCH_INDEX_KEYS_DDL}
 
 CREATE TABLE IF NOT EXISTS embeddings (
   ref_table TEXT NOT NULL,
@@ -215,10 +217,22 @@ function getInsertSearchIndex(): BetterSqlite3.Statement {
     "INSERT INTO search_index (ref_table, ref_id, title, body) VALUES (?, ?, ?, ?)"
   ));
 }
+let _updateSearchIndex: BetterSqlite3.Statement | null = null;
+function getUpdateSearchIndex(): BetterSqlite3.Statement {
+  return (_updateSearchIndex ??= db.prepare(
+    "UPDATE search_index SET title = ?, body = ? WHERE rowid = ? AND ref_table = ? AND ref_id = ?"
+  ));
+}
 let _deleteSearchIndex: BetterSqlite3.Statement | null = null;
 function getDeleteSearchIndex(): BetterSqlite3.Statement {
   return (_deleteSearchIndex ??= db.prepare(
     "DELETE FROM search_index WHERE ref_table = ? AND ref_id = ?"
+  ));
+}
+let _deleteSearchIndexByRowid: BetterSqlite3.Statement | null = null;
+function getDeleteSearchIndexByRowid(): BetterSqlite3.Statement {
+  return (_deleteSearchIndexByRowid ??= db.prepare(
+    "DELETE FROM search_index WHERE rowid = ? AND ref_table = ? AND ref_id = ?"
   ));
 }
 let _insertLooseSearchIndex: BetterSqlite3.Statement | null = null;
@@ -227,12 +241,154 @@ function getInsertLooseSearchIndex(): BetterSqlite3.Statement {
     "INSERT INTO search_index_loose (ref_table, ref_id, title, body) VALUES (?, ?, ?, ?)"
   ));
 }
+let _updateLooseSearchIndex: BetterSqlite3.Statement | null = null;
+function getUpdateLooseSearchIndex(): BetterSqlite3.Statement {
+  return (_updateLooseSearchIndex ??= db.prepare(
+    "UPDATE search_index_loose SET title = ?, body = ? WHERE rowid = ? AND ref_table = ? AND ref_id = ?"
+  ));
+}
 let _deleteLooseSearchIndex: BetterSqlite3.Statement | null = null;
 function getDeleteLooseSearchIndex(): BetterSqlite3.Statement {
   return (_deleteLooseSearchIndex ??= db.prepare(
     "DELETE FROM search_index_loose WHERE ref_table = ? AND ref_id = ?"
   ));
 }
+let _deleteLooseSearchIndexByRowid: BetterSqlite3.Statement | null = null;
+function getDeleteLooseSearchIndexByRowid(): BetterSqlite3.Statement {
+  return (_deleteLooseSearchIndexByRowid ??= db.prepare(
+    "DELETE FROM search_index_loose WHERE rowid = ? AND ref_table = ? AND ref_id = ?"
+  ));
+}
+let _getSearchIndexKey: BetterSqlite3.Statement | null = null;
+function getSearchIndexKey(): BetterSqlite3.Statement {
+  return (_getSearchIndexKey ??= db.prepare(
+    "SELECT strict_rowid, loose_rowid FROM search_index_keys WHERE ref_table = ? AND ref_id = ?"
+  ));
+}
+let _upsertSearchIndexKey: BetterSqlite3.Statement | null = null;
+function getUpsertSearchIndexKey(): BetterSqlite3.Statement {
+  return (_upsertSearchIndexKey ??= db.prepare(
+    `INSERT INTO search_index_keys (ref_table, ref_id, strict_rowid, loose_rowid)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(ref_table, ref_id) DO UPDATE SET
+       strict_rowid = excluded.strict_rowid,
+       loose_rowid = excluded.loose_rowid`
+  ));
+}
+let _deleteSearchIndexKey: BetterSqlite3.Statement | null = null;
+function getDeleteSearchIndexKey(): BetterSqlite3.Statement {
+  return (_deleteSearchIndexKey ??= db.prepare(
+    "DELETE FROM search_index_keys WHERE ref_table = ? AND ref_id = ?"
+  ));
+}
+
+interface SearchIndexKeyRow {
+  strict_rowid: number;
+  loose_rowid: number;
+}
+
+function syncSearchIndexAtomic(
+  refTable: string,
+  refId: number,
+  title: string,
+  body: string
+): void {
+  // The stored text keeps the strict precedence of segmentForIndex plus (for
+  // Thai-containing or known-term text) appended transliteration synonyms from
+  // expandIndexedText. Display text always reads from the source tables, so
+  // the appended terms never surface to output. expandIndexedText is
+  // byte-idempotent under a second pass, so re-indexing an already-indexed row
+  // is a fixed point. Computed BEFORE the key lookup so the hot path stays the
+  // same shape as before (the text transform is untouched by TASK-PERF-WRITE).
+  const strictTitle = expandIndexedText(segmentForIndex(title));
+  const strictBody = expandIndexedText(segmentForIndex(body));
+  // LOOSE channel (TASK-THAI-LOOSE): the loose row stores the de-accented
+  // (tone-tolerant) form of the SAME strict payload, so the loose index and
+  // query side always agree. looseForm(strict) is a fixed point (looseForm is
+  // idempotent and the strict text is deterministic), so re-indexing a row is
+  // byte-idempotent here too, exactly like the strict half.
+  const looseTitle = looseForm(strictTitle);
+  const looseBody = looseForm(strictBody);
+
+  // TASK-PERF-WRITE: resolve the FTS rowids from the side table so both
+  // channels are touched by rowid (point lookup) instead of a scan-delete over
+  // each FTS table (FTS5 has no secondary index -> O(n) per write).
+  const key = getSearchIndexKey().get(refTable, refId) as
+    | SearchIndexKeyRow
+    | undefined;
+  if (key) {
+    const strictRowid = Number(key.strict_rowid);
+    const looseRowid = Number(key.loose_rowid);
+    const strictInfo = getUpdateSearchIndex().run(
+      strictTitle,
+      strictBody,
+      strictRowid,
+      refTable,
+      refId
+    );
+    const looseInfo = getUpdateLooseSearchIndex().run(
+      looseTitle,
+      looseBody,
+      looseRowid,
+      refTable,
+      refId
+    );
+    if (strictInfo.changes > 0 && looseInfo.changes > 0) return;
+    // Self-heal: a stale mapping can point at a row that no longer exists (or,
+    // defensively, at a row owned by another ref). Re-insert only the channel
+    // that missed and repoint the mapping — never the one that succeeded, so
+    // the row count never gains a duplicate.
+    let nextStrictRowid = strictRowid;
+    let nextLooseRowid = looseRowid;
+    if (strictInfo.changes === 0) {
+      nextStrictRowid = Number(
+        getInsertSearchIndex().run(refTable, refId, strictTitle, strictBody)
+          .lastInsertRowid
+      );
+    }
+    if (looseInfo.changes === 0) {
+      nextLooseRowid = Number(
+        getInsertLooseSearchIndex().run(refTable, refId, looseTitle, looseBody)
+          .lastInsertRowid
+      );
+    }
+    getUpsertSearchIndexKey().run(
+      refTable,
+      refId,
+      nextStrictRowid,
+      nextLooseRowid
+    );
+    return;
+  }
+
+  // No mapping: a brand-new ref. Insert both rows and record the mapping in
+  // one shot. (Deliberately no scan for pre-existing rows here — every ref
+  // present in the FTS tables is mapped by the M015 backfill, so a missing
+  // mapping means a new ref, and scanning is exactly the O(n) cost this task
+  // removes.)
+  const strictRowid = Number(
+    getInsertSearchIndex().run(refTable, refId, strictTitle, strictBody)
+      .lastInsertRowid
+  );
+  const looseRowid = Number(
+    getInsertLooseSearchIndex().run(refTable, refId, looseTitle, looseBody)
+      .lastInsertRowid
+  );
+  getUpsertSearchIndexKey().run(refTable, refId, strictRowid, looseRowid);
+}
+
+// N1: the FTS writes and the mapping write must land together. Callers like
+// createMemory already run inside a transaction, but a caller that does not
+// must not be able to leave an FTS row behind without its key row. Better-
+// sqlite3 nests transactions as SAVEPOINTs, so this is safe (and cheap) under
+// an outer transaction. The `.immediate` variant (a callable property on the
+// transaction function, not a method) makes the outermost BEGIN an IMMEDIATE
+// one: the key lookup below is a read followed by writes, and a deferred
+// (read) transaction can fail with SQLITE_BUSY_SNAPSHOT if another connection
+// commits in between. Lazily created, same style as createMemory.
+let _syncSearchIndexTxn:
+  | ((refTable: string, refId: number, title: string, body: string) => void)
+  | null = null;
 
 export function syncSearchIndex(
   refTable: string,
@@ -240,33 +396,57 @@ export function syncSearchIndex(
   title: string,
   body: string
 ): void {
-  getDeleteSearchIndex().run(refTable, refId);
-  getDeleteLooseSearchIndex().run(refTable, refId);
-  // The stored text keeps the strict precedence of segmentForIndex plus (for
-  // Thai-containing or known-term text) appended transliteration synonyms from
-  // expandIndexedText. Display text always reads from the source tables, so
-  // the appended terms never surface to output. expandIndexedText is
-  // byte-idempotent under a second pass, so re-indexing an already-indexed row
-  // is a fixed point.
-  const strictTitle = expandIndexedText(segmentForIndex(title));
-  const strictBody = expandIndexedText(segmentForIndex(body));
-  getInsertSearchIndex().run(refTable, refId, strictTitle, strictBody);
-  // LOOSE channel (TASK-THAI-LOOSE): the loose row stores the de-accented
-  // (tone-tolerant) form of the SAME strict payload, so the loose index and
-  // query side always agree. looseForm(strict) is a fixed point (looseForm is
-  // idempotent and the strict text is deterministic), so re-indexing a row is
-  // byte-idempotent here too, exactly like the strict half.
-  getInsertLooseSearchIndex().run(
-    refTable,
-    refId,
-    looseForm(strictTitle),
-    looseForm(strictBody)
-  );
+  _syncSearchIndexTxn ??= db.transaction(syncSearchIndexAtomic).immediate;
+  _syncSearchIndexTxn(refTable, refId, title, body);
 }
 
-export function removeSearchIndex(refTable: string, refId: number): void {
+function removeSearchIndexAtomic(refTable: string, refId: number): void {
+  const key = getSearchIndexKey().get(refTable, refId) as
+    | SearchIndexKeyRow
+    | undefined;
+  if (key) {
+    // S1: ownership guard. A stale mapping can point at a rowid that was
+    // reassigned to another ref; deleting by rowid alone would silently drop
+    // that other ref's row. Both deletes are scoped by ref_table/ref_id and
+    // their `changes` are checked.
+    const strictInfo = getDeleteSearchIndexByRowid().run(
+      Number(key.strict_rowid),
+      refTable,
+      refId
+    );
+    const looseInfo = getDeleteLooseSearchIndexByRowid().run(
+      Number(key.loose_rowid),
+      refTable,
+      refId
+    );
+    if (strictInfo.changes === 0 || looseInfo.changes === 0) {
+      // Stale mapping (row missing/reassigned): pay the scan only on this
+      // exceptional path so no legacy row for this ref is left behind.
+      getDeleteSearchIndex().run(refTable, refId);
+      getDeleteLooseSearchIndex().run(refTable, refId);
+    }
+    // S1: drop the mapping LAST. If the fallback above throws, the key row is
+    // still there, so the next remove/sync can still resolve the FTS rows —
+    // we never leave "no mapping but FTS rows" behind.
+    getDeleteSearchIndexKey().run(refTable, refId);
+    return;
+  }
+  // Legacy fallback: rows written before M015 (or by a writer that bypassed
+  // syncSearchIndex) have no mapping, so they can only be found by the scan.
   getDeleteSearchIndex().run(refTable, refId);
   getDeleteLooseSearchIndex().run(refTable, refId);
+}
+
+// N2: removeSearchIndex is 1 read + up to 5 writes; it gets the same
+// immediate transaction treatment as syncSearchIndex (nested = SAVEPOINT, so
+// callers that already opened a transaction keep working).
+let _removeSearchIndexTxn:
+  | ((refTable: string, refId: number) => void)
+  | null = null;
+
+export function removeSearchIndex(refTable: string, refId: number): void {
+  _removeSearchIndexTxn ??= db.transaction(removeSearchIndexAtomic).immediate;
+  _removeSearchIndexTxn(refTable, refId);
 }
 
 // --- vector embeddings (lightweight local semantic search) ---

@@ -4,7 +4,7 @@ import { basename, dirname, join } from "node:path";
 import { embed, serialize } from "../lib/embed.js";
 import { segmentForIndex, looseForm } from "../lib/thai-segment.js";
 import { expandIndexedText } from "../lib/thai-synonyms.js";
-import { SEARCH_INDEX_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
+import { SEARCH_INDEX_DDL, SEARCH_INDEX_KEYS_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
 
 type DB = BetterSqlite3.Database;
 
@@ -503,6 +503,183 @@ const M014_thai_dict: Migration = {
   },
 };
 
+// TASK-PERF-WRITE: backfill the (ref_table, ref_id) -> FTS rowid mapping that
+// syncSearchIndex/removeSearchIndex use to update/delete FTS rows by rowid
+// (FTS5 has no secondary index, so the previous scan-delete was O(n) per
+// write). Pure rowid bookkeeping: NO re-segmentation and NO
+// expandIndexedText/looseForm re-run over the document text, so stored index
+// text stays byte-identical and the pass is O(n) (one full read per FTS table
+// plus point deletes for the rare duplicates/orphans).
+//
+// Defensive cases (normally zero rows):
+//   * strict row without a loose row -> build the loose row from that strict
+//     row's own title/body with looseForm(), then map it;
+//   * loose row without a strict row -> delete that loose row by rowid;
+//   * duplicate rows per (ref_table, ref_id) -> keep MAX(rowid), delete the
+//     others by rowid.
+//
+// Idempotent: the mapping is a pure derivative of the FTS content, so up()
+// DELETEs the whole table and recomputes it (it does not merge with whatever
+// was there). A second run therefore yields the same mapping (and finds no
+// orphans). The runner (runMigrations) wraps up() in ONE transaction.
+//
+// NOTE: any future migration that rebuilds search_index / search_index_loose
+// (DROP/recreate, M010/M012/M013 style) MUST also rebuild search_index_keys —
+// recreating the virtual tables invalidates every stored rowid.
+// Old migrations are NOT edited.
+const M015_search_index_keys: Migration = {
+  id: "015_search_index_keys",
+  up(db) {
+    db.exec(SEARCH_INDEX_KEYS_DDL);
+    // S2: recompute, never merge. A key row that has no FTS row behind it
+    // (or points at a row another ref owns) is exactly the stale state this
+    // migration must remove, so the derivative table is cleared first.
+    db.exec("DELETE FROM search_index_keys;");
+
+    interface RefRows {
+      ref_table: string;
+      ref_id: number;
+      maxRowid: number;
+      extraRowids: number[];
+    }
+
+    // One scan per FTS table. Key = `${ref_table}:${ref_id}` (the same shape as
+    // the PRIMARY KEY, used only in memory).
+    const collect = (table: "search_index" | "search_index_loose"): Map<string, RefRows> => {
+      const refs = new Map<string, RefRows>();
+      const rows = db
+        .prepare(`SELECT rowid AS rid, ref_table, ref_id FROM ${table}`)
+        .iterate() as IterableIterator<{
+        rid: number;
+        ref_table: string | null;
+        ref_id: number | null;
+      }>;
+      for (const row of rows) {
+        if (row.ref_table == null || row.ref_id == null) continue;
+        const refTable = String(row.ref_table);
+        const refId = Number(row.ref_id);
+        const key = `${refTable}:${refId}`;
+        const rid = Number(row.rid);
+        const entry = refs.get(key);
+        if (!entry) {
+          refs.set(key, {
+            ref_table: refTable,
+            ref_id: refId,
+            maxRowid: rid,
+            extraRowids: [],
+          });
+        } else if (rid > entry.maxRowid) {
+          entry.extraRowids.push(entry.maxRowid);
+          entry.maxRowid = rid;
+        } else {
+          entry.extraRowids.push(rid);
+        }
+      }
+      return refs;
+    };
+
+    const strict = collect("search_index");
+    const loose = collect("search_index_loose");
+
+    const deleteStrictRow = db.prepare("DELETE FROM search_index WHERE rowid = ?");
+    const deleteLooseRow = db.prepare("DELETE FROM search_index_loose WHERE rowid = ?");
+    const readStrictRow = db.prepare(
+      "SELECT title, body FROM search_index WHERE rowid = ?"
+    );
+    const readLooseRow = db.prepare(
+      "SELECT title, body FROM search_index_loose WHERE rowid = ?"
+    );
+    const insertLooseRow = db.prepare(
+      "INSERT INTO search_index_loose (ref_table, ref_id, title, body) VALUES (?, ?, ?, ?)"
+    );
+    const updateLooseRow = db.prepare(
+      "UPDATE search_index_loose SET title = ?, body = ? WHERE rowid = ?"
+    );
+
+    // Pass 1: drop duplicate rows, keep MAX(rowid) for each ref.
+    for (const entry of strict.values()) {
+      for (const rid of entry.extraRowids) deleteStrictRow.run(rid);
+    }
+    for (const entry of loose.values()) {
+      for (const rid of entry.extraRowids) deleteLooseRow.run(rid);
+    }
+
+    // Pass 2: a loose row with no strict counterpart is an orphan -> drop it.
+    for (const [key, entry] of loose) {
+      if (!strict.has(key)) deleteLooseRow.run(entry.maxRowid);
+    }
+
+    // Pass 3: one mapping row per strict ref. The strict and loose halves are
+    // deduped independently (MAX rowid), so they can come from different
+    // generations of the same ref with mismatched text. The strict row is the
+    // authority: the loose row is (re)written from its title/body with
+    // looseForm() — the exact value the write path produces — whenever the
+    // pair disagrees. This is not re-segmentation: strict text is never
+    // rewritten, only the de-accented derivative is checked.
+    const mappings: Array<[string, number, number, number]> = [];
+    for (const [key, entry] of strict) {
+      const strictRow = readStrictRow.get(entry.maxRowid) as
+        | { title: string | null; body: string | null }
+        | undefined;
+      const strictTitle = strictRow?.title ?? "";
+      const strictBody = strictRow?.body ?? "";
+      const looseTitle = looseForm(strictTitle);
+      const looseBody = looseForm(strictBody);
+
+      const looseEntry = loose.get(key);
+      let looseRowid: number;
+      if (looseEntry) {
+        looseRowid = looseEntry.maxRowid;
+        const looseRow = readLooseRow.get(looseRowid) as
+          | { title: string | null; body: string | null }
+          | undefined;
+        if (!looseRow) {
+          looseRowid = Number(
+            insertLooseRow.run(
+              entry.ref_table,
+              entry.ref_id,
+              looseTitle,
+              looseBody
+            ).lastInsertRowid
+          );
+        } else if (
+          looseRow.title !== looseTitle ||
+          looseRow.body !== looseBody
+        ) {
+          updateLooseRow.run(looseTitle, looseBody, looseRowid);
+        }
+      } else {
+        looseRowid = Number(
+          insertLooseRow.run(
+            entry.ref_table,
+            entry.ref_id,
+            looseTitle,
+            looseBody
+          ).lastInsertRowid
+        );
+      }
+      mappings.push([entry.ref_table, entry.ref_id, entry.maxRowid, looseRowid]);
+    }
+
+    // Batched upsert (chunks of 200 rows = 800 bound params, well under
+    // SQLITE_MAX_VARIABLE_NUMBER): a single run per chunk instead of 4 × n.
+    const BATCH = 200;
+    for (let i = 0; i < mappings.length; i += BATCH) {
+      const chunk = mappings.slice(i, i + BATCH);
+      const placeholders = chunk.map(() => "(?, ?, ?, ?)").join(", ");
+      const params: Array<string | number> = [];
+      for (const mapping of chunk) params.push(...mapping);
+      db.prepare(
+        `INSERT INTO search_index_keys (ref_table, ref_id, strict_rowid, loose_rowid)
+         VALUES ${placeholders}
+         ON CONFLICT(ref_table, ref_id) DO UPDATE SET
+           strict_rowid = excluded.strict_rowid,
+           loose_rowid = excluded.loose_rowid`
+      ).run(...params);
+    }
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -518,6 +695,7 @@ export const MIGRATIONS: Migration[] = [
   M012_search_index_synonyms,
   M013_search_index_loose,
   M014_thai_dict,
+  M015_search_index_keys,
 ];
 
 const KEEP_BACKUPS = 5;

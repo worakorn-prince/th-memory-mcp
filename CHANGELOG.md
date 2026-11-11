@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Performance
+- **Write path is no longer O(n) in database size.** `syncSearchIndex()` / `removeSearchIndex()` used to run `DELETE FROM search_index WHERE ref_table = ? AND ref_id = ?` (and the `search_index_loose` twin) before every write. FTS5 virtual tables have no secondary index, so that delete was a full table scan (10.6 ms for a single delete at 20k rows) and a bulk insert became O(n²). A new `search_index_keys(ref_table, ref_id, strict_rowid, loose_rowid)` side table now maps each ref to its FTS rowids, so updates/deletes are point operations by rowid (`UPDATE`/`DELETE ... WHERE rowid = ?`), and creates capture `lastInsertRowid` and write the mapping in the same transaction. Migration `015_search_index_keys` backfills the mapping on existing databases in one O(n) pass (no re-segmentation; stored index text is byte-identical).
+- Measured on a 20k-memory database (insert benchmark, same machine): insert throughput **73.6 → 351.2 mem/s**, wall time **271.7 s → 56.9 s**, `cpuUser` **222 s → 10.7 s**, database size **+1.5%** (the side table). Retrieval quality is unchanged.
+- Re-running `M015` is idempotent and fully recomputes the mapping (the table is a pure derivative of the FTS content); the legacy scan-delete is kept only as the no-mapping fallback in `removeSearchIndex`.
+
+### Fixed
+- `removeSearchIndex()` now scopes its rowid deletes by `ref_table`/`ref_id` and checks `changes`, so a stale mapping that points at a rowid reassigned to another ref can no longer delete that ref's row; the scan fallback runs only on that exceptional path. The key row is deleted last, so a throwing fallback can never leave "no mapping but FTS rows" behind.
+- `M015` pairs the strict/loose halves by ref and rewrites a loose row from its strict counterpart with `looseForm()` when the two came from different generations, keeping the loose channel in lockstep with the strict payload.
+- `syncSearchIndex()` and `removeSearchIndex()` wrap their FTS + mapping writes in one `BEGIN IMMEDIATE` transaction (nested as a `SAVEPOINT` when a caller already has one), so no FTS row can be left behind without its key row and a read-then-write sequence cannot fail with `SQLITE_BUSY_SNAPSHOT`.
+- `test/search_index_keys.test.mjs` — coverage for the mapping table: create/update/remove, idempotent re-sync, rowid-stability on update, both self-heal directions, ownership-safe remove, `M015` backfill/recompute/orphan/duplicate/generation repair.
+
+### Known limitations
+- If a `search_index_keys` mapping is lost for reasons outside the write path (manual DB edits, or a crash of a pre-M015 writer), the next `syncSearchIndex()` for that ref writes a fresh FTS row pair **without scanning for the old rows** — that scan is exactly the O(n) cost this change removes, so it is not paid on the hot path, and the orphan rows are left in place. They do not surface to users: `ftsSearch` joins the source table on `ref_id`, so stale text cannot outrank or duplicate a live document. The one visible gap is the `forget` hard purge, which deletes only the mapped rowids and may leave those orphan rows behind. The repair path is re-running `M015`: it recomputes the mapping from the FTS content and dedupes rows per ref by `MAX(rowid)`. There is no dedicated CLI for it yet, so the supported way is to delete the `schema_meta` row `015_search_index_keys` (e.g. `DELETE FROM schema_meta WHERE key = '015_search_index_keys';`) and reopen the database, which re-runs the migration.
+
+### Verification
+- `npm run build` — exit 0
+- `npm run version:check` — exit 0
+- `npm test` — 210 tests, 209 pass, 0 fail, 1 skip
+
 ## [2.5.1] - 2026-11-10
 
 ### Added

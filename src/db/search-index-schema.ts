@@ -27,3 +27,23 @@ export const SEARCH_INDEX_LOOSE_DDL = SEARCH_INDEX_DDL.replace(
   "CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(",
   "CREATE VIRTUAL TABLE IF NOT EXISTS search_index_loose USING fts5("
 );
+
+// TASK-PERF-WRITE: FTS5 virtual tables have no secondary index, so
+// `DELETE FROM search_index WHERE ref_table = ? AND ref_id = ?` is a full
+// table scan (10.6 ms at 20k rows) and made every write O(n). This side table
+// maps (ref_table, ref_id) -> the FTS rowids, so writes become
+// `UPDATE/DELETE ... WHERE rowid = ?` (a point lookup). The PRIMARY KEY is a
+// plain B-tree unique index, which is what gives the O(log n) ref lookup.
+// Deliberately NOT WITHOUT ROWID: the table is tiny and the rowid is free.
+//
+// NOTE for future migrations: any migration that rebuilds `search_index` or
+// `search_index_loose` (DROP/recreate, e.g. the M010/M012/M013 pattern) MUST
+// also rebuild `search_index_keys`, because the FTS rowids it stores become
+// stale the moment the virtual tables are recreated.
+export const SEARCH_INDEX_KEYS_DDL = `CREATE TABLE IF NOT EXISTS search_index_keys (
+  ref_table TEXT NOT NULL,
+  ref_id INTEGER NOT NULL,
+  strict_rowid INTEGER NOT NULL,
+  loose_rowid INTEGER NOT NULL,
+  PRIMARY KEY (ref_table, ref_id)
+);`;
