@@ -68,7 +68,7 @@ export function embed(text: string): Float32Array {
 
 export function cosine(a: Float32Array, b: Float32Array): number {
   let dot = 0;
-  for (let i = 0; i < EMBED_DIM; i++) dot += (a[i] ?? 0) * (b[i] ?? 0);
+  for (let i = 0; i < EMBED_DIM; i++) dot += a[i]! * b[i]!;
   return dot;
 }
 
@@ -79,7 +79,23 @@ export function serialize(vec: Float32Array): Buffer {
   return buf;
 }
 
+// Float32Array views follow platform endianness; the stored blobs are always
+// little-endian (serialize writes with DataView, explicit LE), so the zero-copy
+// path is only valid on a little-endian runtime. Probe with an integer: the low
+// byte of a LE uint32 1 is 1 (a float32 1.0 starts with 0x00).
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+
 export function deserialize(buf: Buffer): Float32Array {
+  // Fast path: a 4-byte-aligned little-endian blob can be viewed in place, no
+  // per-element DataView hop. The view keeps the buffer alive, so callers that
+  // outlive the read (the decoded-vector cache) are still safe.
+  if (
+    LITTLE_ENDIAN &&
+    buf.byteOffset % 4 === 0 &&
+    buf.byteLength >= EMBED_DIM * 4
+  ) {
+    return new Float32Array(buf.buffer, buf.byteOffset, EMBED_DIM);
+  }
   const out = new Float32Array(EMBED_DIM);
   const view = new DataView(
     buf.buffer,

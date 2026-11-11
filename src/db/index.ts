@@ -16,12 +16,18 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { truncate } from "../lib/capture-core.js";
 import { redactSecrets } from "../lib/redact.js";
-import { serialize } from "../lib/embed.js";
+import { deserialize, serialize } from "../lib/embed.js";
 import { hasThai, looseForm, segmentForIndex, segmentQueryChunk } from "../lib/thai-segment.js";
 import { expandChunkSynonyms, expandIndexedText } from "../lib/thai-synonyms.js";
 import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
+import {
+  bumpVectorEpoch,
+  invalidateVector,
+  setVector,
+  vectorKey,
+} from "../retrieval/vector-cache.js";
 import { learnFromLessons, refreshDictProvider } from "./thai-dict.js";
 import { SEARCH_INDEX_DDL, SEARCH_INDEX_KEYS_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
 
@@ -101,6 +107,9 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 `);
   runMigrations(instance);
+  // M011 rewrites embedding rows with direct SQL; anything the cache held from
+  // a previous open of a pre-migration database is stale.
+  bumpVectorEpoch();
   // thai-dict's registry + learn use the same `db` proxy (getDb), so the
   // initialize flag is raised BEFORE the warm-up calls to keep a nested
   // getDb() from re-entering ensureDbInitialized (idempotent, safe, cheap:
@@ -463,6 +472,27 @@ function getDeleteEmbed(): BetterSqlite3.Statement {
     "DELETE FROM embeddings WHERE ref_table = ? AND ref_id = ?"
   ));
 }
+// TASK-PERF-READ: row order must be deterministic, and the two statements of
+// each pair below (full BLOB vs ids only) must agree on it — the retrieval
+// layer's stable sort keeps ties in read order, so after ANALYZE a SCAN plan
+// (rowid order) and a covering-index SEARCH plan (ref_id order) would hand a
+// different tie window to `limit`. One SQL body per pair, projection injected.
+const scopedEmbedsSql = (projection: string): string => `
+  SELECT ${projection}
+  FROM embeddings e
+  JOIN memories m ON m.id = e.ref_id
+  WHERE e.ref_table = 'memories'
+    AND m.status = 'active'
+    AND ${buildScopeClause("m").sql}
+  ORDER BY e.ref_id
+`;
+const legacyEmbedsSql = (projection: string): string => `
+  SELECT ${projection}
+  FROM embeddings
+  WHERE ref_table IN ('preferences','lessons')
+  ORDER BY ref_table, ref_id
+`;
+
 let _allEmbeds: BetterSqlite3.Statement | null = null;
 function getAllEmbeds(): BetterSqlite3.Statement {
   return (_allEmbeds ??= db.prepare(
@@ -471,19 +501,14 @@ function getAllEmbeds(): BetterSqlite3.Statement {
 }
 let _scopedEmbeds: BetterSqlite3.Statement | null = null;
 function getScopedEmbeds(): BetterSqlite3.Statement {
-  return (_scopedEmbeds ??= db.prepare(`
-  SELECT e.ref_table as ref_table, e.ref_id as ref_id, e.vec as vec
-  FROM embeddings e
-  JOIN memories m ON m.id = e.ref_id
-  WHERE e.ref_table = 'memories'
-    AND m.status = 'active'
-    AND ${buildScopeClause("m").sql}
- `));
+  return (_scopedEmbeds ??= db.prepare(
+    scopedEmbedsSql("e.ref_table as ref_table, e.ref_id as ref_id, e.vec as vec")
+  ));
 }
 let _legacyEmbeds: BetterSqlite3.Statement | null = null;
 function getLegacyEmbeds(): BetterSqlite3.Statement {
   return (_legacyEmbeds ??= db.prepare(
-    "SELECT ref_table, ref_id, vec FROM embeddings WHERE ref_table IN ('preferences','lessons')"
+    legacyEmbedsSql("ref_table, ref_id, vec")
   ));
 }
 
@@ -493,10 +518,14 @@ export function upsertEmbedding(
   vec: Float32Array
 ): void {
   getUpsertEmbed().run(refTable, refId, serialize(vec));
+  // Only this row's decoded vector is stale; keep the other ~20k entries warm
+  // so a write followed by a query does not pay a full refill.
+  invalidateVector(refTable, refId);
 }
 
 export function removeEmbedding(refTable: string, refId: number): void {
   getDeleteEmbed().run(refTable, refId);
+  invalidateVector(refTable, refId);
 }
 
 export function getAllEmbeddings(opts: {
@@ -565,6 +594,149 @@ export function getAllEmbeddings(opts: {
     vec: Buffer;
   }[];
   return [...memRows, ...legacyRows];
+}
+
+export interface EmbeddingKey {
+  ref_table: string;
+  ref_id: number;
+}
+
+let _scopedEmbedKeys: BetterSqlite3.Statement | null = null;
+function getScopedEmbedKeys(): BetterSqlite3.Statement {
+  return (_scopedEmbedKeys ??= db.prepare(
+    scopedEmbedsSql("e.ref_table as ref_table, e.ref_id as ref_id")
+  ));
+}
+let _legacyEmbedKeys: BetterSqlite3.Statement | null = null;
+function getLegacyEmbedKeys(): BetterSqlite3.Statement {
+  return (_legacyEmbedKeys ??= db.prepare(
+    legacyEmbedsSql("ref_table, ref_id")
+  ));
+}
+
+/**
+ * TASK-PERF-READ: ids-only twin of getAllEmbeddings(). Same SQL body (a JOIN on
+ * memories for the scoped half, the legacy preferences/lessons half after it,
+ * same explicit ORDER BY, same fail-closed fallback), so the row order — and
+ * therefore the tie order of an equally-scored sort — is identical regardless
+ * of the plan SQLite picks. The vectors themselves come from the
+ * decoded-vector cache via getEmbeddingsByKeys().
+ */
+export function getAllEmbeddingKeys(opts: {
+  uid?: number | null;
+  sid?: string | null;
+  pid?: string | null;
+} = {}): EmbeddingKey[] {
+  const hasScopeFilter =
+    opts.uid !== undefined || opts.sid !== undefined || opts.pid !== undefined;
+  if (!hasScopeFilter) {
+    const scope = buildScopeClause("m", {
+      resolvedUid: null,
+      sessionId: null,
+      projectId: null,
+    });
+    let memRows: EmbeddingKey[] = [];
+    try {
+      memRows = getScopedEmbedKeys().all(scope.params) as EmbeddingKey[];
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(
+        `[db] getAllEmbeddingKeys: scoped memories query failed (${redactSecrets(msg)}); ` +
+          `returning legacy preferences/lessons keys only (fail-closed)`
+      );
+    }
+    const legacyRows = getLegacyEmbedKeys().all() as EmbeddingKey[];
+    return [...memRows, ...legacyRows];
+  }
+  const scope = buildScopeClause("m", {
+    resolvedUid: opts.uid ?? null,
+    sessionId: opts.sid ?? null,
+    projectId: opts.pid ?? null,
+  });
+  const memRows = getScopedEmbedKeys().all(scope.params) as EmbeddingKey[];
+  const legacyRows = getLegacyEmbedKeys().all() as EmbeddingKey[];
+  return [...memRows, ...legacyRows];
+}
+
+export const EMBED_FETCH_CHUNK = 400;
+
+const _embedChunkStmts = new Map<string, BetterSqlite3.Statement>();
+function getEmbedChunkStmt(
+  refTable: string,
+  size: number
+): BetterSqlite3.Statement {
+  const stmtKey = `${refTable}:${size}`;
+  let stmt = _embedChunkStmts.get(stmtKey);
+  if (!stmt) {
+    const placeholders = new Array(size).fill("?").join(",");
+    stmt = db.prepare(
+      `SELECT ref_id AS id, vec FROM embeddings WHERE ref_table = ? AND ref_id IN (${placeholders})`
+    );
+    _embedChunkStmts.set(stmtKey, stmt);
+  }
+  return stmt;
+}
+
+/**
+ * TASK-PERF-READ: batched BLOB read for cache misses. Decodes each row once and
+ * fills the decoded-vector cache, returning the decoded vectors keyed by
+ * `${ref_table}:${ref_id}` (mixed tables supported — recall blends memories
+ * with the legacy preferences/lessons rows).
+ */
+export function getEmbeddingsByKeys(
+  keys: EmbeddingKey[]
+): Map<string, Float32Array> {
+  const out = new Map<string, Float32Array>();
+  const byTable = new Map<string, Set<number>>();
+  for (const k of keys) {
+    let ids = byTable.get(k.ref_table);
+    if (!ids) {
+      ids = new Set<number>();
+      byTable.set(k.ref_table, ids);
+    }
+    ids.add(k.ref_id);
+  }
+  for (const [refTable, idSet] of byTable) {
+    const ids = [...idSet];
+    for (let i = 0; i < ids.length; i += EMBED_FETCH_CHUNK) {
+      const chunk = ids.slice(i, i + EMBED_FETCH_CHUNK);
+      const rows = getEmbedChunkStmt(refTable, chunk.length).all(
+        refTable,
+        ...chunk
+      ) as { id: number; vec: Buffer }[];
+      for (const row of rows) {
+        const key = vectorKey(refTable, row.id);
+        const vec = deserialize(row.vec);
+        out.set(key, setVector(key, vec) ?? vec);
+      }
+    }
+  }
+  return out;
+}
+
+type VectorSnapshotRunner = <T>(fn: () => T) => T;
+let _vectorSnapshotTxn: VectorSnapshotRunner | null = null;
+
+/**
+ * TASK-PERF-READ: run a read sequence against one database snapshot.
+ *
+ * The cached read path lists embedding ids and then fetches the missing BLOBs
+ * in a second statement. Without a transaction another process sharing the
+ * database file (the plugin and the server) can commit in between: an id
+ * listed by the first read can be gone by the second (its row is silently
+ * skipped) or its rowid can be reused for a new ref (the wrong vector is
+ * scored). A deferred read transaction pins the snapshot for both statements.
+ *
+ * better-sqlite3 nests transactions as SAVEPOINTs, so calling this from inside
+ * an existing transaction is safe — the outer transaction already holds the
+ * snapshot and this adds no locking beyond it. Deferred (the default) is
+ * enough: every statement here is a read, so there is no SQLITE_BUSY_SNAPSHOT
+ * upgrade to lose. The value returned by `fn` is passed through.
+ */
+export function withVectorSnapshot<T>(fn: () => T): T {
+  _vectorSnapshotTxn ??=
+    db.transaction((f: () => unknown): unknown => f()) as unknown as VectorSnapshotRunner;
+  return _vectorSnapshotTxn(fn);
 }
 
 export interface ToolResult {

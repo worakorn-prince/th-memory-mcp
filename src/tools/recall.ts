@@ -5,12 +5,21 @@ import {
   buildLooseFtsMatch,
   escapeLike,
   truncate,
+  getAllEmbeddingKeys,
   getAllEmbeddings,
+  getEmbeddingsByKeys,
   ok,
   err,
+  withVectorSnapshot,
+  type EmbeddingKey,
   type ToolResult,
 } from "../db/index.js";
 import { embed, cosine, deserialize } from "../lib/embed.js";
+import {
+  getVector,
+  isVectorCacheEnabled,
+  vectorKey,
+} from "../retrieval/vector-cache.js";
 import { redactSecrets } from "../lib/redact.js";
 import { wrapMemoryReference } from "../lib/memory-format.js";
 
@@ -127,17 +136,63 @@ export async function recallHandler(args: {
     // Semantic blend: surface vector neighbors missed by keyword search.
     try {
       const topicVec = embed(args.topic);
-      const all = getAllEmbeddings();
-      const scored = all
-        .map((row) => ({
-          table: row.ref_table,
-          id: row.ref_id,
-          score: cosine(topicVec, deserialize(row.vec)),
-        }))
+      const scored: Array<{ table: string; id: number; score: number }> = [];
+      if (!isVectorCacheEnabled()) {
+        // Opt-out path: the historical full payload read + per-row decode.
+        const all = getAllEmbeddings();
+        for (const row of all) {
+          scored.push({
+            table: row.ref_table,
+            id: row.ref_id,
+            score: cosine(topicVec, deserialize(row.vec)),
+          });
+        }
+      } else {
+        // TASK-PERF-READ: same rows in the same order (ids-only twin of
+        // getAllEmbeddings), vectors resolved from the decoded-vector cache;
+        // misses are filled with one batched BLOB read. The ids read and the
+        // fill share one deferred snapshot (see withVectorSnapshot) so a
+        // concurrent writer cannot drop or reuse a row between the statements.
+        // Each key is looked up exactly once: resolving it a second time in the
+        // scoring loop both doubled the lookups and inflated the hit/miss
+        // counters.
+        const { entries, kept, fetched } = withVectorSnapshot(() => {
+          const keys = getAllEmbeddingKeys();
+          const entries = keys.map((k) => ({
+            table: k.ref_table,
+            id: k.ref_id,
+            key: vectorKey(k.ref_table, k.ref_id),
+          }));
+          const kept = entries.map((e) => getVector(e.key));
+          const missing: EmbeddingKey[] = [];
+          for (let i = 0; i < entries.length; i++) {
+            if (!kept[i]) {
+              missing.push({
+                ref_table: entries[i]!.table,
+                ref_id: entries[i]!.id,
+              });
+            }
+          }
+          const fetched =
+            missing.length > 0 ? getEmbeddingsByKeys(missing) : null;
+          return { entries, kept, fetched };
+        });
+        for (let i = 0; i < entries.length; i++) {
+          const e = entries[i]!;
+          const vec = kept[i] ?? fetched?.get(e.key);
+          if (!vec) continue;
+          scored.push({
+            table: e.table,
+            id: e.id,
+            score: cosine(topicVec, vec),
+          });
+        }
+      }
+      const top = scored
         .filter((x) => x.score >= SEMANTIC_FLOOR)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
-      for (const x of scored) {
+      for (const x of top) {
         const key = `${x.table[0]}:${String(x.id)}`;
         if (seen.has(key)) continue;
         if (x.table === "preferences") {
