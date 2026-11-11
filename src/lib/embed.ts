@@ -39,11 +39,13 @@ function tokenize(text: string): string[] {
   // tokens; each Thai run is segmented into word tokens via the shared
   // thai-segment core (e.g. ติดตั้งโปรแกรม -> [ติดตั้ง, โปรแกรม]).
   tokens.push(...wordTokens(input));
-  // Character n-gram channel (secondary, spelling tolerance).
+  // Character n-gram channel (secondary, spelling tolerance). Build each
+  // trigram by concatenating three already-materialised code points instead of
+  // slicing + joining a fresh 3-element array per character.
   const chars = Array.from(lower.replace(/\s+/g, ""));
   if (chars.length >= 3) {
     for (let i = 0; i < chars.length - 2; i++) {
-      tokens.push("g:" + chars.slice(i, i + 3).join(""));
+      tokens.push("g:" + chars[i]! + chars[i + 1]! + chars[i + 2]!);
     }
   } else if (chars.length > 0) {
     tokens.push("g:" + chars.join(""));

@@ -178,6 +178,33 @@ export function expandChunkSynonyms(
 
 const THAI_SUBSEQ_CAP = 40;
 
+interface ThaiKeyInfo {
+  thaiKeys: ReadonlySet<string>;
+  maxThaiKeyLen: number;
+}
+
+// The set of Thai lookup keys and the longest key length are pure functions of
+// the lookup map, so cache them by map identity. `lookupFor()` returns the same
+// map until the provider is re-set (which rebuilds it), so this is rebuilt only
+// when the dictionary actually changes.
+const thaiKeyCache = new WeakMap<Map<string, readonly string[]>, ThaiKeyInfo>();
+
+function thaiKeyInfo(lookup: Map<string, readonly string[]>): ThaiKeyInfo {
+  const hit = thaiKeyCache.get(lookup);
+  if (hit) return hit;
+  const thaiKeys = new Set<string>();
+  let maxThaiKeyLen = 0;
+  for (const k of lookup.keys()) {
+    if (THAI_RE.test(k)) {
+      thaiKeys.add(k);
+      if (k.length > maxThaiKeyLen) maxThaiKeyLen = k.length;
+    }
+  }
+  const info: ThaiKeyInfo = { thaiKeys, maxThaiKeyLen };
+  thaiKeyCache.set(lookup, info);
+  return info;
+}
+
 /**
  * Append synonym-expanded terms to an already-segmented FTS payload (the
  * segmentForIndex output this module is fed by both index.ts and the 012
@@ -212,33 +239,38 @@ export function expandIndexedText(
   const toAppend: string[] = [];
   const appended = new Set<string>();
 
-  const present = (c: string): boolean => {
-    const cs = segmentForIndex(String(c)).toLowerCase().trim();
-    return cs.length === 0 || lower.includes(cs);
-  };
+  // Segment + lowercase a candidate once; the same form feeds both the
+  // "already present?" check and the dedupe set.
+  const candidateForm = (c: string): string =>
+    segmentForIndex(String(c)).toLowerCase().trim();
+  const present = (cs: string): boolean => cs.length === 0 || lower.includes(cs);
   const push = (c: string): void => {
     // segmentForIndex pads pure-Thai strings with surrounding spaces; trim the
     // appended form so joined entries never bring stray leading/trailing spaces.
-    const cs = segmentForIndex(String(c)).toLowerCase().trim();
-    if (!cs || present(c)) return;
+    const cs = candidateForm(c);
+    if (!cs || present(cs)) return;
     if (!appended.has(cs)) {
       appended.add(cs);
       toAppend.push(cs);
     }
   };
-
-  for (const tok of tokens) {
-    const syns = expandSynonyms(tok, extra);
-    for (let i = 1; i < syns.length; i++) {
-      const c = syns[i];
+  // `expandSynonyms(term, extra)` per term re-resolves the merged lookup map;
+  // the map above is already the resolved one, so read its counterparts
+  // directly. `exts ? [lc, ...exts] : [lc]` skips index 0, i.e. exactly this
+  // loop over the counterparts.
+  const appendCounterparts = (term: string): void => {
+    const lc = String(term ?? "").toLowerCase();
+    if (!lc) return;
+    const exts = lookup.get(lc);
+    if (!exts) return;
+    for (const c of exts) {
       if (c) push(c);
     }
-  }
+  };
 
-  const thaiKeys = new Set<string>();
-  for (const k of lookup.keys()) {
-    if (THAI_RE.test(k)) thaiKeys.add(k);
-  }
+  for (const tok of tokens) appendCounterparts(tok);
+
+  const { thaiKeys, maxThaiKeyLen } = thaiKeyInfo(lookup);
   let run: string[] | null = null;
   const flush = (): void => {
     if (run && run.length > 0 && run.length <= THAI_SUBSEQ_CAP) {
@@ -246,13 +278,10 @@ export function expandIndexedText(
         let join = "";
         for (let e = s; e < run.length; e++) {
           join += run[e] ?? "";
-          if (thaiKeys.has(join)) {
-            const syns = expandSynonyms(join, extra);
-            for (let i = 1; i < syns.length; i++) {
-              const c = syns[i];
-              if (c) push(c);
-            }
-          }
+          // No lookup key is longer than the longest Thai key, so a longer
+          // join (and every extension of it) cannot match.
+          if (join.length > maxThaiKeyLen) break;
+          if (thaiKeys.has(join)) appendCounterparts(join);
         }
       }
     }

@@ -64,6 +64,21 @@ type Segmenter = { segment(text: string): Iterable<SegmentLike> };
 
 let cached: Segmenter | null | undefined;
 
+// Epoch of every input that can change segmentation output: the forced
+// segmenter and the segment-override provider. `segmentForIndex()` memoises
+// short inputs (the synonym candidates that are re-segmented for every record)
+// and drops the whole memo when the epoch moves, so a provider refresh or a
+// test-forced segmenter can never be served a stale tokenisation.
+let segmentEpoch = 0;
+let indexMemoEpoch = -1;
+const INDEX_MEMO_MAX = 512;
+const INDEX_MEMO_MAX_INPUT = 64;
+const indexMemo = new Map<string, string>();
+
+function bumpSegmentEpoch(): void {
+  segmentEpoch += 1;
+}
+
 /**
  * @internal override used by tests to force the fallback path. When set,
  * getSegmenter() returns it verbatim and skips auto-detection.
@@ -98,12 +113,14 @@ function getSegmenter(): Segmenter | null {
 export function forceSegmenter(seg: Segmenter | null): void {
   forced = seg;
   cached = undefined;
+  bumpSegmentEpoch();
 }
 
 /** @internal Undo `forceSegmenter()` and resume Intl.Segmenter auto-detection. */
 export function resetSegmenter(): void {
   forced = undefined;
   cached = undefined;
+  bumpSegmentEpoch();
 }
 
 // --- built-in dictionary fallback (small-icu runtimes) ---
@@ -261,6 +278,7 @@ export function setSegmentOverrideProvider(fn?: SegmentOverrideProvider | null):
   overrideProvider = fn ?? null;
   overrideProviderCached = undefined;
   overrideTermMap = null;
+  bumpSegmentEpoch();
 }
 
 /** Cached term → fixed map from the provider; null when unset/empty. */
@@ -401,9 +419,26 @@ function pushLatinTokens(segment: string, out: string[]): void {
 export function segmentForIndex(text: string): string {
   const input = String(text ?? "");
   if (!hasThai(input)) return input;
+  if (indexMemoEpoch !== segmentEpoch) {
+    indexMemo.clear();
+    indexMemoEpoch = segmentEpoch;
+  }
+  // Short inputs are the synonym counterparts re-segmented once per indexed
+  // record; memoising them is a pure win. Long (document) inputs are unique per
+  // write, so they bypass the memo instead of churning it.
+  const memoised = input.length <= INDEX_MEMO_MAX_INPUT;
+  if (memoised) {
+    const hit = indexMemo.get(input);
+    if (hit !== undefined) return hit;
+  }
   const seg = getSegmenter();
   const out = input.replace(THAI_RUN_RE, (run) => ` ${thaiTokens(run, seg).join(" ")} `);
-  return out.replace(/ {2,}/g, " ");
+  const result = out.replace(/ {2,}/g, " ");
+  if (memoised) {
+    if (indexMemo.size >= INDEX_MEMO_MAX) indexMemo.clear();
+    indexMemo.set(input, result);
+  }
+  return result;
 }
 
 /**
