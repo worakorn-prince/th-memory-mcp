@@ -3,6 +3,7 @@ import { readFileSync, realpathSync, statSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { DB_PATH, ok, err, type ToolResult } from "../db/index.js";
 import { EXPORTS_DIRNAME } from "../lib/config.js";
+import { getIdentity } from "../auth/identity.js";
 import { applyValidatedRows } from "./import/apply.js";
 import {
   MAX_IMPORT_BYTES,
@@ -185,13 +186,25 @@ export function importMemoryHandler(args: {
 
     // Batch A-2 phase 1: parse + validate everything first (no DB writes).
     // Phase 2 (apply module) applies all validated rows inside ONE db.transaction,
-    // so a mid-way error rolls back everything. Users are validated first and
-    // restored before memories inside the transaction so createMemory()->ensureUser
-    // reuses the restored row. Idempotent via UNIQUE(external_id).
+    // so a mid-way error rolls back everything. In legacy mode users are
+    // validated first and restored before memories inside the transaction so
+    // createMemory()->ensureUser reuses the restored row. Idempotent via
+    // UNIQUE(external_id). In enforced mode payload users are never restored
+    // (no minting): an unknown row owner fails the whole import via
+    // resolveWriterUserId and rolls back atomically.
     const state = createImportCounts();
     const log: string[] = [];
 
     const validUsers = validateUsers(exportUsers, state);
+    const authEnforced = getIdentity().mode === "enforced";
+    let usersForApply = validUsers;
+    if (authEnforced && validUsers.length > 0) {
+      state.usersImported = 0;
+      log.push(
+        `users ${validUsers.length} skipped (auth enforced: create via 'th-memory auth add-user')`
+      );
+      usersForApply = [];
+    }
     const validMemories = validateMemories(memoryItems, forcedUserId, state, log);
     const validLinks = validateLinks(
       exportLinks,
@@ -225,7 +238,7 @@ export function importMemoryHandler(args: {
         {
           userId: forcedUserId,
           trusted,
-          validUsers,
+          validUsers: usersForApply,
           validMemories,
           validLinks,
           validEntities,

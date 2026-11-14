@@ -26,6 +26,23 @@ import { updateMemoryInput, updateMemoryHandler } from "./tools/update_memory.js
 import { importMemoryInput, importMemoryHandler } from "./tools/import_memory.js";
 import { extractMemoriesInput, extractMemoriesHandler } from "./tools/extract_memories.js";
 import { VERSION } from "./lib/config.js";
+import { resolveIdentity, setIdentity } from "./auth/identity.js";
+
+// Identity is resolved once, before any tool is registered, from the process
+// environment only. With MEMORY_AUTH=on a missing/invalid/revoked token is
+// fatal: one bounded stderr line + exit 2, stdout stays protocol-clean.
+// Default (MEMORY_AUTH unset/off) resolves to legacy and touches no extra DB.
+function bootstrapIdentity(): void {
+  try {
+    setIdentity(resolveIdentity());
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e);
+    const msg = redactSecrets(raw).replace(/[\r\n]+/g, " ").slice(0, 240);
+    process.stderr.write(`[th-memory-mcp] auth: ${msg}\n`);
+    process.exit(2);
+  }
+}
+bootstrapIdentity();
 
 const server = new McpServer({
   name: "th-memory-mcp",

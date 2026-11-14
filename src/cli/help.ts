@@ -15,6 +15,7 @@ export const COMMANDS = [
   "recent",
   "highlight",
   "thai-dict",
+  "auth",
 ];
 
 export const GLOBAL_HELP = `th-memory ${VERSION} - local memory CLI (zero-dep)
@@ -40,6 +41,7 @@ Commands:
   recent [--limit <n>] [--kind <k>]                 recent interactions
   highlight [text...] -q <topic> [--limit <n>]      highlight topic matches (empty text = stdin)
   thai-dict <list|add|rm|learn> [opts]              personal Thai lexeme registry
+  auth <add-user|issue-token|list|revoke> [opts]    opt-in identity/token admin (MEMORY_AUTH)
 
 Examples:
   th-memory remember --category coding_pref --key package_manager --value pnpm
@@ -96,6 +98,17 @@ export const COMMAND_HELP: Record<string, string> = {
                                   add or replace a registry entry (default kind: synonym)
   rm --term <t>                   remove a registry entry by surface term
   learn                           re-run auto-learn from lessons now`,
+  auth: `Usage: th-memory auth <add-user|issue-token|list|revoke> [opts]
+
+  add-user <userId> [--name <n>] [--role <r>]
+                                  create a user (role: ${["reader", "writer", "owner", "admin"].join("|")}; default reader)
+  issue-token <userId> [--label <l>]
+                                  create a token; prints it ONCE (store it now)
+  list                            users + token labels/hash prefixes + revoked flag
+  revoke <hash-prefix|label>      set revoked_at (hash prefixes need >= 6 chars)
+
+  Admin runs locally against MEMORY_DB_PATH and does not need MEMORY_AUTH=on.
+  The server (MEMORY_AUTH=on) needs MEMORY_AUTH_TOKEN or MEMORY_AUTH_TOKEN_FILE.`,
 };
 
 export function printHelp(cmd: string | undefined): void {

@@ -680,6 +680,37 @@ const M015_search_index_keys: Migration = {
   },
 };
 
+// TASK-AUTH-P1-IDENTITY: opt-in identity store. Purely additive: the token
+// table stores ONLY sha256(token) hex (never plaintext) and users.role carries
+// the role list that AuthIdentity resolves at startup (Ph-2 consumes it).
+// Idempotent: IF NOT EXISTS everywhere; SQLite has no ADD COLUMN IF NOT EXISTS,
+// so the users.role column is guarded with PRAGMA table_info. Old migrations are
+// NOT edited.
+const M016_auth: Migration = {
+  id: "016_auth",
+  up(db) {
+    db.exec(`CREATE TABLE IF NOT EXISTS auth_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id    INTEGER NOT NULL,
+      label      TEXT,
+      created_at TEXT NOT NULL,
+      revoked_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );`);
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);`
+    );
+    const columns = db
+      .prepare("PRAGMA table_info(users)")
+      .all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === "role")) {
+      db.exec(
+        `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'reader';`
+      );
+    }
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -696,6 +727,7 @@ export const MIGRATIONS: Migration[] = [
   M013_search_index_loose,
   M014_thai_dict,
   M015_search_index_keys,
+  M016_auth,
 ];
 
 const KEEP_BACKUPS = 5;

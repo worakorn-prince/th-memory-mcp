@@ -7,7 +7,7 @@ import {
 } from "../../db/index.js";
 import { embed } from "../../lib/embed.js";
 import { redactMetadata, redactSecrets } from "../../lib/redact.js";
-import { ensureUser } from "./users.js";
+import { resolveWriterUserId } from "../../auth/identity.js";
 import type {
   MemoryType,
   SourceType,
@@ -39,7 +39,7 @@ function insertMemoryAtomic(input: CreateMemoryInput): number {
   const summary = input.summary != null ? redactSecrets(input.summary) : null;
   const metadata =
     input.metadata != null ? redactMetadata(input.metadata) : null;
-  const uid = input.userId ? ensureUser(input.userId) : null;
+  const uid = input.userId ? resolveWriterUserId(input.userId) : null;
   const scope: Scope = input.sessionId
     ? "SESSION"
     : input.projectId

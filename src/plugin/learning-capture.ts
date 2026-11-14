@@ -84,6 +84,8 @@ const SECRET_PATTERNS = [
   /(?<![A-Za-z0-9])Bearer\s+[A-Za-z0-9._~+\/-]{8,}=*/gi,
   /(?<![A-Za-z0-9])(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqp|amqps|mssql|ftp|ftps|https?|smtp|ssh):\/\/[^\s"'<>]+@[^\s"'<>]+/gi,
   /(?<![A-Za-z0-9])(?:api[\s_-]?key|secret|token|password|authorization|auth|bearer|credential|private[\s_-]?key|access[\s_-]?key|refresh[\s_-]?token|access[\s_-]?token|id[\s_-]?token|session[\s_-]?token|client[\s_-]?secret|database[\s_-]?url|connection[\s_-]?string|x[\s_-]?api[\s_-]?key)(?![A-Za-z0-9])["']?[ \t]*[:=][ \t]*(?:(?:bearer|basic|token)\s+)?(?:"[^"]*"|'[^']*'|[^\s"',;}]+)/gi,
+  /(?<![A-Za-z0-9])thm_[A-Za-z0-9_\-.]{1,200}_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g,
+  /(?<![A-Za-z0-9])thm_[A-Za-z0-9_-]{44,}/g,
 ];
 const SECRET_LINE = SECRET_PATTERNS[0]!;
 type CaptureKind = "prompt" | "tool_call" | "error";

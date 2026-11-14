@@ -101,6 +101,25 @@ A standard MCP server: 16 tools anywhere MCP-over-stdio works; all harnesses sha
 
 - **Claude Code** ([CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md)) — drop-in hooks replace the plugin: capture + profile injection on `UserPromptSubmit`/`PreCompact`, distill on `SessionEnd`. **Qwen Code** ([QWEN_SETUP.md](QWEN_SETUP.md)) — MCP fully; hooks need a small Gemini-CLI adapter. **Codex** ([CODEX_SETUP.md](CODEX_SETUP.md)) · **Cursor** ([CURSOR_SETUP.md](CURSOR_SETUP.md)) — manual tools. **DeepSeek Harness** ([DSH_SETUP.md](DSH_SETUP.md)) — official MCP bridge (`@deepseek-ai/dsh-mcp-client`), tools exposed as `mcp__memory__*`; no auto-capture — rely on explicit `remember`/`recall` plus a short shared model instruction.
 
+## Authentication (opt-in)
+
+Default is **off** — v2.5.2 behaviour (caller-supplied `userId`, auto-created on first write). Set `MEMORY_AUTH=on` to require a server-verified identity at startup. Identity is read from the **process environment only**, never from tool arguments.
+
+| Flag | Values | Default | Effect |
+|---|---|---|---|
+| `MEMORY_AUTH` | `off` \| `on` | `off` | `on` = resolve identity at startup and stop auto-creating users from caller ids; missing/invalid/revoked token exits the server with code 2 |
+| `MEMORY_AUTH_TOKEN` | token (`thm_<userId>_<secret>`) | — | identity source (inline) |
+| `MEMORY_AUTH_TOKEN_FILE` | path | — | identity source (file; 0600 recommended, trailing whitespace trimmed) |
+
+```bash
+th-memory auth add-user alice --name Alice --role writer   # admin CLI, MEMORY_AUTH not required
+th-memory auth issue-token alice --label laptop            # prints the token ONCE — store it now
+th-memory auth list                                        # labels + hash prefixes, never tokens
+th-memory auth revoke <hash-prefix|label>                  # sets revoked_at
+```
+
+Tokens are stored **hash-only** (`sha256`) in `auth_tokens`; the plaintext is printed exactly once by `issue-token`. With `MEMORY_AUTH=on`, minting users is blocked on **all** production write paths — `create_memory` throws for an unknown `userId`, and `import_memory` skips payload users (an unknown row owner fails the whole import atomically) — so users/tokens are created via the admin CLI only. Ph-1 closes identity minting only — per-tool RBAC and scope-ownership binding arrive in later phases, so this is **not yet a full authorization boundary** (see [SECURITY.md](SECURITY.md)).
+
 ## Scripts
 
 | Command | Description |
@@ -108,7 +127,7 @@ A standard MCP server: 16 tools anywhere MCP-over-stdio works; all harnesses sha
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune old data (`RETENTION_DAYS`, default 30) |
-| `npm test` | build + full suite (57 files, 255 tests: 254 pass, 1 skip) |
+| `npm test` | build + full suite (59 files, 289 tests: 288 pass, 1 skip) |
 | `node test/<name>.test.mjs` | run one suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security`, `thai_fts` |
 | `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (16 tools) |
 
@@ -161,6 +180,7 @@ Usage: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — per-
 | `history` | `history [--query <q>] [--limit <n>]` — search past prompts (no query = recent prompts) |
 | `recent` | `recent [--limit <n>] [--kind <k>]` — recent interactions (`k`: `prompt\|tool_call\|error`) |
 | `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — highlight topic matches (empty text = stdin pipe) |
+| `auth` | `auth <add-user\|issue-token\|list\|revoke> [opts]` — opt-in identity/token admin (see below) |
 
 ```bash
 th-memory remember --category coding_pref --key package_manager --value pnpm
@@ -190,7 +210,7 @@ data/
 ## Known Limitations
 
 - **No encryption at rest** — `data/memory.db` is plain, unencrypted SQLite (WAL mode, `better-sqlite3`); "100% local & private" means no cloud/network exfiltration, **not** encrypted at rest — anyone with filesystem access can read it. For sensitive data: OS full-disk encryption (BitLocker / FileVault / LUKS) or an opt-in SQLCipher build (native rebuild + key management); no in-code encryption by default (`src/db/index.ts` documents this).
-- **Single-user, no auth layer (Batch B-3)** — `userId` / `sessionId` / `projectId` are caller-supplied with **no authentication or authorization check inside the server**; scope isolation (retrieval, `get_context`, graph, `consolidate`, `link_memory`, `merge_memory`) binds only to caller-sent values, so any scope is readable/writable by passing a different id. Suitable for a **single-user local process**; do **not** share one server/DB across untrusted users without an auth layer in front enforcing the correct `userId` (`projectId` / `sessionId`). No auth is built in by design.
+- **Single-user by default; opt-in identity only (Batch B-3 / Ph-1)** — `userId` / `sessionId` / `projectId` are caller-supplied with **no authorization check inside the server by default**; scope isolation (retrieval, `get_context`, graph, `consolidate`, `link_memory`, `merge_memory`) binds only to caller-sent values, so any scope is readable/writable by passing a different id. Suitable for a **single-user local process**; do **not** share one server/DB across untrusted users without an auth layer in front enforcing the correct `userId` (`projectId` / `sessionId`). Opt-in `MEMORY_AUTH=on` verifies a startup identity and stops user minting, but per-tool authorization and scope-ownership binding are not implemented yet, so it is not a full boundary.
 
 ## License
 

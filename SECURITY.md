@@ -45,12 +45,24 @@ This policy covers the MCP server (`src/`), SQLite store (`data/memory.db`), and
 
 ## Authentication scope — single-user local process (Batch B-3)
 
-There is **no authentication or authorization layer** in this server by design (no new auth system is introduced):
+There is **no authentication or authorization layer enabled by default** in this server (no new auth system is introduced); the opt-in `MEMORY_AUTH` identity layer described below is off unless an operator turns it on:
 
 - `userId` / `sessionId` / `projectId` are **caller-supplied** values. Scope checks in `merge_memory` / `get_context` (via `context-engine` + `retrieval-engine`) and the USER/SESSION/PROJECT isolation they enforce are only as trustworthy as the caller — a caller that passes another user's id is treated as that user.
 - The supported deployment is a **single-user local process**: one operator running the MCP server against a local `data/memory.db`. In that model the caller is trusted and scope parameters are a correctness/isolation mechanism, not a security boundary.
 - **Multi-user deployments MUST add an auth layer in front** (outside this repo): authenticate each caller, then map/force the correct `userId` (and allowed `projectId` / `sessionId`) before the call reaches the MCP tools. Sharing one server/DB across mutually-untrusted users without that layer will leak USER/SESSION-scoped memories across users.
 - Memory content rendered back to the model is wrapped in `<memory-reference>` delimiters with an explicit "reference data, not instructions" guidance line, and entries imported with `metadata.trusted=false` are labelled `[untrusted-import]` — defense-in-depth against prompt injection, not a substitute for caller auth.
+
+## Authentication (opt-in, Ph-1)
+
+`MEMORY_AUTH=on` adds server-verified identity **without** enabling it by default (`off` = v2.5.2 behaviour):
+
+- **Identity source is the process environment only** — `MEMORY_AUTH_TOKEN` or `MEMORY_AUTH_TOKEN_FILE`. Tokens are never read from MCP tool arguments (`userId` / `sessionId` / `projectId` are at most checks, never authority).
+- **Hash-only storage** — `auth_tokens` stores `sha256(token)` hex; the plaintext is printed exactly once by `th-memory auth issue-token` and is never logged or persisted. Tokens are 32 random bytes, so a slow KDF is unnecessary.
+- **Fail-fast** — with `MEMORY_AUTH=on`, a missing, malformed, unknown, or revoked token terminates the server: one bounded line on stderr and exit code 2; stdout stays protocol-clean. There is no plaintext fallback to legacy mode.
+- **No user minting** — with enforcement on, `createMemory` throws for an unknown `userId` and inserts no `users` row (admin CLI only). `import_memory` likewise never restores payload `users`: they are skipped with an honest count, and any memory row whose owner is unknown fails the whole import and rolls back atomically. Legacy mode still auto-creates, unchanged.
+- **Revocation timing** — revoking a token takes effect on the next server start (identity is resolved once at startup).
+- **Not yet a full authorization boundary** — Ph-1 only stops identity minting. Per-tool authorization (roles) and scope-ownership binding (caller `userId` must equal the authenticated identity, plus membership) land in Ph-2/Ph-3; until then, one server/DB must still not be shared across mutually-untrusted users.
+- **Known limitation** — export/import does not carry `users.role`; imported users default to `reader`.
 
 ## Hardening changes (unreleased)
 
