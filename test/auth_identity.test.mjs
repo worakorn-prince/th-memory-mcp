@@ -603,6 +603,10 @@ test("server boots in enforced mode with a valid token (ready on stdio, does not
   child.stderr.on("data", (chunk) => {
     stderr += chunk;
   });
+  // `exit` can be observed before the last stderr `data` event is delivered, so
+  // wait for the stream to close before deciding the server never reported
+  // ready. (stdin is ignored here, so the server sees EOF and exits on its own.)
+  const stderrClosed = new Promise((resolve) => child.stderr.on("close", resolve));
   const exited = new Promise((resolve) => child.on("exit", (code) => resolve(code)));
 
   let ready = false;
@@ -616,7 +620,15 @@ test("server boots in enforced mode with a valid token (ready on stdio, does not
       new Promise((resolve) => setTimeout(resolve, 50, "tick")),
       exited.then((code) => `exit:${code}`),
     ]);
-    if (typeof settled === "string" && settled.startsWith("exit:")) break;
+    if (typeof settled === "string" && settled.startsWith("exit:")) {
+      // Drain pending stderr data before evaluating readiness.
+      await Promise.race([
+        stderrClosed,
+        new Promise((resolve) => setTimeout(resolve, 1000)),
+      ]);
+      ready = stderr.includes("ready on stdio");
+      break;
+    }
   }
 
   try {

@@ -259,6 +259,17 @@ try {
   // --- Phase 4: Insight & Safety ---
   {
     const sdb = new Database(testDb);
+    // The spawned server inherits MEMORY_ENCRYPTION from the environment, so a
+    // DB it created is encrypted; apply the same key before touching it.
+    const encKey = process.env.MEMORY_ENCRYPTION_KEY;
+    if (String(process.env.MEMORY_ENCRYPTION ?? "").toLowerCase() === "on" && encKey) {
+      const keyHex = Buffer.from(encKey, "base64").toString("hex");
+      sdb.pragma(`key = "x'${keyHex}'"`);
+      sdb.pragma(
+        `kdf_iter = ${Number(process.env.MEMORY_ENCRYPTION_KDF_ITER ?? 256000)}`
+      );
+      sdb.pragma("page_size = 4096");
+    }
     sdb.pragma("busy_timeout = 5000");
     const ins = sdb.prepare(
       "INSERT INTO interactions (ts, session_id, kind, content) VALUES (?, ?, ?, ?)"

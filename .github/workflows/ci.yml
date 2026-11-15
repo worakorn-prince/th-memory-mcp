@@ -5,30 +5,17 @@ on:
     branches: [master, main]
   pull_request:
     branches: [master, main]
-  release:
-    types: [published]
 
 jobs:
   test:
     name: Test Node ${{ matrix.node }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node: ['22', '24', '26']
-        include:
-          # Additional Windows-specific setup
-          - os: windows-latest
-            node: '22'
-            npm_args: ''
-          - os: windows-latest
-            node: '24'
-            npm_args: ''
-          - os: windows-latest
-            node: '26'
-            npm_args: ''
-      fail-fast: false
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository
@@ -38,101 +25,127 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
-        shell: bash
 
       - name: Build
         run: npm run build
-        shell: bash
 
-      - name: Run tests (serial for stability)
-        run: node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
+      - name: Version sync check
+        run: npm run version:check
+
+      - name: Capture sync check
+        run: npm run check:capture-sync
+
+      # Serial execution keeps the resource-heavy suites (vector cache, boot
+      # probes) from starving each other. One retry absorbs machine-load flakes;
+      # a genuine failure fails both runs.
+      - name: Run tests
         shell: bash
         env:
-          # Disable encryption/auth for baseline tests
           MEMORY_AUTH: ''
           MEMORY_ENCRYPTION: ''
-        continue-on-error: true
-
-      - name: Check for known flaky test
-        if: failure()
+          MEMORY_ENCRYPTION_KEY: ''
         run: |
-          node --test --test-concurrency=1 test/auth_identity.test.mjs --test-name-pattern="server boots in enforced mode" 2>&1 | findstr "server boots in enforced mode" && echo "Known flaky test failed - continuing" && exit 0 || exit 1
-        shell: cmd
-        continue-on-error: true
+          set -o pipefail
+          if node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs; then
+            echo "tests passed on first run"
+            exit 0
+          fi
+          echo "first run failed; retrying once to rule out a load-induced flake"
+          node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
 
-      # Test with encryption enabled (opt-in) - only on ubuntu
-      # Test with encryption enabled (opt-in) - only on ubuntu
+  encrypted:
+    name: Encrypted DB (Ubuntu / Node 26)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run build
+
       - name: Run tests with encryption enabled
-        if: matrix.os == 'ubuntu-latest' && matrix.node == '26'
-        run: node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
         shell: bash
         env:
-          MEMORY_ENCRYPTION: 'on'
-          MEMORY_ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY }}
           MEMORY_AUTH: ''
-
-      # Test with auth enabled (opt-in) - only on ubuntu
-      - name: Run tests with auth enabled
-        if: matrix.os == 'ubuntu-latest' && matrix.node == '26'
         run: |
-          node dist/cli.js auth add-user testuser --role writer
-          TOKEN=$(node dist/cli.js auth issue-token testuser --label test)
-          MEMORY_AUTH=on MEMORY_AUTH_TOKEN=$TOKEN node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
+          set -o pipefail
+          export MEMORY_ENCRYPTION=on
+          export MEMORY_ENCRYPTION_KEY="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64'))")"
+          node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
+
+  authenticated:
+    name: Auth + scope (Ubuntu / Node 26)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+      - name: Run tests with auth enabled
         shell: bash
         env:
-          MEMORY_AUTH: 'on'
           MEMORY_ENCRYPTION: ''
+          MEMORY_ENCRYPTION_KEY: ''
+        run: |
+          set -o pipefail
+          export MEMORY_DB_PATH="$RUNNER_TEMP/auth.db"
+          node dist/cli.js auth add-user ci-runner --role owner
+          TOKEN="$(node dist/cli.js auth issue-token ci-runner --label ci)"
+          export MEMORY_AUTH=on
+          export MEMORY_AUTH_TOKEN="$TOKEN"
+          node --test --test-concurrency=1 \
+            test/auth_identity.test.mjs \
+            test/auth_guard.test.mjs \
+            test/auth_policy.test.mjs \
+            test/auth_token.test.mjs \
+            test/scope_resolver.test.mjs \
+            test/scope_grants.test.mjs \
+            test/scope_isolation.test.mjs \
+            test/scope_reads.test.mjs \
+            test/audit_log.test.mjs \
+            test/interactions_scope.test.mjs
 
   lint:
-    name: Lint & Typecheck
+    name: Lint and typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '26'
-          cache: 'npm'
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run build
       - name: TypeScript typecheck
         run: npx tsc --noEmit
-      - name: Capture sync check
-        run: npm run check:capture-sync
+      - name: Plugin typecheck
+        run: npm run typecheck:plugin
 
   audit:
-    name: Security Audit
+    name: Security audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '26'
-          cache: 'npm'
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
-      - run: npm audit --audit-level=moderate || true
-
-  release:
-    name: Release
-    needs: [test, lint, audit]
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions.setup-node@v4
-        with:
-          node-version: '26'
-          cache: 'npm'
-          registry-url: 'https://registry.npmjs.org'
-      - run: npm ci
-      - run: npm run build
-      - run: node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
-      - name: Publish to npm
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

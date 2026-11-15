@@ -22,6 +22,7 @@ import type { Plugin } from "@opencode/plugin";
 // Node, so resolve the driver at runtime and keep a Node-first fallback.
 interface SqliteStatement {
   all(...params: any[]): any[];
+  get(...params: any[]): any;
   run(...params: any[]): any;
 }
 interface SqliteDb {
