@@ -207,6 +207,211 @@ console.log("Key (base64):", keyBase64);
   db.close();
 }
 
+// --- Test 9 (Ph-6 A1): real-shape app DB — FTS5 + shadows + embeddings + graph + users ---
+// Built through the app path in a child process (createMemory, rememberHandler,
+// saveLessonHandler, link_memory + a user and an interaction) so the database
+// looks exactly like a live one, including search_index/_loose shadow tables.
+const SHADOW_SUFFIXES = ["_data", "_idx", "_content", "_docsize", "_config"];
+
+function childEnv(dbPath) {
+  const env = { ...process.env, MEMORY_DB_PATH: dbPath };
+  for (const name of Object.keys(env)) {
+    if (name.startsWith("MEMORY_") && name !== "MEMORY_DB_PATH") delete env[name];
+  }
+  return env;
+}
+
+function shapeSnapshot(dbPath, encrypted) {
+  const db = encrypted ? openEncryptedDB(dbPath, key) : new Database(dbPath, { readonly: true });
+  try {
+    const rows = db
+      .prepare("SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+      .all();
+    const virtual = rows.filter((r) => /^\s*CREATE\s+VIRTUAL\s+TABLE/i.test(r.sql ?? "")).map((r) => r.name);
+    const shadows = new Set(virtual.flatMap((n) => SHADOW_SUFFIXES.map((s) => n + s)));
+    const ordinary = rows.filter((r) => !virtual.includes(r.name) && !shadows.has(r.name)).map((r) => r.name);
+    const counts = {};
+    for (const name of ordinary) {
+      counts[name] = db.prepare(`SELECT count(*) AS c FROM "${name}"`).get().c;
+    }
+    for (const name of virtual) {
+      counts[name] = db.prepare(`SELECT count(*) AS c FROM "${name}"`).get().c;
+    }
+    const shadowCounts = {};
+    for (const name of shadows) {
+      shadowCounts[name] = db.prepare(`SELECT count(*) AS c FROM "${name}"`).get().c;
+    }
+    return {
+      virtual,
+      shadows: [...shadows],
+      ordinary,
+      counts,
+      shadowCounts,
+      strictRefs: db
+        .prepare("SELECT ref_table, ref_id FROM search_index WHERE search_index MATCH ? ORDER BY ref_id")
+        .all("sqlcipher"),
+      looseRefs: db
+        .prepare("SELECT ref_table, ref_id FROM search_index_loose WHERE search_index_loose MATCH ? ORDER BY ref_id")
+        .all("sqlcipher"),
+      embeddings: db
+        .prepare("SELECT ref_table, ref_id, hex(vec) AS h FROM embeddings ORDER BY ref_table, ref_id")
+        .all(),
+      integrity: db.pragma("integrity_check")[0]?.integrity_check,
+      marker: db
+        .prepare("SELECT value FROM schema_meta WHERE key = 'encryption_migrated'")
+        .get(),
+    };
+  } finally {
+    db.close();
+  }
+}
+
+{
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  const { execFileSync } = await import("node:child_process");
+
+  const appDir = join(workDir, "app-shape");
+  mkdirSync(appDir, { recursive: true });
+  const appDbPath = join(appDir, "app.db");
+  const builderPath = join(appDir, "build-app-db.mjs");
+  const urls = {
+    db: new URL("../dist/db/index.js", import.meta.url).href,
+    memories: new URL("../dist/db/repositories/memories.js", import.meta.url).href,
+    remember: new URL("../dist/tools/remember.js", import.meta.url).href,
+    lesson: new URL("../dist/tools/lesson.js", import.meta.url).href,
+    link: new URL("../dist/tools/link_memory.js", import.meta.url).href,
+  };
+  writeFileSync(
+    builderPath,
+    [
+      "process.env.MEMORY_DB_PATH = process.env.PROBE_DB;",
+      `const app = await import(${JSON.stringify(urls.db)});`,
+      `const { createMemory } = await import(${JSON.stringify(urls.memories)});`,
+      `const { rememberHandler } = await import(${JSON.stringify(urls.remember)});`,
+      `const { saveLessonHandler } = await import(${JSON.stringify(urls.lesson)});`,
+      `const { linkMemoryHandler } = await import(${JSON.stringify(urls.link)});`,
+      "const a = createMemory({ type: 'FACT', content: 'ซ้อมติดตั้ง sqlcipher บน windows ด้วย pnpm' });",
+      "const b = createMemory({ type: 'DECISION', content: 'chose wal checkpoint strategy for encryption migration' });",
+      "await rememberHandler({ category: 'coding_pref', key: 'package_manager', value: 'pnpm' });",
+      "await saveLessonHandler({ situation: 'fts5 shadow table copy failed', mistake: 'copied shadow ddl', correction: 'skip shadows and copy virtual rows' });",
+      "linkMemoryHandler({ sourceId: a, targetId: b, relation: 'related_to' });",
+      "app.db.prepare('INSERT OR IGNORE INTO users (external_id, name, created_at) VALUES (?,?,?)').run('probe-user', 'Probe User', new Date().toISOString());",
+      "app.db.prepare('INSERT INTO interactions (ts, session_id, kind, content) VALUES (?,?,?,?)').run(new Date().toISOString(), 'probe-session', 'user_message', 'probe interaction row');",
+      "process.stdout.write('BUILT ' + a + ' ' + b + '\\n');",
+    ].join("\n")
+  );
+
+  execFileSync(process.execPath, [builderPath], {
+    env: { ...childEnv(appDbPath), PROBE_DB: appDbPath },
+    stdio: "pipe",
+  });
+
+  check("A1 real-shape: app DB is plaintext before migration", () => assert.equal(isPlaintextDB(appDbPath), true));
+
+  const before = shapeSnapshot(appDbPath, false);
+  check("A1 real-shape: DB has both FTS5 virtual tables", () =>
+    assert.deepEqual([...before.virtual].sort(), ["search_index", "search_index_loose"]));
+  check("A1 real-shape: all FTS5 shadow tables present before migration", () => {
+    for (const vt of before.virtual) {
+      for (const suffix of SHADOW_SUFFIXES) {
+        assert.ok(before.shadows.includes(vt + suffix), `missing ${vt}${suffix}`);
+      }
+    }
+  });
+  check("A1 real-shape: DB has embeddings, graph and users rows", () => {
+    assert.ok(before.counts.memories >= 2);
+    assert.ok(before.counts.embeddings >= 3);
+    assert.ok(before.counts.memory_links >= 1);
+    assert.ok(before.counts.users >= 1);
+    assert.ok(before.counts.interactions >= 1);
+    assert.ok(before.counts.lessons >= 1);
+    assert.ok(before.counts.preferences >= 1);
+  });
+  check("A1 real-shape: source MATCH returns refs on both FTS channels", () => {
+    assert.ok(before.strictRefs.length > 0);
+    assert.ok(before.looseRefs.length > 0);
+  });
+
+  let migrated = false;
+  check("A1 real-shape: migrateIfNeeded succeeds on a DB with FTS5 shadows", () => {
+    migrated = migrateIfNeeded(appDbPath, key);
+    assert.equal(migrated, true);
+  });
+  check("A1 real-shape: DB is encrypted after migration", () => {
+    assert.equal(isEncrypted(appDbPath, key), true);
+    assert.equal(isPlaintextDB(appDbPath), false);
+  });
+
+  const after = shapeSnapshot(appDbPath, key);
+  check("A1 real-shape: integrity_check is ok", () => assert.equal(after.integrity, "ok"));
+  check("A1 real-shape: migration marker written", () => assert.equal(after.marker?.value, "1"));
+  check("A1 real-shape: same virtual + ordinary tables after migration", () => {
+    assert.deepEqual([...after.virtual].sort(), [...before.virtual].sort());
+    assert.deepEqual([...after.ordinary].sort(), [...before.ordinary].sort());
+    assert.deepEqual([...after.shadows].sort(), [...before.shadows].sort());
+  });
+  check("A1 real-shape: every user table keeps its row count", () => {
+    for (const name of before.ordinary) {
+      if (name === "schema_meta") continue; // +1 migration marker, asserted below
+      assert.equal(after.counts[name], before.counts[name], `row count changed for ${name}`);
+    }
+    assert.equal(after.counts.schema_meta, before.counts.schema_meta + 1);
+  });
+  check("A1 real-shape: FTS5 shadow tables are rebuilt, not copied verbatim", () => {
+    for (const name of after.shadows) assert.ok(typeof after.shadowCounts[name] === "number");
+    assert.ok(after.shadowCounts["search_index_data"] > 0);
+    assert.ok(after.shadowCounts["search_index_loose_data"] > 0);
+  });
+  check("A1 real-shape: search_index MATCH returns the same refs", () =>
+    assert.deepEqual(after.strictRefs, before.strictRefs));
+  check("A1 real-shape: search_index_loose MATCH returns the same refs", () =>
+    assert.deepEqual(after.looseRefs, before.looseRefs));
+  check("A1 real-shape: embeddings BLOBs round-trip byte-identically", () => {
+    assert.ok(before.embeddings.length > 0);
+    assert.deepEqual(after.embeddings, before.embeddings);
+  });
+  check("A1 real-shape: no .enc.tmp/.enc.bak left behind", () => {
+    assert.equal(existsSync(`${appDbPath}.enc.tmp`), false);
+    assert.equal(existsSync(`${appDbPath}.enc.bak`), false);
+  });
+
+  // --- Test 10 (A1): idempotency on the real-shape DB ---
+  check("A1 idempotency: second migrateIfNeeded returns false", () =>
+    assert.equal(migrateIfNeeded(appDbPath, key), false));
+  const again = shapeSnapshot(appDbPath, key);
+  check("A1 idempotency: data unchanged after the second call", () => {
+    assert.deepEqual(again.counts, after.counts);
+    assert.deepEqual(again.embeddings, after.embeddings);
+    assert.deepEqual(again.strictRefs, after.strictRefs);
+  });
+}
+
+// --- Test 11 (A2): a failed migration leaves the original DB untouched ---
+{
+  const badPath = join(workDir, "checksum.db");
+  const plainDb = new Database(badPath);
+  plainDb.exec("CREATE TABLE chk (x INTEGER CHECK (x > 0));");
+  plainDb.pragma("ignore_check_constraints = ON");
+  plainDb.exec("INSERT INTO chk (x) VALUES (-5);");
+  plainDb.close();
+
+  check("A2 failure: migration with an uncopyable row throws", () =>
+    assert.throws(() => migrateIfNeeded(badPath, key)));
+  check("A2 failure: original DB is still plaintext and intact", () => {
+    assert.equal(isPlaintextDB(badPath), true);
+    const db = new Database(badPath, { readonly: true });
+    try {
+      assert.equal(db.prepare("SELECT x FROM chk").get().x, -5);
+    } finally {
+      db.close();
+    }
+  });
+  check("A2 failure: no .enc.tmp/.enc.bak left behind", () => {
+    assert.equal(existsSync(`${badPath}.enc.tmp`), false);
+    assert.equal(existsSync(`${badPath}.enc.bak`), false);
+  });
+}
+
 // Cleanup
 try {
   rmSync(workDir, { recursive: true, force: true });

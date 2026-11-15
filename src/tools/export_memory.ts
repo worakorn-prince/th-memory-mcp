@@ -180,10 +180,99 @@ const selectRelations = db.prepare(`
   ORDER BY r.id
 `);
 
+// Ph-6 A4: the shared graph tables are scoped by the SAME predicate as the
+// memories export (buildScopeClause over the requested dimensions), so an
+// enforced export never emits another identity's users / entities / relations /
+// memory_links. Each concern stays one statement:
+//
+//   memoryLinks — both endpoints must be exported memories: the scope clause is
+//                 applied to the source join AND the target join.
+//   relations   — source_memory_id IS NULL (shared graph) or the source memory
+//                 is exported; a relation sourced from an invisible memory is
+//                 dropped.
+//   entities    — only entities referenced by the exported relation set. An
+//                 entity no exported relation points at is NOT exported in
+//                 enforced mode (entity-only rows are graph-internal).
+//   users       — the identity's own row plus the owner of every exported
+//                 preference / lesson / interaction row. Preferences and
+//                 lessons are visible when user_id IS NULL OR user_id is the
+//                 identity; interactions when user_id is the identity (owners
+//                 also see NULL rows), so no unrelated user can appear.
+//
+// profile is shared by design (see export contract, §A4).
+const memoryLinksScopedSql = `
+  SELECT l.source_memory_id AS sourceId, l.relation,
+         l.target_memory_id AS targetId, l.confidence, l.created_at AS createdAt
+  FROM memory_links l
+  JOIN memories s ON s.id = l.source_memory_id AND s.status <> 'deleted'
+  JOIN memories t ON t.id = l.target_memory_id AND t.status <> 'deleted'
+  WHERE ${buildScopeClause("s").sql}
+    AND ${buildScopeClause("t").sql}
+  ORDER BY l.source_memory_id, l.target_memory_id
+`;
+const relationsScopedSql = `
+  SELECT r.id, r.source_entity_id AS sourceEntityId, r.relation,
+         r.target_entity_id AS targetEntityId, r.confidence,
+         r.valid_from AS validFrom, r.valid_until AS validUntil,
+         r.source_memory_id AS sourceMemoryId, r.metadata
+  FROM relations r
+  LEFT JOIN memories m ON m.id = r.source_memory_id
+  WHERE r.source_memory_id IS NULL
+     OR (m.status <> 'deleted' AND ${buildScopeClause("m").sql})
+  ORDER BY r.id
+`;
+const entitiesScopedSql = `
+  WITH exported_relations AS (
+    SELECT r.source_entity_id AS sourceEntityId,
+           r.target_entity_id AS targetEntityId
+    FROM relations r
+    LEFT JOIN memories m ON m.id = r.source_memory_id
+    WHERE r.source_memory_id IS NULL
+       OR (m.status <> 'deleted' AND ${buildScopeClause("m").sql})
+  )
+  SELECT e.id, e.name, e.canonical_name AS canonicalName, e.type, e.metadata
+  FROM entities e
+  WHERE e.id IN (
+    SELECT sourceEntityId FROM exported_relations
+    UNION
+    SELECT targetEntityId FROM exported_relations
+  )
+  ORDER BY e.id
+`;
+function usersScopedSql(includeInteractions: boolean): string {
+  return `
+  SELECT u.id, u.external_id AS externalId, u.name, u.created_at AS createdAt
+  FROM users u
+  WHERE u.id = @uid
+     OR u.id IN (
+       SELECT p.user_id FROM preferences p
+       WHERE p.user_id IS NOT NULL AND (p.user_id IS NULL OR p.user_id = @uid)
+     )
+     OR u.id IN (
+       SELECT l.user_id FROM lessons l
+       WHERE l.user_id IS NOT NULL AND (l.user_id IS NULL OR l.user_id = @uid)
+     )${
+       includeInteractions
+         ? `
+     OR u.id IN (
+       SELECT i.user_id FROM interactions i
+       WHERE i.user_id IS NOT NULL
+         AND (i.user_id = @uid OR (@owner = 1 AND i.user_id IS NULL))
+     )`
+         : ""
+     }
+  ORDER BY u.id
+`;
+}
+const selectMemoryLinksScoped = db.prepare(memoryLinksScopedSql);
+const selectRelationsScoped = db.prepare(relationsScopedSql);
+const selectEntitiesScoped = db.prepare(entitiesScopedSql);
+const selectUsersScoped = db.prepare(usersScopedSql(false));
+const selectUsersScopedWithInteractions = db.prepare(usersScopedSql(true));
+
 // Ph-3 enforced variants: export only rows visible to the bound identity.
 // Memories use the existing buildScopeClause with only the requested dimensions.
 // Preferences/lessons/interactions are personal tables bounded by user_id.
-// Users/entities/relations/links/profile are not scope-bound (shared).
 const selectPrefsScoped = db.prepare(
   "SELECT id, category, key, value, confidence, source, updated_at FROM preferences WHERE (user_id IS NULL OR user_id = ?) ORDER BY id"
 );
@@ -304,9 +393,19 @@ export async function exportMemoryHandler(args: {
         ? selectMemories.all()
         : selectMemoriesScoped.all(scopeFilter!.params)
     ) as Array<Omit<ExportMemoryRow, "metadata"> & { metadata: string | null }>;
-    const users = selectUsers.all() as Array<{ id: number; externalId: string; name: string | null; createdAt: string }>;
+    // Ph-6 A4: enforced mode scopes the shared tables to what this identity may
+    // see. Legacy mode keeps the unscoped statements untouched (byte-identical).
+    const users = (
+      scope === null
+        ? selectUsers.all()
+        : includeInteractions
+        ? selectUsersScopedWithInteractions.all({ uid, owner: ownerFlag })
+        : selectUsersScoped.all({ uid })
+    ) as Array<{ id: number; externalId: string; name: string | null; createdAt: string }>;
     const entities = (
-      selectEntities.all() as Array<{
+      (scope === null
+        ? selectEntities.all()
+        : selectEntitiesScoped.all(scopeFilter!.params)) as Array<{
         id: number;
         name: string;
         canonicalName: string;
@@ -315,7 +414,9 @@ export async function exportMemoryHandler(args: {
       }>
     ).map((e) => ({ ...e, metadata: parseMetadata(e.metadata) }));
     const relations = (
-      selectRelations.all() as Array<{
+      (scope === null
+        ? selectRelations.all()
+        : selectRelationsScoped.all(scopeFilter!.params)) as Array<{
         id: number;
         sourceEntityId: number;
         relation: string;
@@ -327,6 +428,9 @@ export async function exportMemoryHandler(args: {
         metadata: string | null;
       }>
     ).map((r) => ({ ...r, metadata: parseMetadata(r.metadata) }));
+    const memoryLinks = scope === null
+      ? selectMemoryLinks.all()
+      : selectMemoryLinksScoped.all(scopeFilter!.params);
     const prefs = scope === null
       ? selectPrefs.all()
       : selectPrefsScoped.all(uid);
@@ -340,7 +444,7 @@ export async function exportMemoryHandler(args: {
       version: VERSION,
       format: "th-memory-mcp/v2",
       memories: memories.map((m) => ({ ...m, metadata: parseMetadata(m.metadata) })),
-      memoryLinks: selectMemoryLinks.all(),
+      memoryLinks,
       // Additive v2 fields (optional for backward compat): full backup of
       // M007 users + M003 entities/relations. Old importers ignore unknown keys.
       users,

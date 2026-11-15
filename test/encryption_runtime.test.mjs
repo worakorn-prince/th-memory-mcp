@@ -180,7 +180,10 @@ console.log("Plaintext DB created with test data, indexes, triggers");
 {
   const wrongKey = new Uint8Array(32).fill(2);
   check("Wrong key cannot open encrypted DB", () => {
-    assert.throws(() => openEncryptedDB(dbPath, new Uint8Array(32).fill(2)), /file is not a database|not a database/);
+    assert.throws(
+      () => openEncryptedDB(dbPath, new Uint8Array(32).fill(2)),
+      /cannot open encrypted database: wrong key or corrupted file|wrong key|not a database/
+    );
   });
 }
 

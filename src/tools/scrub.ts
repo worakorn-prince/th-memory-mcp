@@ -267,6 +267,8 @@ export function scrubHistoricalSecrets(apply = false): ScrubReport {
     }
   });
 
-  work();
+  // Read-then-write: an immediate transaction avoids SQLITE_BUSY_SNAPSHOT while
+  // the capture plugin is writing to the same database.
+  work.immediate();
   return { apply, changed };
 }

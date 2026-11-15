@@ -185,7 +185,7 @@ export async function forgetHandler(args: {
           removed.push(`interaction #${id}`);
         }
       }
-    })();
+    }).immediate();
 
     if (removed.length === 0) {
       return ok(`nothing found with id=${id}${args.type ? ` (${args.type})` : ""}`);

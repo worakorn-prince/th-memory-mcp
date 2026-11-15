@@ -6,6 +6,7 @@ import { runHistory, runProfile, runRecent, runStats } from "./commands/reports.
 import { runRecall } from "./commands/recall.js";
 import { runRemember } from "./commands/remember.js";
 import { runAuth } from "./commands/auth.js";
+import { runDb } from "./commands/db.js";
 import { runGrant } from "./commands/grant.js";
 import { runThaiDict } from "./commands/thai-dict.js";
 import { fail, type Globals } from "./commands/shared.js";
@@ -99,6 +100,11 @@ function parseArgv(argv: string[]): Parsed {
     "--user",
     "--ref",
     "--permission",
+    "--new-key",
+    "--new-key-file",
+    "--backup",
+    "--to",
+    "--out",
   ]);
   const boolOpts = new Set([
     "--json",
@@ -107,6 +113,7 @@ function parseArgv(argv: string[]): Parsed {
     "--highlight",
     "--include-interactions",
     "--apply",
+    "--force",
   ]);
   let j = 0;
   const takeValue = (name: string, inline: string | undefined): string => {
@@ -218,6 +225,8 @@ export async function runCli(argv: string[]): Promise<number> {
       return runAuth(opts, pos, g);
     case "grant":
       return runGrant(opts, pos, g);
+    case "db":
+      return runDb(opts, pos, g);
     default:
       fail(`unknown command "${cmd}" (see --help)`, g.json);
   }

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-11-16
+
+Security & reliability hardening for the 3.0.0 auth/encryption release. **No breaking changes**; every fix is either internal or an additive CLI/env surface.
+
+### Fixed — encryption
+
+- **Enabling encryption on an existing database failed for every real user.** The migration copied each table from `sqlite_master`, including the FTS5 shadow tables (`*_data`, `*_idx`, `*_content`, `*_docsize`, `*_config`), and SQLite rejected them with `object name reserved for internal use`. The migration now creates virtual tables by their own DDL (FTS5 builds its shadows), skips shadow tables entirely, and copies rows through `ATTACH … INSERT … SELECT` without materialising them in JavaScript. Verified on a real-shape DB: `search_index` and `search_index_loose` MATCH parity, byte-identical embeddings, `integrity_check` = ok.
+- **The plaintext→encrypted replacement could destroy the database.** The old order unlinked the original before renaming the temp into place, so a crash in between left no database at all, and a failed run left an orphan `.enc.tmp`. The order is now `tmp → verify → .enc.bak → db → marker → delete .enc.bak`, with `recoverEncryptionState()` repairing all five crash states on the next start and never deleting the last good copy.
+- **A wrong key was not actually verified.** `PRAGMA cipher_version` reports the library version, not key validity. The key is now proven by reading real data (`sqlite_master` + the `schema_meta` canary); a bad key or a corrupted file fails fast with `cannot open encrypted database: wrong key or corrupted file`.
+- **An interrupted backup produced an unusable file.** `VACUUM INTO` wrote straight to the destination: a kill left a multi-megabyte corrupt file (unopenable with the key) and retries failed with `database disk image is malformed`. Backups are now written to a sibling temp, verified with the key and `integrity_check`, then promoted by rename, keeping the previous backup as `<name>.1`. The boot-time pre-migration backup (`backupDatabase`) had the same flaw and now writes to a hidden staging file that only becomes `<db>.backup-<ts>` after it verifies (plaintext: open + `integrity_check`; encrypted: `backupEncryptedDB`), and `th-memory db backup [--out <file>]` exposes the same path instead of leaving the README to advertise a subcommand that did not exist. A copy from a connection whose key is unknown is now refused rather than accepted on a structural check alone.
+- **Recovery no longer mistakes "cannot inspect" for "corrupt".** `recoverEncryptionState()` treated a wrong key, a lock held by another process and an I/O error as corruption, and could rename a perfectly good database to `.enc.corrupt` and put the older `.enc.bak` live. Only an explicit `integrity_check` failure does that now; anything else leaves both files untouched and prints one bounded line.
+- **Key rotation, backup verification and a restore drill are now available:** `th-memory db backup [--out <file>]`, `th-memory db rekey`, `th-memory db verify-backup`, `th-memory db restore --to … [--force]`, `th-memory db drill`. Rotation is crash-safe (temp + rekey + parity verify + atomic promote) and never prints key material. `db restore --force` renames the destination to `<target>.bak` first and restores it if the promotion fails, so a failed restore cannot destroy the only copy.
+
+### Fixed — authorization / export
+
+- **`export_memory` leaked other users' data in enforced mode.** `users`, `entities`, `relations` and `memoryLinks` were exported unscoped, so an enforced export still contained every user's `external_id`/`name` and the whole graph. In enforced mode those collections are now bounded by the exported memory set (links need both endpoints visible, relations need a visible or shared source, entities need an exported relation, users are limited to the caller plus owners of exported personal rows). Legacy (auth off) output is byte-identical.
+
+### Fixed — concurrency
+
+- **`remember` returned `database is locked` while the capture plugin was writing.** A deferred transaction that SELECTs before it writes cannot upgrade its snapshot once another process commits (`SQLITE_BUSY_SNAPSHOT`, which `busy_timeout` does not retry), so a user's preference save could silently fail during capture. `remember`, `save_lesson`, `forget`, `supersede` and `createMemory` now use immediate transactions, as do the read-then-write batches in `scrubHistoricalSecrets` (`npm run scrub-secrets`) and the `import_memory` apply step. A concurrent-capture regression test writes from a plugin-shaped connection while the server writes and asserts zero busy errors.
+
+### Added — key providers (dependency-free OS keyring path)
+
+- `MEMORY_ENCRYPTION_KEY` > `MEMORY_ENCRYPTION_KEY_FILE` > `MEMORY_ENCRYPTION_KEY_CMD`. Exactly one source is effective; the ignored ones produce one bounded stderr warning (never the value). The command form runs without a shell (5 s timeout, 64 KiB cap, no output echoed), which is enough for `security find-generic-password`, `secret-tool`, or a PowerShell wrapper. Legacy (`MEMORY_ENCRYPTION` unset) executes nothing.
+
+### Tests
+
+- 517 tests, 516 pass, 0 fail, 1 skip — identical with `MEMORY_ENCRYPTION` off and on.
+- New suites: `encryption_recovery` (crash states), `encryption_crash` (SIGKILL during migration and backup), `encryption_failure_modes` (wrong key / corrupt / truncated / mode mismatch), `encryption_rekey` (rotation + 5 crash trials), `backup_verify_restore` (generations, verify, restore, drill), `migration_matrix` (schema 13–17 → head), `export_scope`, `scope_adversarial` (8 adversarial cases), `graph_scope_trust`, `concurrent_capture`, `embedding_sync`, `key_providers`, `multi_agent` (two servers + plugin on one DB, plaintext and encrypted).
+
+### Verification
+
+- `npm run build` — exit 0
+- `npx tsc --noEmit` — exit 0
+- `npm run typecheck:plugin` — exit 0
+- `npm run version:check` — exit 0
+- `node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs` — 517 tests, 516 pass, 0 fail, 1 skip (also with `MEMORY_ENCRYPTION=on`)
+- `npm audit --omit=dev --audit-level=high` — 0 vulnerabilities
+
 ## [3.0.0] - 2026-11-16
 
 ### Security — Encryption at Rest (Phase 4, opt-in)

@@ -216,7 +216,9 @@ export function applyValidatedRows(
         }
       }
     });
-    applyAll();
+    // Read-then-write: immediate, so a concurrent writer cannot invalidate the
+    // snapshot between the lookups above and the inserts.
+    applyAll.immediate();
     return null;
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);

@@ -74,7 +74,7 @@ export function supersede(oldId: number, newId: number): void {
        VALUES (?, 'supersedes', ?, 0.9, ?)
        ON CONFLICT(source_memory_id, relation, target_memory_id) DO UPDATE SET confidence = 0.9`
     ).run(newId, oldId, ts);
-  });
+  }).immediate;
   tx();
 }
 

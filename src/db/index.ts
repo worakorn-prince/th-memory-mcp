@@ -2,8 +2,9 @@
  * Security note — encryption at rest (Ph-4):
  * With MEMORY_ENCRYPTION=on, the entire DB file (including WAL/SHM) is
  * encrypted via SQLCipher (better-sqlite3-multiple-ciphers). The key comes
- * from MEMORY_ENCRYPTION_KEY (base64-encoded 32 bytes). Migration from
- * plaintext is one-time: copy + PRAGMA rekey via sqlcipher_export.
+ * from MEMORY_ENCRYPTION_KEY, MEMORY_ENCRYPTION_KEY_FILE, or
+ * MEMORY_ENCRYPTION_KEY_CMD (base64-encoded 32 bytes; see resolveEncryptionKey).
+ * Migration from plaintext is one-time: copy + PRAGMA rekey via sqlcipher_export.
  * Backup is VACUUM INTO (produces encrypted backup). Default (off) is
  * byte-identical to v2.5.2/Ph-3 — plaintext DB, no encryption overhead.
  */
@@ -19,8 +20,8 @@ import { expandChunkSynonyms, expandIndexedText } from "../lib/thai-synonyms.js"
 import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
-import { getEncryptionMode, getEncryptionKey, getEncryptionKdfIter } from "../lib/config.js";
-import { openEncryptedDB, migrateIfNeeded, isPlaintextDB } from "./encryption.js";
+import { getEncryptionMode, resolveEncryptionKey, getEncryptionKdfIter } from "../lib/config.js";
+import { openEncryptedDB, migrateIfNeeded, isPlaintextDB, recoverEncryptionState } from "./encryption.js";
 import {
   bumpVectorEpoch,
   invalidateVector,
@@ -48,18 +49,26 @@ function createRawDb(): DbInstance {
       return new Database(DB_PATH);
     }
 
-    // Encryption mode: validate key
-    const key = getEncryptionKey();
+    // Encryption mode: resolve the key (C2: env → key file → key command).
+    const resolution = resolveEncryptionKey();
+    const key = resolution.key;
     if (!key) {
-      console.error(`[th-memory-mcp] MEMORY_ENCRYPTION=on but MEMORY_ENCRYPTION_KEY is missing or invalid (must be base64-encoded 32 bytes)`);
+      const reason =
+        resolution.error ??
+        "no key was provided (set MEMORY_ENCRYPTION_KEY, MEMORY_ENCRYPTION_KEY_FILE, or MEMORY_ENCRYPTION_KEY_CMD)";
+      console.error(`[th-memory-mcp] MEMORY_ENCRYPTION=on but ${reason}`);
       process.exit(2);
     }
     const kdfIter = getEncryptionKdfIter();
 
+    // Ph-6 A2: repair an interrupted plaintext→encrypted migration before
+    // deciding plaintext vs encrypted. Only runs in encryption mode.
+    recoverEncryptionState(DB_PATH, key, kdfIter);
+
     // Check if migration is needed (plaintext -> encrypted)
     if (isPlaintextDB(DB_PATH)) {
       console.error(`[th-memory-mcp] Migrating plaintext DB to encrypted...`);
-      migrateIfNeeded(DB_PATH, key);
+      migrateIfNeeded(DB_PATH, key, kdfIter);
       console.error(`[th-memory-mcp] Migration complete.`);
     }
 

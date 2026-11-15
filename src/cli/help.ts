@@ -17,6 +17,7 @@ export const COMMANDS = [
   "thai-dict",
   "auth",
   "grant",
+  "db",
 ];
 
 export const GLOBAL_HELP = `th-memory ${VERSION} - local memory CLI (zero-dep)
@@ -44,6 +45,7 @@ Commands:
   thai-dict <list|add|rm|learn> [opts]              personal Thai lexeme registry
   auth <add-user|issue-token|list|revoke|backfill-interactions> [opts]  opt-in identity/token admin (MEMORY_AUTH)
   grant <add|remove|list> [opts]                    scope grants admin (MEMORY_AUTH)
+  db <backup|rekey|verify-backup|restore|drill> [opts]  encryption admin: backup, rotate key, verify/restore
 
 Examples:
   th-memory remember --category coding_pref --key package_manager --value pnpm
@@ -52,7 +54,9 @@ Examples:
   th-memory export --include-interactions --filename backup.json
   th-memory --db ./tmp.db --json stats
   th-memory grant add --user alice --kind USER --ref bob --permission read
-  th-memory auth backfill-interactions --user alice`;
+  th-memory auth backfill-interactions --user alice
+  th-memory db verify-backup data/memory.db.backup-1700000000000
+  th-memory db drill`;
 
 export const COMMAND_HELP: Record<string, string> = {
   remember: `Usage: th-memory remember --category <c> --key <k> --value <v|->
@@ -127,6 +131,25 @@ export const COMMAND_HELP: Record<string, string> = {
   Grants are the ONLY way to act outside your own identity-derived scope.
   USER kind: --ref is the target user's external_id
   GLOBAL kind: --ref must be *`,
+  db: `Usage: th-memory db <backup|rekey|verify-backup|restore|drill> [opts]
+
+  backup [--out <path>]            write a verified backup of the live DB
+                                   (MEMORY_ENCRYPTION=on for an encrypted DB)
+  rekey [--new-key-file <path>] [--new-key <base64>]
+                                   re-encrypt the live DB with a new key
+                                   current key: MEMORY_ENCRYPTION_KEY (MEMORY_ENCRYPTION=on required)
+                                   --new-key-file is preferred: base64 of 32 bytes, mode 0600
+  verify-backup <path> [--json]    open a backup with MEMORY_ENCRYPTION_KEY, integrity_check + row counts
+  restore <backup> --to <path> [--force]
+                                   verify, then copy a backup to <path> (temp + rename);
+                                   refuses an existing target or the live DB without --force
+  drill [--backup <path>]          restore the newest <db>.backup-* (or --backup) into a temp
+                                   directory, verify it, compare row counts with the live DB
+                                   and delete the temp copy
+
+  Exit codes: 0 ok · 2 refused (missing key/backup, same key, plaintext DB, existing target)
+              · 1 failure or corrupt backup.
+  No subcommand prints or echoes a key. Local admin: MEMORY_AUTH is not required.`,
 };
 
 export function printHelp(cmd: string | undefined): void {

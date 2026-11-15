@@ -48,6 +48,11 @@ type RememberArgs = RememberRequest & {
   ownerUid: number | null;
 };
 
+// `.immediate` (not deferred): this transaction SELECTs the preference and then
+// writes it. A deferred BEGIN takes a read snapshot first, so a commit from
+// another connection in between makes the later write fail with
+// SQLITE_BUSY_SNAPSHOT — which busy_timeout does not retry (same trap as
+// syncSearchIndex in db/index.ts). IMMEDIATE takes the write lock up front.
 const applyRemember = db.transaction(
   (args: RememberArgs): { id: number; confidence: number } => {
     const existing = selectPref.get({ category: args.category, key: args.key });
@@ -87,7 +92,7 @@ const applyRemember = db.transaction(
     upsertEmbedding("preferences", id, embed(`${args.category} ${args.key} ${args.value}`));
     return { id, confidence };
   }
-);
+).immediate;
 
 export async function rememberHandler(args: RememberRequest): Promise<ToolResult> {
   try {

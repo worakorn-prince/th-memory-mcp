@@ -4,10 +4,10 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.5.x   | :white_check_mark: |
-| < 2.5   | :x:                |
+| 3.0.x   | :white_check_mark: |
+| < 3.0   | :x:                |
 
-We support the latest `2.5.x` release line. Older major/minor lines receive no security updates.
+We support the latest `3.0.x` release line. Older major/minor lines receive no security updates.
 
 ## Runtime security baseline
 
@@ -121,9 +121,9 @@ These changes harden the single-user local model above; they do **not** add auth
 
 With `MEMORY_ENCRYPTION=on` and `MEMORY_ENCRYPTION_KEY` (base64, 32 bytes), the entire database file is encrypted via SQLCipher (`better-sqlite3-multiple-ciphers@13.1.1`):
 
-- **One-time migration**: plaintext → encrypted via manual schema+data copy (no `sqlcipher_export`); atomic temp-file rename; idempotent via `schema_meta` marker.
+- **One-time migration**: plaintext → encrypted via manual schema+data copy (no `sqlcipher_export`); atomic temp-file rename; idempotent via `schema_meta` marker. **Start from a quiet database**: stop every process (server + capture plugin) before the first migration — the copy is not one long snapshot, so a concurrent writer makes verification abort (fail-closed).
 - **All data encrypted**: main DB, WAL, SHM, FTS5 indexes, vector embeddings.
-- **Backup**: `VACUUM INTO` produces encrypted backup; restore = replace file + same key.
+- **Backup**: `VACUUM INTO` into a hidden staging file, verified with the key + `integrity_check`, then promoted by rename (`backupEncryptedDB` / `backupDatabase`); `th-memory db backup [--out <file>]` exposes it. Restore = replace file + same key.
 - **Key**: `MEMORY_ENCRYPTION_KEY` (base64, 32 bytes) required when `on`; fail-fast exit 2 if missing/invalid.
 - **Default (off)**: byte-identical to Ph-3 (plaintext, no overhead).
 
@@ -133,7 +133,31 @@ With `MEMORY_ENCRYPTION=on` and `MEMORY_ENCRYPTION_KEY` (base64, 32 bytes), the 
 - T8 (WAL/SHM leak): mitigated — WAL/SHM encrypted
 - T9 (memory dump): NOT mitigated — key in process memory (OS-level protection needed)
 
-**Residual risk:** key in process memory; no key rotation; no HSM/TPM; backup encrypted with same key; OS-level file access bypasses app layer. Defense-in-depth: OS full-disk encryption + restricted key access.
+**Residual risk:** the key lives in process memory; there is no HSM/TPM client and no bundled native keyring (an OS keyring is reachable through `MEMORY_ENCRYPTION_KEY_CMD`); backups use the same key; OS-level file access bypasses the app layer. Defense-in-depth: OS full-disk encryption + restricted key access.
+
+## Hardening (3.0.1 — Ph-6)
+
+Findings from the 3.0.0 review, with the fix that shipped:
+
+| ID | Finding (severity) | Fix |
+|---|---|---|
+| H1 | Enabling encryption on a real DB always failed: the migration copied FTS5 shadow tables (`object name reserved for internal use`) (P0) | Virtual tables are recreated from their own DDL (FTS5 builds the shadows), shadow tables are never copied by hand, rows move through `ATTACH … INSERT … SELECT`; integrity + row-count + MATCH parity are verified before promotion |
+| H2 | The plaintext→encrypted swap unlinked the original before renaming the temp, so a crash could leave no database; orphan `.enc.tmp` was never recovered (P0) | Order is `tmp → verify → .enc.bak → db → marker → delete .enc.bak`; `recoverEncryptionState()` repairs five crash states and never deletes the last good copy |
+| H3 | The key was "verified" with `PRAGMA cipher_version`, which does not validate a key (P1) | The key is proven by reading real data (`sqlite_master` + the `schema_meta` canary); failure is one bounded message |
+| H4 | `export_memory` exported `users`/`entities`/`relations`/`memoryLinks` unscoped, leaking other identities' rows in enforced mode (P1) | Export is bounded by the exported memory set per collection; legacy output is byte-identical |
+| H5 | An interrupted `VACUUM INTO` left a corrupt backup that could not be opened with the key (P2) | Every backup (encrypted and plaintext, `backupDatabase` and `th-memory db backup`) goes to a hidden staging sibling `.<name>.staging-<pid>-<n>`, is verified with the key + `integrity_check`, and is promoted by rename keeping `<name>.1`; the staging name never matches `<db>.backup-*`, so a killed backup is invisible to `db drill` and to pruning. A copy whose key is unknown is refused (fail-closed) instead of accepted on a structural check |
+| H6 | `remember` returned `database is locked` while the capture plugin was writing (`SQLITE_BUSY_SNAPSHOT` from a deferred read-then-write transaction) (P2) | Write transactions that read first are now immediate (`remember`, `save_lesson`, `forget`, `supersede`, `createMemory`, `import_memory`, and the secret scrub `scrubHistoricalSecrets` behind `npm run scrub-secrets`) |
+| H7 | Key rotation, backup verification and restore drills did not exist (P3) | `th-memory db rekey` (crash-safe), `db verify-backup`, `db restore --to … [--force]`, `db drill` |
+
+**Key providers (3.0.1):** `MEMORY_ENCRYPTION_KEY` > `MEMORY_ENCRYPTION_KEY_FILE` (POSIX permission warning) > `MEMORY_ENCRYPTION_KEY_CMD` (no shell, 5 s timeout, 64 KiB cap, output never echoed). Exactly one source is effective and the ignored ones are named in one bounded stderr line. With `MEMORY_ENCRYPTION` unset nothing is read or executed.
+
+**Residual risks after Ph-6:**
+- `MEMORY_ENCRYPTION_KEY_CMD` runs an operator-supplied program with server privileges — admin-only setting.
+- `recoverEncryptionState()` removes a stale `.rekey.tmp`; run `db rekey` with the server stopped.
+- `busy_timeout` remains 5000 ms: a writer holding the write lock longer than that still yields `SQLITE_BUSY` (not observed in the concurrency suite).
+- Restore `--force` renames the destination to `<target>.bak` before promoting the verified copy and deletes it only afterwards; a failed promotion puts the original back, so neither a partial file nor a missing database can appear. A SIGKILL between `rename(target → target.bak)` and `rename(tmp → target)` still leaves the target absent with `target.bak` beside it — there is no automatic recovery for that window, so restore it by hand (`mv <target>.bak <target>`).
+- The plaintext→encrypted migration and `db restore` copy file-by-file, not as one snapshot: stop the server and the plugin first (verification aborts, fail-closed, if a writer commits mid-copy).
+- Backups share the data key, so key compromise covers backups too.
 
 ## Disclosure
 

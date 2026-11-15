@@ -131,7 +131,7 @@ function insertMemoryAtomic(input: CreateMemoryInput): number {
 let createMemoryTxn: ((input: CreateMemoryInput) => number) | null = null;
 
 export function createMemory(input: CreateMemoryInput): number {
-  createMemoryTxn ??= db.transaction(insertMemoryAtomic);
+  createMemoryTxn ??= db.transaction(insertMemoryAtomic).immediate;
   return createMemoryTxn(input);
 }
 

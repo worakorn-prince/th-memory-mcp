@@ -1,9 +1,12 @@
+import Database from "better-sqlite3-multiple-ciphers";
 import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
-import { existsSync, readdirSync, unlinkSync } from "node:fs";
+import { existsSync, readdirSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { embed, serialize } from "../lib/embed.js";
 import { segmentForIndex, looseForm } from "../lib/thai-segment.js";
 import { expandIndexedText } from "../lib/thai-synonyms.js";
+import { backupEncryptedDB, backupEncryptedDBWithKey, hasRegisteredDatabaseKey, isPlaintextDB, BACKUP_STAGING_RE } from "./encryption.js";
+import { getEncryptionKdfIter, getEncryptionMode, resolveEncryptionKey } from "../lib/config.js";
 import { SEARCH_INDEX_DDL, SEARCH_INDEX_KEYS_DDL, SEARCH_INDEX_LOOSE_DDL } from "./search-index-schema.js";
 
 type DB = BetterSqlite3.Database;
@@ -835,6 +838,134 @@ function escapeSqlLiteral(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+/** Monotonic counter for backup staging names (unique per process). */
+let backupStageAttempt = 0;
+
+function removeSqliteSidecars(basePath: string): void {
+  for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+    try {
+      if (existsSync(basePath + suffix)) unlinkSync(basePath + suffix);
+    } catch {}
+  }
+}
+
+/** Move a promoted file's WAL/journal siblings with it (never delete them). */
+function moveSqliteSidecars(fromPath: string, toPath: string): void {
+  for (const suffix of ["-wal", "-shm", "-journal"]) {
+    try {
+      if (existsSync(fromPath + suffix)) renameSync(fromPath + suffix, toPath + suffix);
+    } catch {}
+  }
+}
+
+/**
+ * `VACUUM INTO` is not atomic: a kill mid-write leaves a partial file at the
+ * destination. Every backup therefore lands in a hidden staging path first
+ * (a leading dot keeps it out of the `<db>.backup-*` set that `db drill` and
+ * `pruneOldBackups` scan) and is promoted by rename only after it verifies.
+ */
+function stagePathFor(target: string): string {
+  return join(dirname(target), `.${basename(target)}.staging-${process.pid}-${backupStageAttempt++}`);
+}
+
+function verifyPlaintextBackupCopy(path: string): void {
+  let copy: InstanceType<typeof Database> | null = null;
+  let size = 0;
+  try {
+    size = statSync(path).size;
+  } catch {
+    throw new Error("backup copy was not created");
+  }
+  if (size === 0) throw new Error("backup copy is empty");
+  try {
+    copy = new Database(path, { readonly: true });
+    const rows = copy.pragma("integrity_check") as { integrity_check: string }[];
+    if (rows.length !== 1 || rows[0]?.integrity_check !== "ok") {
+      throw new Error("integrity_check did not return ok");
+    }
+  } finally {
+    try {
+      copy?.close();
+    } catch {}
+  }
+}
+
+/**
+ * Atomic backup of `db` (plaintext or encrypted) to exactly `target`:
+ * stage → verify → rotate → rename. A kill mid-VACUUM can only leave a hidden
+ * staging file behind, never a partial backup under `target`. The previous
+ * destination is kept as `<target>.1` (one generation), in both modes.
+ */
+export function writeBackup(db: DB, sourcePath: string, target: string): void {
+  if (!isPlaintextDB(sourcePath)) {
+    // Encrypted source: the copy must be verified with the key the data is
+    // actually encrypted with.
+    //   * handle opened by this module (or registerDatabaseKey()) -> its key;
+    //   * otherwise -> resolve the key from config. The public `db` export is a
+    //     Proxy over the real connection, a *different* object than the one
+    //     openEncryptedDB() recorded, so an identity lookup would miss and
+    //     refuse a perfectly good backup. That connection was opened from the
+    //     same config, so the config key is the right one to check with.
+    // Neither available -> refuse (fail-closed), never write an unverified copy.
+    if (getEncryptionMode() === "on" && !hasRegisteredDatabaseKey(db)) {
+      const resolution = resolveEncryptionKey();
+      if (!resolution.key) {
+        const reason = resolution.error ?? "no encryption key could be resolved";
+        throw new Error(
+          `backup failed for ${target}: cannot verify a backup copy without the database key (${reason})`
+        );
+      }
+      backupEncryptedDBWithKey(db, target, resolution.key, getEncryptionKdfIter());
+      return;
+    }
+    backupEncryptedDB(db, target);
+    return;
+  }
+  const stage = stagePathFor(target);
+  // One generation is kept as `<target>.1`, exactly like the encrypted path:
+  // stage → verify → out.1 = rename(out) → out = rename(stage). The previous
+  // file is renamed aside *with* its sidecars, so no plaintext -wal/-journal
+  // is left sitting beside the new file.
+  const previous = `${target}.1`;
+  removeSqliteSidecars(stage);
+  try {
+    db.exec(`VACUUM INTO '${escapeSqlLiteral(stage)}'`);
+    verifyPlaintextBackupCopy(stage);
+  } catch (e) {
+    removeSqliteSidecars(stage);
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new Error(`backup failed for ${target}: ${reason}`);
+  }
+  try {
+    if (existsSync(target)) {
+      removeSqliteSidecars(previous);
+      renameSync(target, previous);
+      moveSqliteSidecars(target, previous);
+    }
+    renameSync(stage, target);
+    // The staging name is gone with the rename; its sidecars are not.
+    removeSqliteSidecars(stage);
+  } catch (e) {
+    removeSqliteSidecars(stage);
+    // Put the previous generation back: the caller must not be left without a
+    // backup because the promotion rename failed.
+    if (!existsSync(target) && existsSync(previous)) {
+      try {
+        renameSync(previous, target);
+        moveSqliteSidecars(previous, target);
+      } catch {
+        // ignore - .1 is still the previous good generation
+      }
+    }
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new Error(`backup failed for ${target}: cannot replace the destination: ${reason}`);
+  }
+}
+
+/**
+ * Migration backup: plaintext or encrypted, always verified before it appears
+ * under its final `<dbPath>.backup-<ts>` name. Returns that final path.
+ */
 export function backupDatabase(db: DB, dbPath: string): string {
   const stem = `${dbPath}.backup-${Date.now()}`;
   let target = stem;
@@ -844,12 +975,9 @@ export function backupDatabase(db: DB, dbPath: string): string {
     counter += 1;
   }
   try {
-    db.exec(`VACUUM INTO '${escapeSqlLiteral(target)}'`);
+    writeBackup(db, dbPath, target);
     return target;
   } catch (e) {
-    try {
-      if (existsSync(target)) unlinkSync(target);
-    } catch {}
     const reason = e instanceof Error ? e.message : String(e);
     throw new Error(`migration backup failed for ${dbPath}: ${reason}`);
   }
@@ -861,7 +989,16 @@ function pruneOldBackups(dbPath: string): void {
     const base = basename(dbPath);
     const prefix = `${base}.backup-`;
     const entries = readdirSync(dir);
-    const backups = entries.filter((n) => n.startsWith(prefix)).sort();
+    // Staging files (`.…staging-<pid>-<n>`, legacy `….tmp-…`) and their sidecars
+    // are not generations: counting them would evict a real backup.
+    const backups = entries
+      .filter(
+        (n) =>
+          n.startsWith(prefix) &&
+          !BACKUP_STAGING_RE.test(n) &&
+          !/-(wal|shm|journal)$/.test(n)
+      )
+      .sort();
     if (backups.length > KEEP_BACKUPS) {
       for (const name of backups.slice(0, backups.length - KEEP_BACKUPS)) {
         try {

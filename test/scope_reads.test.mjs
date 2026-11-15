@@ -422,11 +422,14 @@ test("export_memory: enforced with own userId exports own USER + GLOBAL memories
     "foreign interaction excluded"
   );
 
-  // Users/Entities/Relations/Links/Profile: unchanged (shared)
-  assert.ok(exported.users.length >= 3, "users exported (shared)");
-  assert.ok(exported.entities.length >= 0, "entities exported");
-  assert.ok(exported.relations.length >= 0, "relations exported");
-  assert.ok(exported.memoryLinks.length >= 0, "links exported");
+  // Users/Entities/Relations/Links: scoped as of P6 S2 (A4) — only the identity's
+  // own user row and graph rows reachable from visible memories may appear.
+  assert.deepEqual(
+    exported.users.map((u) => u.externalId),
+    ["alice"],
+    "enforced export lists only the caller's own user row"
+  );
+  // profile stays shared by design
   assert.ok(exported.profile.length >= 0, "profile exported");
 });
 

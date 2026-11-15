@@ -197,6 +197,7 @@ Usage: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — per-
 | `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — highlight topic matches (empty text = stdin pipe) |
 | `auth` | `auth <add-user\|issue-token\|list\|revoke\|backfill-interactions> [opts]` — opt-in identity/token admin (see below) |
 | `grant` | `grant <add\|remove\|list> --user <id> --kind USER|PROJECT|SESSION|GLOBAL --ref <target> --permission read\|write` — scope grants admin (see below) |
+| `db` | `db <rekey\|verify-backup\|restore\|drill> [opts]` — encryption admin: rotate the key, verify a backup, restore it, rehearse a restore (see Encryption at Rest) |
 
 ```bash
 th-memory remember --category coding_pref --key package_manager --value pnpm
@@ -241,14 +242,23 @@ See `SECURITY.md` for the full threat model, role matrix, and grant semantics.
 
 ## Encryption at Rest (Phase 4, opt-in, requires `MEMORY_ENCRYPTION=on`)
 
-With `MEMORY_ENCRYPTION=on` and `MEMORY_ENCRYPTION_KEY` set (base64-encoded 32 bytes), the entire database file — including WAL and SHM files — is encrypted via SQLCipher (via `better-sqlite3-multiple-ciphers`):
+With `MEMORY_ENCRYPTION=on` and a key, the entire database file — including WAL and SHM files — is encrypted via SQLCipher (via `better-sqlite3-multiple-ciphers`):
 
-- **One-time migration**: existing plaintext DB is automatically migrated on first startup (`copy + PRAGMA rekey` via manual schema+data copy; `sqlcipher_export` not used). Migration is idempotent and atomic (temp file + rename).
+- **One-time migration**: an existing plaintext DB is migrated on first startup (verified copy, then an atomic `.enc.bak` → live swap). The migration handles FTS5 correctly (virtual tables are recreated from their own DDL and their shadow tables are never copied by hand), and `recoverEncryptionState()` repairs a crash at any point on the next start.
+- **Start from a quiet database**: stop every process that has the file open (the MCP server *and* the capture plugin) before enabling encryption for the first time. The conversion copy is not one long snapshot, so a concurrent writer makes the verification abort (fail-closed) instead of promoting an incomplete file.
 - **All data encrypted**: main DB, WAL, SHM, FTS5 indexes, vector embeddings — everything.
-- **Backup**: `th-memory export --include-interactions` produces encrypted backup via `VACUUM INTO`; restore by replacing file + same key.
-- **Key management**: `MEMORY_ENCRYPTION_KEY` (base64, 32 bytes) required when enabled; fail-fast if missing/invalid. Optional `MEMORY_ENCRYPTION_KDF_ITER` (default 256000) for KDF iterations.
-- **Cipher**: AES-256-CBC (SQLCipher default), page size 4096.
-- **Default (off)**: byte-identical to Ph-3 — plaintext DB, no encryption overhead, no native build dependency if `better-sqlite3` already installed.
+- **Key sources** (exactly one is used, highest first):
+  | Variable | Use |
+  |---|---|
+  | `MEMORY_ENCRYPTION_KEY` | base64 32 bytes inline |
+  | `MEMORY_ENCRYPTION_KEY_FILE` | path to a `0600` file holding the base64 key |
+  | `MEMORY_ENCRYPTION_KEY_CMD` | command that prints the key (run without a shell, 5 s timeout) — for an OS keyring |
+- **OS keyring examples** (`MEMORY_ENCRYPTION_KEY_CMD`): macOS `security find-generic-password -s th-memory-mcp -w`; Linux `secret-tool lookup service th-memory-mcp`; Windows any wrapper that prints the key (e.g. a PowerShell one-liner over a DPAPI-protected file).
+- **Backup**: `th-memory db backup [--out <file>]` vacuum-copies the live database into a hidden staging file, opens it with the key (`integrity_check` + row counts) and only then renames it into place — a killed backup can never leave a partial `<name>`. The boot-time pre-migration backup (`backupDatabase()`) uses the same path, and `backupEncryptedDB()` keeps the previous copy as `<name>.1`. Verify any copy with `th-memory db verify-backup <file>`; a partial or corrupted copy is reported, never used.
+- **Restore / drill**: `th-memory db restore <backup> --to <path> [--force]` and `th-memory db drill [--backup <file>]` (restores into a temp dir, verifies integrity and compares row counts with the live DB).
+- **Key rotation**: `th-memory db rekey --new-key-file <path>` (or `--new-key <base64>`); crash-safe, and the old key stops working immediately.
+- **Cipher**: AES-256-CBC (SQLCipher default), page size 4096, KDF iterations 256000 (`MEMORY_ENCRYPTION_KDF_ITER`).
+- **Default (off)**: byte-identical to a plaintext install — no encryption overhead, no extra native build if the driver is already installed.
 
 ```bash
 # Generate a key
@@ -258,15 +268,23 @@ openssl rand -base64 32
 export MEMORY_ENCRYPTION=on
 export MEMORY_ENCRYPTION_KEY="<your-base64-key>"
 th-memory-mcp  # or th-memory <command>
+
+# Rotate the key (server stopped)
+th-memory db rekey --new-key-file ./new.key
+
+# Take a backup, verify it, then rehearse a restore
+th-memory db backup --out data/backups/memory.db
+th-memory db verify-backup data/backups/memory.db
+th-memory db drill --backup data/backups/memory.db
 ```
 
 ## Known Limitations
 
 - **Encryption is application-layer** — a local user with filesystem access to `data/memory.db` AND the encryption key (in env/process memory) can decrypt. For defense-in-depth: OS full-disk encryption (BitLocker / FileVault / LUKS) + restrict key access.
 - **Key in process memory** — the decoded key resides in process memory; OS-level protections (no swap, locked memory) recommended for high-security environments.
-- **No key rotation** — changing the key requires full re-encryption (dump → re-encrypt → restore). Not supported in Ph-4.
-- **No HSM/TPM integration** — key stored in env var; Ph-5 may add OS keyring integration.
-- **Backup is encrypted with same key** — if key is compromised, all backups are compromised.
+- **`MEMORY_ENCRYPTION_KEY_CMD` is trusted** — it runs an operator-supplied program with the server's privileges; treat it as an admin-only setting.
+- **No HSM/TPM integration** — the key comes from env, a file, or a command (an OS keyring through the command form is supported; there is no bundled native keyring client).
+- **Backup is encrypted with the same key** — if the key is compromised, all backups are compromised. Keep one generation (`<name>.1`) and rehearse restores with `db drill`.
 - **Not a full boundary until OS-level isolation** — scope isolation + encryption is application-layer; OS-level DB file access bypasses app-level checks.
 
 ## License

@@ -56,7 +56,7 @@ const applyLesson = db.transaction((args: LessonArgs): { id: number } => {
     embed(`${args.situation} ${args.mistake} ${args.correction}`)
   );
   return { id };
-});
+}).immediate;
 
 export async function saveLessonHandler(args: LessonRequest): Promise<ToolResult> {
   try {
