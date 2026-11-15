@@ -48,3 +48,36 @@ export function getAuthToken(env: NodeJS.ProcessEnv = process.env): string | und
 export function getAuthTokenFile(env: NodeJS.ProcessEnv = process.env): string | undefined {
   return envValue(env, "MEMORY_AUTH_TOKEN_FILE");
 }
+
+// --- Encryption (opt-in, Ph-4) ---------------------------------------------
+
+export type EncryptionSwitch = "off" | "on";
+
+export function getEncryptionMode(env: NodeJS.ProcessEnv = process.env): EncryptionSwitch {
+  const raw = envValue(env, "MEMORY_ENCRYPTION");
+  if (raw === undefined) return "off";
+  const v = raw.toLowerCase();
+  if (v === "off" || v === "0" || v === "false" || v === "no" || v === "n") {
+    return "off";
+  }
+  return "on";
+}
+
+export function getEncryptionKey(env: NodeJS.ProcessEnv = process.env): Uint8Array | undefined {
+  const raw = envValue(env, "MEMORY_ENCRYPTION_KEY");
+  if (raw === undefined) return undefined;
+  try {
+    const decoded = Buffer.from(raw, "base64");
+    if (decoded.length !== 32) return undefined;
+    return new Uint8Array(decoded);
+  } catch {
+    return undefined;
+  }
+}
+
+export function getEncryptionKdfIter(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = envValue(env, "MEMORY_ENCRYPTION_KDF_ITER");
+  if (raw === undefined) return 256000; // SQLCipher default
+  const n = parseInt(raw, 10);
+  return Number.isInteger(n) && n > 0 ? n : 256000;
+}

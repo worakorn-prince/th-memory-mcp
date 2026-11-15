@@ -239,11 +239,35 @@ With `MEMORY_AUTH=on`, every tool's scope is derived **from the verified identit
 
 See `SECURITY.md` for the full threat model, role matrix, and grant semantics.
 
+## Encryption at Rest (Phase 4, opt-in, requires `MEMORY_ENCRYPTION=on`)
+
+With `MEMORY_ENCRYPTION=on` and `MEMORY_ENCRYPTION_KEY` set (base64-encoded 32 bytes), the entire database file — including WAL and SHM files — is encrypted via SQLCipher (via `better-sqlite3-multiple-ciphers`):
+
+- **One-time migration**: existing plaintext DB is automatically migrated on first startup (`copy + PRAGMA rekey` via manual schema+data copy; `sqlcipher_export` not used). Migration is idempotent and atomic (temp file + rename).
+- **All data encrypted**: main DB, WAL, SHM, FTS5 indexes, vector embeddings — everything.
+- **Backup**: `th-memory export --include-interactions` produces encrypted backup via `VACUUM INTO`; restore by replacing file + same key.
+- **Key management**: `MEMORY_ENCRYPTION_KEY` (base64, 32 bytes) required when enabled; fail-fast if missing/invalid. Optional `MEMORY_ENCRYPTION_KDF_ITER` (default 256000) for KDF iterations.
+- **Cipher**: AES-256-CBC (SQLCipher default), page size 4096.
+- **Default (off)**: byte-identical to Ph-3 — plaintext DB, no encryption overhead, no native build dependency if `better-sqlite3` already installed.
+
+```bash
+# Generate a key
+openssl rand -base64 32
+
+# Enable encryption
+export MEMORY_ENCRYPTION=on
+export MEMORY_ENCRYPTION_KEY="<your-base64-key>"
+th-memory-mcp  # or th-memory <command>
+```
+
 ## Known Limitations
 
-- **No encryption at rest** — `data/memory.db` is plain, unencrypted SQLite (WAL mode, `better-sqlite3`); "100% local & private" means no cloud/network exfiltration, **not** encrypted at rest — anyone with filesystem access can read it. For sensitive data: OS full-disk encryption (BitLocker / FileVault / LUKS) or an opt-in SQLCipher build (native rebuild + key management); no in-code encryption by default (`src/db/index.ts` documents this).
-- **Not a full boundary until OS-level isolation** — scope isolation is an **application-layer** boundary. A local user with filesystem access to `data/memory.db` can bypass all app-level checks. Phase 4 (whole-DB encryption via SQLCipher) will address this. Until then, do not share one server/DB across mutually-untrusted users on the same machine.
-- **Residual gaps**: the plugin capture path uses `MEMORY_CAPTURE_USER` (optional) for attribution; without it, interactions are anonymous (NULL) and owner/admin-only in enforcement. Projects/sessions have no native membership table — grants are the only mechanism.
+- **Encryption is application-layer** — a local user with filesystem access to `data/memory.db` AND the encryption key (in env/process memory) can decrypt. For defense-in-depth: OS full-disk encryption (BitLocker / FileVault / LUKS) + restrict key access.
+- **Key in process memory** — the decoded key resides in process memory; OS-level protections (no swap, locked memory) recommended for high-security environments.
+- **No key rotation** — changing the key requires full re-encryption (dump → re-encrypt → restore). Not supported in Ph-4.
+- **No HSM/TPM integration** — key stored in env var; Ph-5 may add OS keyring integration.
+- **Backup is encrypted with same key** — if key is compromised, all backups are compromised.
+- **Not a full boundary until OS-level isolation** — scope isolation + encryption is application-layer; OS-level DB file access bypasses app-level checks.
 
 ## License
 

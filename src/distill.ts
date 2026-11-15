@@ -1,8 +1,8 @@
 // distill CLI: summarize interactions -> profile sections + prune old rows.
 // CLI script (NOT a stdio server) — console output is allowed here.
 import { pathToFileURL } from "node:url";
-import DatabaseCtor from "better-sqlite3";
-import type BetterSqlite3 from "better-sqlite3";
+import DatabaseCtor from "better-sqlite3-multiple-ciphers";
+import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import { DEFAULT_DB_PATH } from "./lib/config.js";
 import { redactSecrets } from "./lib/redact.js";
 import {

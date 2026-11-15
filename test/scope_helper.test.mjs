@@ -5,7 +5,7 @@
 // exactly like the JS helper (no project DB is touched).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import Database from "better-sqlite3";
+import Database from "better-sqlite3-multiple-ciphers";
 
 const { isScopeVisible, buildScopeClause } = await import(
   "../dist/lib/scope.js"

@@ -1,4 +1,4 @@
-import type BetterSqlite3 from "better-sqlite3";
+import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import { db } from "../db/index.js";
 import { retrieve } from "./retrieval-engine.js";
 import { traverse } from "./graph-engine.js";

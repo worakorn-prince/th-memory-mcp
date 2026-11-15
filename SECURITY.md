@@ -117,6 +117,24 @@ These changes harden the single-user local model above; they do **not** add auth
 - **Dependency floor/overrides:** `@modelcontextprotocol/sdk` is pinned to `^1.32.1`, with transitive `overrides` for `hono`, `fast-uri`, `proxy-addr`, `ip-address`, and `qs` to keep patched versions installed.
 - **Residual risk (local storage):** DB/WAL/export confidentiality depends on OS ACLs and/or full-disk encryption. Import/export path checks are not a sandbox against a concurrent local attacker (TOCTOU/symlink).
 
+## Encryption at Rest (Phase 4, opt-in)
+
+With `MEMORY_ENCRYPTION=on` and `MEMORY_ENCRYPTION_KEY` (base64, 32 bytes), the entire database file is encrypted via SQLCipher (`better-sqlite3-multiple-ciphers@13.1.1`):
+
+- **One-time migration**: plaintext → encrypted via manual schema+data copy (no `sqlcipher_export`); atomic temp-file rename; idempotent via `schema_meta` marker.
+- **All data encrypted**: main DB, WAL, SHM, FTS5 indexes, vector embeddings.
+- **Backup**: `VACUUM INTO` produces encrypted backup; restore = replace file + same key.
+- **Key**: `MEMORY_ENCRYPTION_KEY` (base64, 32 bytes) required when `on`; fail-fast exit 2 if missing/invalid.
+- **Default (off)**: byte-identical to Ph-3 (plaintext, no overhead).
+
+**Threat model coverage:**
+- T6 (filesystem read): mitigated — file is opaque without key
+- T7 (backup leak): mitigated — backup is encrypted
+- T8 (WAL/SHM leak): mitigated — WAL/SHM encrypted
+- T9 (memory dump): NOT mitigated — key in process memory (OS-level protection needed)
+
+**Residual risk:** key in process memory; no key rotation; no HSM/TPM; backup encrypted with same key; OS-level file access bypasses app layer. Defense-in-depth: OS full-disk encryption + restricted key access.
+
 ## Disclosure
 
 We follow coordinated disclosure. Please give us reasonable time to release a fix before public disclosure. We will publish a GitHub Release and update `SECURITY.md` with the fix version.

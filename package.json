@@ -53,7 +53,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "better-sqlite3": "^12.9.0",
+    "better-sqlite3-multiple-ciphers": "13.1.1",
     "zod": "^4.6.7"
   },
   "overrides": {
@@ -68,7 +68,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3"
+      "better-sqlite3-multiple-ciphers"
     ],
     "overrides": {
       "hono": "^4.13.13",

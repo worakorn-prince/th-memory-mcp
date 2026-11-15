@@ -1,4 +1,4 @@
-import type BetterSqlite3 from "better-sqlite3";
+import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import {
   db,
   getEmbeddingsByKeys,

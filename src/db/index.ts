@@ -1,17 +1,14 @@
 /**
- * Security note — encryption at rest (Md-4):
- * DB is plaintext-at-rest. `better-sqlite3` does NOT use SQLCipher or any
- * file-level encryption by default. The file at DB_PATH (default
- * data/memory.db, WAL mode) is readable by anyone with filesystem access
- * (shared machine, backup, malware, stolen device). "100% local & private"
- * means no network exfiltration — it does NOT mean encrypted at rest.
- * If you need encryption at rest, use OS-level full-disk encryption
- * (BitLocker / FileVault / LUKS) or migrate to an opt-in SQLCipher build
- * (native rebuild + key management required). No in-code encryption is
- * applied; treat the file as you would any plaintext local store.
+ * Security note — encryption at rest (Ph-4):
+ * With MEMORY_ENCRYPTION=on, the entire DB file (including WAL/SHM) is
+ * encrypted via SQLCipher (better-sqlite3-multiple-ciphers). The key comes
+ * from MEMORY_ENCRYPTION_KEY (base64-encoded 32 bytes). Migration from
+ * plaintext is one-time: copy + PRAGMA rekey via sqlcipher_export.
+ * Backup is VACUUM INTO (produces encrypted backup). Default (off) is
+ * byte-identical to v2.5.2/Ph-3 — plaintext DB, no encryption overhead.
  */
-import Database from "better-sqlite3";
-import type BetterSqlite3 from "better-sqlite3";
+import Database from "better-sqlite3-multiple-ciphers";
+import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { truncate } from "../lib/capture-core.js";
@@ -22,6 +19,8 @@ import { expandChunkSynonyms, expandIndexedText } from "../lib/thai-synonyms.js"
 import { DEFAULT_DB_PATH } from "../lib/config.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { runMigrations } from "./migrations.js";
+import { getEncryptionMode, getEncryptionKey, getEncryptionKdfIter } from "../lib/config.js";
+import { openEncryptedDB, migrateIfNeeded, isPlaintextDB } from "./encryption.js";
 import {
   bumpVectorEpoch,
   invalidateVector,
@@ -42,7 +41,30 @@ let _dbInitialized = false;
 function createRawDb(): DbInstance {
   try {
     mkdirSync(dirname(DB_PATH), { recursive: true });
-    return new Database(DB_PATH);
+
+    const encryptionMode = getEncryptionMode();
+    if (encryptionMode === "off") {
+      // Plaintext mode (default, byte-identical to v2.5.2/Ph-3)
+      return new Database(DB_PATH);
+    }
+
+    // Encryption mode: validate key
+    const key = getEncryptionKey();
+    if (!key) {
+      console.error(`[th-memory-mcp] MEMORY_ENCRYPTION=on but MEMORY_ENCRYPTION_KEY is missing or invalid (must be base64-encoded 32 bytes)`);
+      process.exit(2);
+    }
+    const kdfIter = getEncryptionKdfIter();
+
+    // Check if migration is needed (plaintext -> encrypted)
+    if (isPlaintextDB(DB_PATH)) {
+      console.error(`[th-memory-mcp] Migrating plaintext DB to encrypted...`);
+      migrateIfNeeded(DB_PATH, key);
+      console.error(`[th-memory-mcp] Migration complete.`);
+    }
+
+    // Open encrypted DB (handles both migrated and already-encrypted)
+    return openEncryptedDB(DB_PATH, key, kdfIter);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[th-memory-mcp] cannot open DB at ${DB_PATH}: ${redactSecrets(msg)}`);

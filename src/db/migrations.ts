@@ -1,4 +1,4 @@
-import type BetterSqlite3 from "better-sqlite3";
+import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { embed, serialize } from "../lib/embed.js";

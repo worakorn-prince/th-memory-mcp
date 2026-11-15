@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { rmSync, existsSync, readFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import Database from "better-sqlite3";
+import Database from "better-sqlite3-multiple-ciphers";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 

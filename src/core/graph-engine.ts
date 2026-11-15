@@ -1,4 +1,4 @@
-import type BetterSqlite3 from "better-sqlite3";
+import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import { db, nowISO } from "../db/index.js";
 import { redactMetadata, redactSecrets } from "../lib/redact.js";
 
