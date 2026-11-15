@@ -8,6 +8,7 @@ import {
 } from "../db/index.js";
 import { buildScopeClause } from "../lib/scope.js";
 import { resolveUserId } from "../db/repositories/users.js";
+import { getEffectiveScope } from "../auth/scope-resolver.js";
 import {
   MEMORY_REF_CLOSE,
   MEMORY_REF_GUIDANCE,
@@ -57,6 +58,15 @@ const topPrefs = db.prepare(
 const recentLessons = db.prepare(
   "SELECT situation, mistake, correction FROM lessons ORDER BY created_at DESC, id DESC LIMIT 5"
 );
+// Ph-3 enforced variants: preferences/lessons are personal tables, never
+// grant-scoped, so a row is visible when it is shared (user_id IS NULL) or owned
+// by the bound identity. The legacy statements above stay untouched.
+const topPrefsScoped = db.prepare(
+  "SELECT category, key, value, confidence FROM preferences WHERE (user_id IS NULL OR user_id = ?) ORDER BY confidence DESC, updated_at DESC LIMIT 15"
+);
+const recentLessonsScoped = db.prepare(
+  "SELECT situation, mistake, correction FROM lessons WHERE (user_id IS NULL OR user_id = ?) ORDER BY created_at DESC, id DESC LIMIT 5"
+);
 // profile/preferences/lessons tables are global by design. Only the
 // auto-projected memories query is scope-filtered (SEC-01); with no scope
 // args the clause binds nulls and matches GLOBAL rows only (fail-closed).
@@ -68,7 +78,10 @@ const topMemories = db.prepare(
    ORDER BY importance * confidence DESC, updated_at DESC LIMIT 15`
 );
 
-export function buildProfileText(scope: ProfileScope = {}): string {
+export function buildProfileText(
+  scope: ProfileScope = {},
+  personalUid: number | null = null
+): string {
   const parts: string[] = [];
 
   const prof = profileRows.all() as { section: string; content: string }[];
@@ -76,7 +89,11 @@ export function buildProfileText(scope: ProfileScope = {}): string {
     parts.push(`[${p.section}]\n${truncate(p.content, PROFILE_SECTION_MAX)}`);
   }
 
-  const prefs = topPrefs.all() as {
+  const prefs = (
+    personalUid === null
+      ? topPrefs.all()
+      : topPrefsScoped.all(personalUid)
+  ) as {
     category: string;
     key: string;
     value: string;
@@ -92,7 +109,11 @@ export function buildProfileText(scope: ProfileScope = {}): string {
     parts.push("[preferences]\n(none yet)");
   }
 
-  const lessons = recentLessons.all() as {
+  const lessons = (
+    personalUid === null
+      ? recentLessons.all()
+      : recentLessonsScoped.all(personalUid)
+  ) as {
     situation: string;
     mistake: string;
     correction: string;
@@ -150,7 +171,22 @@ export async function getProfileHandler(
   args: ProfileScope = {}
 ): Promise<ToolResult> {
   try {
-    return ok(buildProfileText(args));
+    const scope = getEffectiveScope();
+    // Ph-3: in enforced mode the bound scope replaces the raw args, and ONLY
+    // the dimensions the caller actually requested are projected. With no scope
+    // args the memory clause binds nulls, keeping the documented GLOBAL-only
+    // default (plan §9.2).
+    const effective: ProfileScope =
+      scope !== null
+        ? {
+            userId: scope.requested.userId ? scope.userId : undefined,
+            sessionId: scope.requested.sessionId ? scope.sessionId : undefined,
+            projectId: scope.requested.projectId ? scope.projectId : undefined,
+          }
+        : args;
+    return ok(
+      buildProfileText(effective, scope !== null ? (scope.uid ?? null) : null)
+    );
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }

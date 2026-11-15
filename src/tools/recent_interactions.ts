@@ -11,6 +11,9 @@ import {
   MEMORY_REF_OPEN,
   wrapMemoryReference,
 } from "../lib/memory-format.js";
+import { getIdentity } from "../auth/identity.js";
+import { hasRole } from "../auth/policy.js";
+import { getEffectiveScope } from "../auth/scope-resolver.js";
 
 export const recentInteractionsInput = {
   limit: z
@@ -44,6 +47,15 @@ const selectAny = db.prepare(
 const selectByKind = db.prepare(
   "SELECT id, ts, kind, content FROM interactions WHERE kind = ? AND (? IS NULL OR session_id = ?) ORDER BY id DESC LIMIT ?"
 );
+// Ph-3 enforced variants: user_id bounds the row set (NULL = anonymous, visible
+// to owner/admin only). session_id stays a pure filter on top of it — the tool
+// is in FILTER_ONLY_SCOPE_TOOLS, so it needs no grant and can never widen rows.
+const selectAnyScoped = db.prepare(
+  "SELECT id, ts, kind, content FROM interactions WHERE (? IS NULL OR session_id = ?) AND (user_id = ? OR (? = 1 AND user_id IS NULL)) ORDER BY id DESC LIMIT ?"
+);
+const selectByKindScoped = db.prepare(
+  "SELECT id, ts, kind, content FROM interactions WHERE kind = ? AND (? IS NULL OR session_id = ?) AND (user_id = ? OR (? = 1 AND user_id IS NULL)) ORDER BY id DESC LIMIT ?"
+);
 
 export async function getRecentInteractionsHandler(args: {
   limit: number;
@@ -53,10 +65,25 @@ export async function getRecentInteractionsHandler(args: {
   try {
     const limit = args.limit ?? 20;
     const sessionId = args.sessionId ?? null;
+    const scope = getEffectiveScope();
+    const uid = scope !== null ? (scope.uid ?? -1) : -1;
+    const ownerFlag =
+      scope !== null ? (hasRole(getIdentity(), "owner") ? 1 : 0) : 0;
     const rows = (
-      args.kind
-        ? selectByKind.all(args.kind, sessionId, sessionId, limit)
-        : selectAny.all(sessionId, sessionId, limit)
+      scope === null
+        ? args.kind
+          ? selectByKind.all(args.kind, sessionId, sessionId, limit)
+          : selectAny.all(sessionId, sessionId, limit)
+        : args.kind
+        ? selectByKindScoped.all(
+            args.kind,
+            sessionId,
+            sessionId,
+            uid,
+            ownerFlag,
+            limit
+          )
+        : selectAnyScoped.all(sessionId, sessionId, uid, ownerFlag, limit)
     ) as InteractionRow[];
 
     if (rows.length === 0) {

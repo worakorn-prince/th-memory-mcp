@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS interactions (
   session_id TEXT,
   kind TEXT NOT NULL,
   content TEXT NOT NULL,
-  meta TEXT
+  meta TEXT,
+  user_id INTEGER
 );`);
 
   check("6. insert 3 rows via buildRow+INSERT_SQL and read back", () => {
@@ -112,10 +113,10 @@ CREATE TABLE IF NOT EXISTS interactions (
 
     const stmt = db.prepare(INSERT_SQL);
     for (const r of [r1, r2, r3]) {
-      stmt.run(r.ts, r.session_id, r.kind, r.content, r.meta);
+      stmt.run(r.ts, r.session_id, r.kind, r.content, r.meta, r.user_id ?? null);
     }
 
-    const rows = db.prepare("SELECT ts, session_id, kind, content, meta FROM interactions ORDER BY id").all();
+    const rows = db.prepare("SELECT ts, session_id, kind, content, meta, user_id FROM interactions ORDER BY id").all();
     assert.equal(rows.length, 3);
 
     assert.equal(rows[0].kind, "prompt");

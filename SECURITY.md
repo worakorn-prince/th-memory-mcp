@@ -77,9 +77,20 @@ With `MEMORY_AUTH=on` every one of the 16 MCP tools passes a single role gate (`
 
 - **Default-deny is structural (test-enforced)** — every `registerTool` in `src/index.ts` goes through `withAuth`, and `withAuth` throws at registration when the tool has no `TOOL_POLICY` entry, so an unpoliced tool cannot be served; a pairing test asserts the two name sets match on the built artifact. An unknown tool name in `canCallTool` is denied, and a defensive enforced identity with no usable role is denied on every tool (the resolver currently defaults an unparseable `users.role` to `reader`, so this can only happen with corrupted data).
 - **Deny shape** — a bounded tool result `{ isError: true, content: "error: denied: <tool> requires role <minRole> (auth enforced)" }`, not a thrown MCP protocol error. The role check runs **before** the handler, so a denied call has no side effects, and the caller's own roles are never echoed (only the public minimum role for that tool appears).
-- **Deny trail (interim)** — one redacted, newline-stripped stderr line capped at 240 chars: `[th-memory-mcp] authz: deny <tool> user=<externalId> needs=<minRole>`. Structured `audit_log` rows are Ph-3.
-- **Interim gap — interactions are not scoped** — `search_history` and `get_recent_interactions` are `reader`-level but read rows that carry no owner today, so in enforced mode any authenticated role can read the shared interaction history. Ph-3 adds `interactions.user_id` and scope binding; raising these two tools to `writer` would not isolate anything while the data is unscoped, so the gap is documented rather than hidden.
-- **Still not a full authorization boundary** — Ph-2 gates *which tool* a caller may invoke. It does not yet bind caller-supplied `userId` / `sessionId` / `projectId` to the authenticated identity, enforce project/session membership or grants, or audit decisions (all Ph-3). Identity is also resolved once per server process, so one server/DB still must not be shared across mutually-untrusted users.
+- **Audit replaces deny trail** — Ph-2's bounded stderr deny trail is removed. Every enforced decision (allow + deny) is recorded in `audit_log` with bounded, content-free fields (`tool`, `kind`, `decision`, `reason`, `scope_kind`, `scope_ref`). Legacy mode writes no audit rows.
+- **Interactions are now scoped** — Ph-3 adds `interactions.user_id` and scope binding. `search_history` and `get_recent_interactions` filter by `user_id = uid`; anonymous (NULL) rows are visible to owner/admin only. The interim gap is closed.
+- **Still not a full authorization boundary** — scope isolation is an **application-layer** boundary. A local user with filesystem access to `data/memory.db` can bypass all app-level checks. Phase 4 (whole-DB encryption via SQLCipher) will address this. Until then, do not share one server/DB across mutually-untrusted users on the same machine.
+
+## Authorization (opt-in, Ph-3 — Scope Isolation)
+
+With `MEMORY_AUTH=on`, every tool's scope is derived **from the verified identity**, never from raw arguments:
+
+- **Ownership binding**: writes (preferences, lessons, memories) go to the caller's own USER scope by default. A caller-supplied `userId` is a *check*, never authority — own id is ok, foreign id is denied unless a `scope_grants` row exists.
+- **Grants**: `scope_grants` table (`grantee_user_id`, `scope_kind` ∈ USER|PROJECT|SESSION|GLOBAL, `scope_ref`, `permission` ∈ read|write). Managed by CLI: `th-memory grant add|remove|list`. Grants are non-escalatable: read never implies write.
+- **Read filtering**: `recall`/`get_profile` filter `preferences`/`lessons` by `user_id IS NULL OR user_id = uid`. `search_history`/`get_recent_interactions`/`recall` filter `interactions` by `user_id = uid` (NULL visible to owner/admin only). `export_memory` exports only visible rows.
+- **Capture attribution**: optional `MEMORY_CAPTURE_USER=<external_id>` tags new `interactions` rows (unknown → NULL, never mint). NULL interactions are owner/admin-only in enforcement.
+- **Audit**: `audit_log` records every enforced decision (allow + deny) with bounded, content-free fields (`tool`, `kind`, `decision`, `reason`, `scope_kind`, `scope_ref`). Legacy mode writes no audit rows.
+- **FILTER_ONLY_SCOPE_TOOLS**: `search_history` and `get_recent_interactions` accept `sessionId` as a pure row filter (not a scope target) — no grant required, since the row set is already bounded by `user_id`.
 
 ## Hardening changes (unreleased)
 

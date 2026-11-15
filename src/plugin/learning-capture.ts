@@ -91,7 +91,7 @@ const SECRET_LINE = SECRET_PATTERNS[0]!;
 type CaptureKind = "prompt" | "tool_call" | "error";
 const LIMITS: Record<CaptureKind, number> = { prompt: 4000, tool_call: 500, error: 500 };
 const INSERT_SQL =
-  "INSERT INTO interactions (ts, session_id, kind, content, meta) VALUES (?, ?, ?, ?, ?)";
+  "INSERT INTO interactions (ts, session_id, kind, content, meta, user_id) VALUES (?, ?, ?, ?, ?, ?)";
 const INTERACTIONS_DDL = `
 CREATE TABLE IF NOT EXISTS interactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS interactions (
   session_id TEXT,
   kind TEXT NOT NULL,
   content TEXT NOT NULL,
-  meta TEXT
+  meta TEXT,
+  user_id INTEGER
 );`;
 
 function filterSecrets(text: string): string {
@@ -136,12 +137,29 @@ interface InteractionRow {
   kind: CaptureKind;
   content: string;
   meta: string | null;
+  user_id: number | null;
+}
+
+let _captureUserId: number | null | undefined = undefined;
+
+function resolveCaptureUserId(db: SqliteDb): number | null {
+  if (_captureUserId !== undefined) return _captureUserId;
+
+  const externalId = process.env.MEMORY_CAPTURE_USER;
+  if (!externalId) {
+    _captureUserId = null;
+    return null;
+  }
+
+  const row = db.prepare("SELECT id FROM users WHERE external_id = ?").get(externalId) as { id: number } | undefined;
+  _captureUserId = row ? row.id : null;
+  return _captureUserId;
 }
 
 export function buildRow(
   kind: CaptureKind,
   content: string,
-  opts?: { sessionId?: string; meta?: unknown }
+  opts?: { sessionId?: string; meta?: unknown; userId?: number | null }
 ): InteractionRow {
   const rawMeta = opts?.meta === undefined ? undefined : JSON.stringify(opts.meta);
   return {
@@ -151,6 +169,7 @@ export function buildRow(
     content: truncate(filterSecrets(content), LIMITS[kind]),
     // P2-ERROR-REDACTION: metadata can carry tokens (env, headers, args).
     meta: rawMeta === undefined ? null : filterSecrets(rawMeta),
+    user_id: opts?.userId ?? null,
   };
 }
 
@@ -269,13 +288,15 @@ async function openStore(path: string): Promise<CaptureStore> {
   db.exec("PRAGMA busy_timeout=5000");
   db.exec(INTERACTIONS_DDL);
 
+  const captureUserId = resolveCaptureUserId(db);
+
   let insertStmt: SqliteStatement | null = null;
   return {
     db,
     insert(kind, content, opts) {
       if (!insertStmt) insertStmt = db.prepare(INSERT_SQL);
-      const row = buildRow(kind, content, opts);
-      insertStmt.run(row.ts, row.session_id, row.kind, row.content, row.meta);
+      const row = buildRow(kind, content, { ...opts, userId: captureUserId });
+      insertStmt.run(row.ts, row.session_id, row.kind, row.content, row.meta, row.user_id);
     },
   };
 }

@@ -1,10 +1,11 @@
 import { err, ok } from "../../db/index.js";
 import { generateToken, hashPrefix, hashToken } from "../../auth/token.js";
-import { fail, optStr, output, type CliOpts, type Globals } from "./shared.js";
+import { fail, optStr, optInt, output, type CliOpts, type Globals } from "./shared.js";
 
 const ROLE_VALUES = ["reader", "writer", "owner", "admin"];
 const MIN_HASH_PREFIX = 6;
 const MAX_NAME_LENGTH = 100;
+const BACKFILL_BATCH_SIZE = 500;
 
 // Keep TSV rows single-line and revoke-by-label unambiguous: strip control
 // characters and cap length before anything is stored.
@@ -147,6 +148,34 @@ export async function runAuth(opts: CliOpts, pos: string[], g: Globals): Promise
       }
     }
 
+    case "backfill-interactions": {
+      const externalId = optStr(opts, "--user");
+      if (!externalId) fail("auth backfill-interactions requires --user <external_id>", g.json);
+      const sessionId = optStr(opts, "--session");
+      const limit = optInt(opts, "--limit") ?? BACKFILL_BATCH_SIZE;
+      const dryRun = opts["--dry-run"] === true;
+      try {
+        const { getUserByExternalId } = await import("../../db/repositories/users.js");
+        const { db } = await import("../../db/index.js");
+        const user = getUserByExternalId(externalId);
+        if (!user) return output(err(`unknown user "${externalId}"`), g);
+        const stmt = db.prepare(
+          `UPDATE interactions SET user_id = ? WHERE user_id IS NULL ${sessionId ? "AND session_id = ?" : ""}`
+        );
+        const params = sessionId ? [user.id, sessionId] : [user.id];
+        if (dryRun) {
+          const countStmt = db.prepare(
+            `SELECT COUNT(*) as n FROM interactions WHERE user_id IS NULL ${sessionId ? "AND session_id = ?" : ""}`
+          );
+          const count = countStmt.get(...params.slice(1)) as { n: number };
+          return output(ok(`dry-run: would backfill ${count.n} interaction(s)`), g);
+        }
+        const result = stmt.run(...params);
+        return output(ok(`backfilled ${result.changes} interaction(s) for user ${externalId}`), g);
+      } catch (e) {
+        return output(err(e instanceof Error ? e.message : String(e)), g);
+      }
+    }
     default:
       fail(`unknown auth subcommand "${sub}" (see help)`, g.json);
   }

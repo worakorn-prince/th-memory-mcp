@@ -20,6 +20,7 @@ import {
   type ToolResult,
 } from "../db/index.js";
 import { VERSION, EXPORTS_DIRNAME } from "../lib/config.js";
+import { buildScopeClause } from "../lib/scope.js";
 import type { InteractionRow } from "../lib/capture-core.js";
 import {
   MEMORY_REF_CLOSE,
@@ -28,6 +29,9 @@ import {
   sanitizeMemoryText,
   wrapMemoryReference,
 } from "../lib/memory-format.js";
+import { getIdentity } from "../auth/identity.js";
+import { hasRole } from "../auth/policy.js";
+import { getEffectiveScope } from "../auth/scope-resolver.js";
 
 export const exportMemoryInput = {
   includeInteractions: z
@@ -42,6 +46,21 @@ export const exportMemoryInput = {
     .describe(
       "Output file name inside data/exports/ (only A-Z a-z 0-9 . _ - allowed, must end with .json). Defaults to memory-export-YYYYMMDD-HHmmss.json"
     ),
+  userId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Scope export to this user's USER-scoped memories (own only unless granted)"),
+  sessionId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Scope export to this session's SESSION-scoped memories"),
+  projectId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Scope export to this project's PROJECT-scoped memories"),
 };
 
 const PREVIEW_BUDGET = 500;
@@ -117,6 +136,19 @@ const selectMemories = db.prepare(`
   WHERE m.status <> 'deleted'
   ORDER BY m.id
 `);
+// Ph-3: scoped variant with scope clause injected at prepare time (params bound at exec)
+const selectMemoriesScopedBase = `
+  SELECT m.id, m.type, m.content, m.summary, m.status, m.source,
+         m.confidence, m.importance, m.salience, m.project_id AS projectId,
+         m.session_id AS sessionId, u.external_id AS userId,
+         m.valid_from AS validFrom, m.valid_until AS validUntil, m.metadata
+  FROM memories m
+  LEFT JOIN users u ON u.id = m.user_id
+  WHERE m.status <> 'deleted'
+    AND ${buildScopeClause("m").sql}
+  ORDER BY m.id
+`;
+const selectMemoriesScoped = db.prepare(selectMemoriesScopedBase);
 const selectMemoryLinks = db.prepare(`
   SELECT l.source_memory_id AS sourceId, l.relation,
          l.target_memory_id AS targetId, l.confidence, l.created_at AS createdAt
@@ -147,6 +179,20 @@ const selectRelations = db.prepare(`
   WHERE r.source_memory_id IS NULL OR m.status <> 'deleted'
   ORDER BY r.id
 `);
+
+// Ph-3 enforced variants: export only rows visible to the bound identity.
+// Memories use the existing buildScopeClause with only the requested dimensions.
+// Preferences/lessons/interactions are personal tables bounded by user_id.
+// Users/entities/relations/links/profile are not scope-bound (shared).
+const selectPrefsScoped = db.prepare(
+  "SELECT id, category, key, value, confidence, source, updated_at FROM preferences WHERE (user_id IS NULL OR user_id = ?) ORDER BY id"
+);
+const selectLessonsScoped = db.prepare(
+  "SELECT id, situation, mistake, correction, created_at FROM lessons WHERE (user_id IS NULL OR user_id = ?) ORDER BY id"
+);
+const selectInteractionsScoped = db.prepare(
+  "SELECT id, ts, session_id, kind, content, meta FROM interactions WHERE (user_id = ? OR (? = 1 AND user_id IS NULL)) ORDER BY id"
+);
 
 function parseMetadata(raw: string | null): unknown {
   if (raw == null) return null;
@@ -213,6 +259,9 @@ function writeExportFileAtomic(filePath: string, json: string): void {
 export async function exportMemoryHandler(args: {
   includeInteractions?: boolean;
   filename?: string;
+  userId?: string | null;
+  sessionId?: string | null;
+  projectId?: string | null;
 }): Promise<ToolResult> {
   try {
     const includeInteractions = args.includeInteractions ?? false;
@@ -230,12 +279,31 @@ export async function exportMemoryHandler(args: {
       filename = `memory-export-${timestamp()}.json`;
     }
 
+    const scope = getEffectiveScope();
+    const uid = scope !== null ? (scope.uid ?? -1) : -1;
+    const ownerFlag =
+      scope !== null ? (hasRole(getIdentity(), "owner") ? 1 : 0) : 0;
+
+    // Build scope context for memories from requested dimensions only.
+    const scopeFilter = scope !== null
+      ? buildScopeClause("m", {
+          resolvedUid: scope.requested.userId ? scope.resolvedUid : undefined,
+          sessionId: scope.requested.sessionId ? scope.sessionId : undefined,
+          projectId: scope.requested.projectId ? scope.projectId : undefined,
+        })
+      : null;
+
     const interactionsIncluded = includeInteractions
-      ? (selectInteractions.all() as InteractionRow[])
+      ? (scope === null
+          ? selectInteractions.all()
+          : selectInteractionsScoped.all(uid, ownerFlag))
       : undefined;
 
-    const memories = (selectMemories.all() as Array<Omit<ExportMemoryRow, "metadata"> & { metadata: string | null }>)
-      .map((m) => ({ ...m, metadata: parseMetadata(m.metadata) }));
+    const memories = (
+      scope === null
+        ? selectMemories.all()
+        : selectMemoriesScoped.all(scopeFilter!.params)
+    ) as Array<Omit<ExportMemoryRow, "metadata"> & { metadata: string | null }>;
     const users = selectUsers.all() as Array<{ id: number; externalId: string; name: string | null; createdAt: string }>;
     const entities = (
       selectEntities.all() as Array<{
@@ -259,20 +327,28 @@ export async function exportMemoryHandler(args: {
         metadata: string | null;
       }>
     ).map((r) => ({ ...r, metadata: parseMetadata(r.metadata) }));
+    const prefs = scope === null
+      ? selectPrefs.all()
+      : selectPrefsScoped.all(uid);
+    const lessons = scope === null
+      ? selectLessons.all()
+      : selectLessonsScoped.all(uid);
+    const profile = selectProfile.all() as ProfileRow[];
+
     const payload = {
       exported_at: nowISO(),
       version: VERSION,
       format: "th-memory-mcp/v2",
-      memories,
+      memories: memories.map((m) => ({ ...m, metadata: parseMetadata(m.metadata) })),
       memoryLinks: selectMemoryLinks.all(),
       // Additive v2 fields (optional for backward compat): full backup of
       // M007 users + M003 entities/relations. Old importers ignore unknown keys.
       users,
       entities,
       relations,
-      preferences: selectPrefs.all() as PreferenceRow[],
-      lessons: selectLessons.all() as LessonRow[],
-      profile: selectProfile.all() as ProfileRow[],
+      preferences: prefs as PreferenceRow[],
+      lessons: lessons as LessonRow[],
+      profile,
       interactions: {
         included: includeInteractions,
         count: interactionsIncluded ? interactionsIncluded.length : 0,

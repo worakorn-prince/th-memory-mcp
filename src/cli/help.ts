@@ -16,6 +16,7 @@ export const COMMANDS = [
   "highlight",
   "thai-dict",
   "auth",
+  "grant",
 ];
 
 export const GLOBAL_HELP = `th-memory ${VERSION} - local memory CLI (zero-dep)
@@ -34,21 +35,24 @@ Commands:
   recall <topic> [--limit <n>] [--highlight]        search memory
   forget <id> [--type <t>]                          delete by id (t: memory|preference|lesson|interaction)
   export [--include-interactions] [--filename <n>]  export to data/exports/*.json
-  import (--file <p>|--json <s>) [--apply] [--user-id <id>]  import backup (dry-run by default)
+  import (--file <p>|--json ) [--apply] [--user-id <id>]  import backup (dry-run by default)
   stats                                             memory statistics
   profile                                           distilled user profile
   history [--query <q>] [--limit <n>]               search past prompts (no query = recent prompts)
   recent [--limit <n>] [--kind <k>]                 recent interactions
   highlight [text...] -q <topic> [--limit <n>]      highlight topic matches (empty text = stdin)
   thai-dict <list|add|rm|learn> [opts]              personal Thai lexeme registry
-  auth <add-user|issue-token|list|revoke> [opts]    opt-in identity/token admin (MEMORY_AUTH)
+  auth <add-user|issue-token|list|revoke|backfill-interactions> [opts]  opt-in identity/token admin (MEMORY_AUTH)
+  grant <add|remove|list> [opts]                    scope grants admin (MEMORY_AUTH)
 
 Examples:
   th-memory remember --category coding_pref --key package_manager --value pnpm
   th-memory recall pnpm --limit 5
   th-memory forget 3 --type preference
   th-memory export --include-interactions --filename backup.json
-  th-memory --db ./tmp.db --json stats`;
+  th-memory --db ./tmp.db --json stats
+  th-memory grant add --user alice --kind USER --ref bob --permission read
+  th-memory auth backfill-interactions --user alice`;
 
 export const COMMAND_HELP: Record<string, string> = {
   remember: `Usage: th-memory remember --category <c> --key <k> --value <v|->
@@ -69,10 +73,10 @@ export const COMMAND_HELP: Record<string, string> = {
 
   --include-interactions   embed raw interaction rows (bigger file)
   --filename <n>           name inside data/exports/ ([A-Za-z0-9._-], must end .json)`,
-  import: `Usage: th-memory import (--file <p>|--json <s>) [--apply] [--user-id <id>]
+  import: `Usage: th-memory import (--file <p>|--json ) [--apply] [--user-id <id>]
 
   --file <p>       .json export file inside data/exports/
-  --json <s>       inline JSON array or {memories:[...]} ("-" reads from stdin)
+  --json        inline JSON array or {memories:[...]} ("-" reads from stdin)
   --apply          write to DB (default: dry-run, report only)
   --user-id <id>   scope imported memories to a user`,
   stats: `Usage: th-memory stats`,
@@ -95,20 +99,34 @@ export const COMMAND_HELP: Record<string, string> = {
 
   list                            show every registry entry (term, kind, pair, source)
   add --kind <synonym|segment> --term <t> --pair <p> [--project <id>]
-                                  add or replace a registry entry (default kind: synonym)
+                                   add or replace a registry entry (default kind: synonym)
   rm --term <t>                   remove a registry entry by surface term
   learn                           re-run auto-learn from lessons now`,
-  auth: `Usage: th-memory auth <add-user|issue-token|list|revoke> [opts]
+  auth: `Usage: th-memory auth <add-user|issue-token|list|revoke|backfill-interactions> [opts]
 
   add-user <userId> [--name <n>] [--role <r>]
-                                  create a user (role: ${["reader", "writer", "owner", "admin"].join("|")}; default reader)
+                                   create a user (role: ${["reader", "writer", "owner", "admin"].join("|")}; default reader)
   issue-token <userId> [--label <l>]
-                                  create a token; prints it ONCE (store it now)
+                                   create a token; prints it ONCE (store it now)
   list                            users + token labels/hash prefixes + revoked flag
   revoke <hash-prefix|label>      set revoked_at (hash prefixes need >= 6 chars)
+  backfill-interactions --user <external_id> [--session <id>] [--limit <n>] [--dry-run]
+                                   attribute NULL interaction rows to a user (admin, idempotent)
 
   Admin runs locally against MEMORY_DB_PATH and does not need MEMORY_AUTH=on.
   The server (MEMORY_AUTH=on) needs MEMORY_AUTH_TOKEN or MEMORY_AUTH_TOKEN_FILE.`,
+  grant: `Usage: th-memory grant <add|remove|list> [opts]
+
+  add --user <external_id> --kind <USER|PROJECT|SESSION|GLOBAL> --ref <target_id> --permission <read|write>
+                                   add a scope grant for a user
+  remove --user <external_id> --kind <USER|PROJECT|SESSION|GLOBAL> --ref <target_id> --permission <read|write>
+                                   remove a scope grant
+  list [--user <external_id>]     list all grants (or for one user)
+
+  Admin runs locally against MEMORY_DB_PATH and does not need MEMORY_AUTH=on.
+  Grants are the ONLY way to act outside your own identity-derived scope.
+  USER kind: --ref is the target user's external_id
+  GLOBAL kind: --ref must be *`,
 };
 
 export function printHelp(cmd: string | undefined): void {

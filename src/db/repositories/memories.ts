@@ -7,7 +7,8 @@ import {
 } from "../../db/index.js";
 import { embed } from "../../lib/embed.js";
 import { redactMetadata, redactSecrets } from "../../lib/redact.js";
-import { resolveWriterUserId } from "../../auth/identity.js";
+import { getIdentity, resolveWriterUserId } from "../../auth/identity.js";
+import { canAccessRow, getEffectiveScope } from "../../auth/scope-resolver.js";
 import type {
   MemoryType,
   SourceType,
@@ -33,6 +34,53 @@ export interface CreateMemoryInput {
   metadata?: unknown;
 }
 
+/**
+ * Ph-3 defence in depth. The guard already bound the scope from the verified
+ * identity, so an enforced insert may only produce that scope:
+ *
+ *   - `user_id` must be the bound user (own or granted);
+ *   - a NULL owner (= GLOBAL row) needs `allowGlobalWrite`;
+ *   - `session_id` / `project_id` must be the bound ones.
+ *
+ * Beyond the exact bound scope, a row the identity may write per
+ * `canAccessRow` is also accepted: `update_memory` reinstates the SOURCE row's
+ * scope when it supersedes, and that row may legitimately be a granted foreign
+ * scope rather than the request's scope. Nothing wider than the grant model is
+ * ever accepted, so this cannot escalate. Legacy (no bound scope) is untouched.
+ */
+function assertBoundScope(
+  input: CreateMemoryInput,
+  uid: number | null,
+  rowScope: Scope
+): void {
+  const bound = getEffectiveScope();
+  if (bound === null || bound.mode !== "enforced") return;
+
+  const sessionId = input.sessionId ?? null;
+  const projectId = input.projectId ?? null;
+  const targetUid = bound.resolvedUid ?? bound.uid ?? null;
+
+  const direct =
+    ((uid !== null && uid === targetUid) ||
+      (uid === null && bound.allowGlobalWrite)) &&
+    sessionId === (bound.sessionId ?? null) &&
+    projectId === (bound.projectId ?? null);
+  if (direct) return;
+
+  // A GLOBAL row is only ever allowed through `allowGlobalWrite` above.
+  if (rowScope !== "GLOBAL") {
+    const candidate = {
+      scope: rowScope,
+      user_id: uid,
+      session_id: sessionId,
+      project_id: projectId,
+    };
+    if (canAccessRow(getIdentity(), candidate, "write")) return;
+  }
+
+  throw new Error("scope mismatch (auth enforced)");
+}
+
 function insertMemoryAtomic(input: CreateMemoryInput): number {
   const ts = nowISO();
   const content = redactSecrets(input.content);
@@ -47,6 +95,7 @@ function insertMemoryAtomic(input: CreateMemoryInput): number {
       : uid
         ? "USER"
         : "GLOBAL";
+  assertBoundScope(input, uid, scope);
   const info = db
     .prepare(
         `INSERT INTO memories

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getContext } from "../core/context-engine.js";
 import { ok, truncate } from "../db/index.js";
+import { getEffectiveScope } from "../auth/scope-resolver.js";
 import {
   MEMORY_REF_GUIDANCE,
   decorateMemoryLine,
@@ -49,13 +50,40 @@ export const contextInput = {
 };
 
 export function contextHandler(args: Record<string, unknown>) {
+  // Ph-3: in enforced mode the bound scope replaces the raw args (the guard
+  // already denied un-granted targets, so anything reaching here is permitted);
+  // an unrequested dimension stays null, which hides that scope class.
+  const scope = getEffectiveScope();
+  const userId =
+    scope !== null
+      ? scope.requested.userId
+        ? (scope.userId ?? null)
+        : null
+      : typeof args.userId === "string"
+        ? args.userId
+        : null;
+  const projectId =
+    scope !== null
+      ? scope.requested.projectId
+        ? (scope.projectId ?? null)
+        : null
+      : typeof args.projectId === "string"
+        ? args.projectId
+        : null;
+  const sessionId =
+    scope !== null
+      ? scope.requested.sessionId
+        ? (scope.sessionId ?? null)
+        : null
+      : typeof args.sessionId === "string"
+        ? args.sessionId
+        : null;
+
   const res = getContext({
     query: typeof args.query === "string" ? args.query : "",
-    projectId:
-      typeof args.projectId === "string" ? args.projectId : null,
-    sessionId:
-      typeof args.sessionId === "string" ? args.sessionId : null,
-    userId: typeof args.userId === "string" ? args.userId : null,
+    projectId,
+    sessionId,
+    userId,
     limit: typeof args.limit === "number" ? args.limit : undefined,
     maxTokens:
       typeof args.maxTokens === "number" ? args.maxTokens : undefined,

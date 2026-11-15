@@ -4,6 +4,7 @@ import { join, dirname, resolve, sep } from "node:path";
 import { DB_PATH, ok, err, type ToolResult } from "../db/index.js";
 import { EXPORTS_DIRNAME } from "../lib/config.js";
 import { getIdentity } from "../auth/identity.js";
+import { getEffectiveScope } from "../auth/scope-resolver.js";
 import { applyValidatedRows } from "./import/apply.js";
 import {
   MAX_IMPORT_BYTES,
@@ -77,8 +78,15 @@ export function importMemoryHandler(args: {
   trusted?: boolean;
 }): ToolResult {
   try {
-    // SEC-03: a supplied tool-level userId wins over every row owner.
-    const forcedUserId = typeof args.userId === "string" ? args.userId : null;
+    // SEC-03: a supplied tool-level userId wins over every row owner. Ph-3: in
+    // enforced mode the owner is the identity the guard bound, never the args.
+    const scope = getEffectiveScope();
+    const forcedUserId =
+      scope !== null
+        ? (scope.userId ?? scope.externalId ?? null)
+        : typeof args.userId === "string"
+          ? args.userId
+          : null;
     if (
       forcedUserId != null &&
       (forcedUserId.length === 0 ||
@@ -182,6 +190,21 @@ export function importMemoryHandler(args: {
       if (Array.isArray(p.relations)) exportRelations = p.relations;
     } else {
       memoryItems = [];
+    }
+
+    // Ph-3: every payload row must belong to the bound owner. A foreign row
+    // owner denies the whole import before validation or any write, so nothing
+    // is applied (rows with an out-of-scope project/session are rejected later
+    // by assertBoundScope inside the transaction, which rolls back atomically).
+    if (scope !== null) {
+      const owner = scope.userId ?? scope.externalId ?? null;
+      const foreignOwner = memoryItems.some((it) => {
+        if (!it || typeof it !== "object") return false;
+        const rowOwner = (it as { userId?: unknown }).userId;
+        return typeof rowOwner === "string" && rowOwner !== owner;
+      });
+      if (foreignOwner)
+        return err("denied: import_memory row owner out of scope (auth enforced)");
     }
 
     // Batch A-2 phase 1: parse + validate everything first (no DB writes).

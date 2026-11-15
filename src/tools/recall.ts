@@ -25,6 +25,9 @@ import {
 } from "../retrieval/vector-cache.js";
 import { redactSecrets } from "../lib/redact.js";
 import { wrapMemoryReference } from "../lib/memory-format.js";
+import { getIdentity } from "../auth/identity.js";
+import { hasRole } from "../auth/policy.js";
+import { getEffectiveScope } from "../auth/scope-resolver.js";
 
 export const recallInput = {
   topic: z.string().min(1).max(500).describe("Topic to recall from memory"),
@@ -58,6 +61,19 @@ const prefById = db.prepare(
 const lessonById = db.prepare(
   "SELECT situation, mistake, correction FROM lessons WHERE id = ?"
 );
+// Ph-3 enforced variants. preferences/lessons are personal tables with no grant
+// model: shared (user_id IS NULL) or owned by the bound identity. Interactions
+// are bounded by user_id; anonymous (NULL) rows stay visible to owner/admin
+// only. The legacy statements above are untouched.
+const prefByIdScoped = db.prepare(
+  "SELECT category, key, value FROM preferences WHERE id = ? AND (user_id IS NULL OR user_id = ?)"
+);
+const lessonByIdScoped = db.prepare(
+  "SELECT situation, mistake, correction FROM lessons WHERE id = ? AND (user_id IS NULL OR user_id = ?)"
+);
+const recentInteractionsScoped = db.prepare(
+  `SELECT ts, kind, content FROM interactions WHERE content LIKE ? ESCAPE '\\' AND (user_id = ? OR (? = 1 AND user_id IS NULL)) ORDER BY ts DESC LIMIT ${RECENT_INTERACTIONS_LIMIT}`
+);
 
 // TASK-PERF-MATRIX: one resolved table slice of the semantic blend — the ids
 // read in `getAllEmbeddingKeys()` order, their matrix slots, the row index each
@@ -72,15 +88,21 @@ interface RecallGroup {
   fetched: Map<string, Float32Array> | null;
 }
 
-function prefLine(id: number): string | null {
-  const r = prefById.get(id) as
-    | { category: string; key: string; value: string }
-    | undefined;
+function prefLine(id: number, personalUid: number | null): string | null {
+  const r = (
+    personalUid === null
+      ? prefById.get(id)
+      : prefByIdScoped.get(id, personalUid)
+  ) as { category: string; key: string; value: string } | undefined;
   if (!r) return null;
   return `- ${truncate(`${r.category}/${r.key}`, 120)} | ${truncate(`${r.key}: ${r.value}`, 200)}`;
 }
-function lessonLine(id: number): string | null {
-  const r = lessonById.get(id) as
+function lessonLine(id: number, personalUid: number | null): string | null {
+  const r = (
+    personalUid === null
+      ? lessonById.get(id)
+      : lessonByIdScoped.get(id, personalUid)
+  ) as
     | { situation: string; mistake: string; correction: string }
     | undefined;
   if (!r) return null;
@@ -93,6 +115,10 @@ export async function recallHandler(args: {
 }): Promise<ToolResult> {
   try {
         const limit = args.limit ?? 8;
+    // Ph-3: enforced mode reads only shared/own preferences and lessons plus
+    // interactions the identity may see; legacy keeps the statements untouched.
+    const scope = getEffectiveScope();
+    const personalUid = scope !== null ? (scope.uid ?? null) : null;
     const parts: string[] = [];
 
     const seen = new Set<string>();
@@ -129,13 +155,13 @@ export async function recallHandler(args: {
       }
       for (const r of rows) {
         if (r.ref_table === "preferences") {
-          const line = prefLine(Number(r.ref_id));
+          const line = prefLine(Number(r.ref_id), personalUid);
           if (line) {
             prefLines += line + "\n";
             seen.add(`p:${String(r.ref_id)}`);
           }
         } else if (r.ref_table === "lessons") {
-          const line = lessonLine(Number(r.ref_id));
+          const line = lessonLine(Number(r.ref_id), personalUid);
           if (line) {
             lessonLines += line + "\n";
             seen.add(`l:${String(r.ref_id)}`);
@@ -270,13 +296,13 @@ export async function recallHandler(args: {
         const key = `${x.table[0]}:${String(x.id)}`;
         if (seen.has(key)) continue;
         if (x.table === "preferences") {
-          const line = prefLine(x.id);
+          const line = prefLine(x.id, personalUid);
           if (line) {
             prefLines += line + "\n";
             seen.add(key);
           }
         } else if (x.table === "lessons") {
-          const line = lessonLine(x.id);
+          const line = lessonLine(x.id, personalUid);
           if (line) {
             lessonLines += line + "\n";
             seen.add(key);
@@ -291,7 +317,15 @@ export async function recallHandler(args: {
     let interactionLines = "";
     try {
       const like = `%${escapeLike(args.topic)}%`;
-      const rows = recentInteractions.all(like) as {
+      const rows = (
+        scope === null
+          ? recentInteractions.all(like)
+          : recentInteractionsScoped.all(
+              like,
+              scope.uid ?? -1,
+              hasRole(getIdentity(), "owner") ? 1 : 0
+            )
+      ) as {
         ts: string;
         kind: string;
         content: string;

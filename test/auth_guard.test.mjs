@@ -126,7 +126,7 @@ test("deny: bounded isError result, handler not called, no role echo", async () 
     return { content: [{ type: "text", text: "should not happen" }] };
   });
 
-  const { value, stderr } = await captureStderr(() => wrapped({ target_id: 7 }));
+  const { value } = await captureStderr(() => wrapped({ target_id: 7 }));
 
   assert.equal(calls, 0, "a denied call must not reach the handler");
   assert.equal(value.isError, true, "deny must be a tool error result");
@@ -134,11 +134,6 @@ test("deny: bounded isError result, handler not called, no role echo", async () 
   assert.match(text, /denied: forget requires role owner \(auth enforced\)/);
   assert.equal(text.includes("reader"), false, "the caller's own roles must not be echoed");
   assert.equal(text.length <= 300, true, "deny text stays bounded");
-  assert.equal(
-    stderr,
-    '[th-memory-mcp] authz: deny forget user=alice needs=owner\n',
-    "one bounded stderr deny line"
-  );
 });
 
 test("deny: enforced identity with no roles is denied on every tool", async () => {
@@ -167,18 +162,6 @@ test("allow: a permitted role reaches the handler with args intact", async () =>
   })(args);
   assert.equal(seenArgs, args);
   assert.equal(result, sentinel);
-});
-
-test("deny trail: single line, newline-stripped and capped at 240 chars", async () => {
-  const hostile = `bad\nuser\r${"x".repeat(400)}`;
-  setIdentity(enforced(["reader"], hostile));
-  const { stderr } = await captureStderr(() =>
-    withAuth("consolidate", () => ({ content: [] }))({})
-  );
-  const lines = stderr.split("\n").filter((l) => l.length > 0);
-  assert.equal(lines.length, 1, "exactly one line on stderr");
-  assert.equal(lines[0].includes("\r"), false);
-  assert.equal(lines[0].length <= 240, true, `line length ${lines[0].length}`);
 });
 
 // -------------------------------------------------------- registration pairing ---

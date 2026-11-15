@@ -14,6 +14,8 @@ import {
   UNTRUSTED_TAG,
   wrapMemoryReference,
 } from "../lib/memory-format.js";
+import { getIdentity, type AuthIdentity } from "../auth/identity.js";
+import { canAccessRow, getEffectiveScope } from "../auth/scope-resolver.js";
 
 export const consolidateInput = {
   threshold: z
@@ -49,20 +51,37 @@ export const consolidateInput = {
 };
 
 export function consolidateHandler(args: Record<string, unknown>) {
+  // Ph-3: in enforced mode the clustering scope is the one the guard bound from
+  // the verified identity, never the raw args (an un-granted request never
+  // reaches here). Legacy keeps the v2.5.2 arg-driven path.
+  const bound = getEffectiveScope();
+  const identity: AuthIdentity | null = bound !== null ? getIdentity() : null;
   const projectId =
-    typeof args.projectId === "string" ? args.projectId : null;
+    bound !== null
+      ? (bound.projectId ?? null)
+      : typeof args.projectId === "string"
+        ? args.projectId
+        : null;
   const sessionId =
-    typeof args.sessionId === "string" ? args.sessionId : null;
-  const userId = typeof args.userId === "string" ? args.userId : null;
+    bound !== null
+      ? (bound.sessionId ?? null)
+      : typeof args.sessionId === "string"
+        ? args.sessionId
+        : null;
+  const userId =
+    bound !== null
+      ? (bound.userId ?? null)
+      : typeof args.userId === "string"
+        ? args.userId
+        : null;
+  const minClusterSize =
+    typeof args.minClusterSize === "number" ? args.minClusterSize : 2;
   const clusters = clusterMemories({
     threshold: typeof args.threshold === "number" ? args.threshold : undefined,
     projectId,
     sessionId,
     userId,
-    minClusterSize:
-      typeof args.minClusterSize === "number"
-        ? args.minClusterSize
-        : undefined,
+    minClusterSize,
   });
 
   const lines: string[] = [];
@@ -70,8 +89,8 @@ export function consolidateHandler(args: Record<string, unknown>) {
   const memberRow = db.prepare(
     "SELECT scope, project_id, session_id, user_id, content, metadata FROM memories WHERE id = ?"
   );
-  for (const c of clusters) {
-    const members = c.map((id) => {
+  for (const cluster of clusters) {
+    let members = cluster.map((id) => {
       const m = memberRow.get(id) as
         | {
             scope: string;
@@ -84,6 +103,22 @@ export function consolidateHandler(args: Record<string, unknown>) {
         | undefined;
       return { id, content: m?.content ?? "?", row: m };
     });
+    // Ph-3: clusterMemories already filters on the bound scope; re-checking each
+    // member against its own row is defence in depth (revoked grant, corrupt
+    // row). An unsafe member is dropped before it is reported or absorbed into
+    // a derived memory; a cluster that falls below minClusterSize is skipped.
+    if (identity !== null) {
+      members = members.filter((m) =>
+        canAccessRow(identity, m.row ?? { scope: "UNKNOWN" }, "write")
+      );
+      if (members.length < minClusterSize) {
+        lines.push(
+          `Cluster skipped (${cluster.length} member(s) outside the bound scope)`
+        );
+        continue;
+      }
+    }
+    const c = members.map((m) => m.id);
     const contents = members.map((m) => {
       const tag =
         m.row && isUntrustedMetadata(m.row.metadata) ? `${UNTRUSTED_TAG} ` : "";

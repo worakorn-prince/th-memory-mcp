@@ -14,6 +14,8 @@ import {
 import { supersede } from "../core/lifecycle-engine.js";
 import { isoDateTimeSchema, isIsoDateString } from "../lib/iso.js";
 import { redactMetadata, redactSecrets } from "../lib/redact.js";
+import { getIdentity } from "../auth/identity.js";
+import { canAccessRow, getEffectiveScope } from "../auth/scope-resolver.js";
 import type { MemoryType, SourceType } from "../memory/types.js";
 
 type MetadataObject = Record<string, unknown>;
@@ -114,6 +116,14 @@ export function updateMemoryHandler(args: {
       args.metadata !== undefined ? redactMetadata(args.metadata) : undefined;
     const mem = getMemoryById(args.id);
     if (!mem) return err(`memory ${args.id} not found`);
+    // Ph-3: update_memory takes no scope args, so the loaded row decides.
+    // Deny before any validation/mutation so nothing can change.
+    if (
+      getEffectiveScope() !== null &&
+      !canAccessRow(getIdentity(), mem, "write")
+    ) {
+      return err("denied: update_memory target out of scope (auth enforced)");
+    }
     if (mem.status === "deleted")
       return err("cannot update a deleted memory");
     if (

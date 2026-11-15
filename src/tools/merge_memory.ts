@@ -3,6 +3,8 @@ import { db, nowISO, ok, err, type ToolResult } from "../db/index.js";
 import { getMemoryById } from "../db/repositories/memories.js";
 import { supersede } from "../core/lifecycle-engine.js";
 import { redactMetadata } from "../lib/redact.js";
+import { getIdentity } from "../auth/identity.js";
+import { canAccessRow, getEffectiveScope } from "../auth/scope-resolver.js";
 
 export const mergeMemoryInput = {
   sourceId: z
@@ -42,6 +44,17 @@ export function mergeMemoryHandler(args: {
     const tgt = getMemoryById(args.targetId);
     if (!src) return err(`source memory ${args.sourceId} not found`);
     if (!tgt) return err(`target memory ${args.targetId} not found`);
+    // Ph-3: merge_memory takes no scope args, so both loaded rows decide.
+    // Checked before any mutation: a denied merge supersedes nothing.
+    if (getEffectiveScope() !== null) {
+      const identity = getIdentity();
+      if (
+        !canAccessRow(identity, src, "write") ||
+        !canAccessRow(identity, tgt, "write")
+      ) {
+        return err("denied: merge_memory target out of scope (auth enforced)");
+      }
+    }
     if (src.id === tgt.id)
       return err("cannot merge a memory into itself");
     if (src.status === "deleted" || tgt.status === "deleted")

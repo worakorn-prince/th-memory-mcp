@@ -10,6 +10,7 @@ import {
 } from "../db/index.js";
 import { embed } from "../lib/embed.js";
 import { redactSecrets } from "../lib/redact.js";
+import { getEffectiveScope } from "../auth/scope-resolver.js";
 
 export const saveLessonInput = {
   situation: z.string().min(1).max(1000).describe("The original situation/context"),
@@ -20,13 +21,18 @@ export const saveLessonInput = {
 const LESSON_TITLE_MAX = 80;
 
 const insertLesson = db.prepare(
-  "INSERT INTO lessons (situation, mistake, correction, created_at) VALUES (?, ?, ?, ?)"
+  "INSERT INTO lessons (situation, mistake, correction, user_id, created_at) VALUES (?, ?, ?, ?, ?)"
 );
 
-type LessonArgs = {
+type LessonRequest = {
   situation: string;
   mistake: string;
   correction: string;
+};
+
+type LessonArgs = LessonRequest & {
+  /** Bound owner in enforced mode, NULL in legacy (shared/global row). */
+  ownerUid: number | null;
 };
 
 const applyLesson = db.transaction((args: LessonArgs): { id: number } => {
@@ -34,6 +40,7 @@ const applyLesson = db.transaction((args: LessonArgs): { id: number } => {
     args.situation,
     args.mistake,
     args.correction,
+    args.ownerUid,
     nowISO()
   );
   const id = Number(res.lastInsertRowid);
@@ -51,12 +58,14 @@ const applyLesson = db.transaction((args: LessonArgs): { id: number } => {
   return { id };
 });
 
-export async function saveLessonHandler(args: LessonArgs): Promise<ToolResult> {
+export async function saveLessonHandler(args: LessonRequest): Promise<ToolResult> {
   try {
+    const scope = getEffectiveScope();
     const { id } = applyLesson({
       situation: redactSecrets(args.situation),
       mistake: redactSecrets(args.mistake),
       correction: redactSecrets(args.correction),
+      ownerUid: scope !== null ? (scope.uid ?? null) : null,
     });
     return ok(`lesson saved (lesson id=${id})`);
   } catch (e) {

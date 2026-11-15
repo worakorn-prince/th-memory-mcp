@@ -6,6 +6,9 @@ import { deduplicate } from "../memory/deduplicator.js";
 import { MEMORY_TYPES } from "../memory/types.js";
 import type { MemoryType } from "../memory/types.js";
 import { wrapMemoryReference } from "../lib/memory-format.js";
+import { getIdentity } from "../auth/identity.js";
+import { hasRole } from "../auth/policy.js";
+import { getEffectiveScope } from "../auth/scope-resolver.js";
 
 // Deterministic, LLM-free intent heuristics (spec §19 "optional extraction").
 // Scans captured interactions and proposes memory candidates. Safe by default:
@@ -69,14 +72,36 @@ export function extractMemoriesHandler(args: {
     const limit = args.limit ?? 50;
     const kind = args.kind ?? "prompt";
     const sessionId = args.sessionId ?? null;
-    const rows = db
-      .prepare(
-        "SELECT id, content FROM interactions WHERE kind = ? AND (? IS NULL OR session_id = ?) ORDER BY id DESC LIMIT ?"
-      )
-      .all(kind, sessionId, sessionId, limit) as Array<{
-      id: number;
-      content: string;
-    }>;
+    // Ph-3: in enforced mode only the bound identity's interactions are read;
+    // anonymous (user_id IS NULL) rows stay visible to owner/admin only, the
+    // same rule the capture path documents. Legacy reads every row.
+    const scope = getEffectiveScope();
+    const rows =
+      scope !== null
+        ? (db
+            .prepare(
+              `SELECT id, content FROM interactions
+               WHERE kind = ?
+                 AND (? IS NULL OR session_id = ?)
+                 AND (user_id = ? OR (? = 1 AND user_id IS NULL))
+               ORDER BY id DESC LIMIT ?`
+            )
+            .all(
+              kind,
+              sessionId,
+              sessionId,
+              scope.uid ?? -1,
+              hasRole(getIdentity(), "owner") ? 1 : 0,
+              limit
+            ) as Array<{ id: number; content: string }>)
+        : (db
+            .prepare(
+              "SELECT id, content FROM interactions WHERE kind = ? AND (? IS NULL OR session_id = ?) ORDER BY id DESC LIMIT ?"
+            )
+            .all(kind, sessionId, sessionId, limit) as Array<{
+            id: number;
+            content: string;
+          }>);
 
     const candidates: Array<{ interactionId: number; type: MemoryType; content: string }> =
       [];
@@ -97,29 +122,48 @@ export function extractMemoriesHandler(args: {
       }
     }
 
-    // SEC-09: dedup within the extractor's scope. Unknown/absent userId
-    // resolves to null -> GLOBAL-only (fail-closed).
+    // SEC-09: dedup within the extractor's scope. In enforced mode that is the
+    // bound owner (never raw args). Unknown/absent userId resolves to null ->
+    // GLOBAL-only (fail-closed).
     const dedupScope =
-      typeof args.userId === "string"
+      scope !== null
         ? {
-            resolvedUid: resolveUserId(args.userId),
+            resolvedUid: scope.resolvedUid ?? null,
             sessionId: null,
             projectId: null,
           }
-        : { resolvedUid: null, sessionId: null, projectId: null };
+        : typeof args.userId === "string"
+          ? {
+              resolvedUid: resolveUserId(args.userId),
+              sessionId: null,
+              projectId: null,
+            }
+          : { resolvedUid: null, sessionId: null, projectId: null };
     const distinct = candidates.filter(
       (c) =>
         deduplicate(c.type, c.content, dedupScope).verdict === "distinct"
     );
 
     if (args.apply === true) {
+      // Ph-3: created memories take the bound scope (enforced) or the caller's
+      // args (legacy, unchanged).
+      const projectId = scope !== null ? (scope.projectId ?? null) : null;
+      const boundSessionId = scope !== null ? (scope.sessionId ?? null) : null;
+      const userId =
+        scope !== null
+          ? (scope.userId ?? null)
+          : typeof args.userId === "string"
+            ? args.userId
+            : null;
       let n = 0;
       for (const c of distinct) {
         createMemory({
           type: c.type,
           content: c.content,
           source: "captured",
-          userId: typeof args.userId === "string" ? args.userId : null,
+          projectId,
+          sessionId: boundSessionId,
+          userId,
         });
         n++;
       }

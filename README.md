@@ -195,12 +195,17 @@ Usage: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — per-
 | `history` | `history [--query <q>] [--limit <n>]` — search past prompts (no query = recent prompts) |
 | `recent` | `recent [--limit <n>] [--kind <k>]` — recent interactions (`k`: `prompt\|tool_call\|error`) |
 | `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — highlight topic matches (empty text = stdin pipe) |
-| `auth` | `auth <add-user\|issue-token\|list\|revoke> [opts]` — opt-in identity/token admin (see below) |
+| `auth` | `auth <add-user\|issue-token\|list\|revoke\|backfill-interactions> [opts]` — opt-in identity/token admin (see below) |
+| `grant` | `grant <add\|remove\|list> --user <id> --kind USER|PROJECT|SESSION|GLOBAL --ref <target> --permission read\|write` — scope grants admin (see below) |
 
 ```bash
 th-memory remember --category coding_pref --key package_manager --value pnpm
 th-memory recall pnpm --limit 5
 echo "I prefer pnpm for installs" | th-memory highlight -q pnpm
+
+# Scope grants (Phase 3, opt-in, requires MEMORY_AUTH=on)
+th-memory grant add --user alice --kind USER --ref bob --permission read
+th-memory grant list --user alice
 ```
 
 ## Daily usage
@@ -222,10 +227,23 @@ data/
 # everything in data/ is git-ignored
 ```
 
+## Scope Isolation (Phase 3, opt-in, requires `MEMORY_AUTH=on`)
+
+With `MEMORY_AUTH=on`, every tool's scope is derived **from the verified identity**, never from raw arguments:
+
+- **Ownership**: writes (preferences, lessons, memories) go to the caller's own USER scope by default. Writing another user's scope requires an explicit grant.
+- **Grants**: `th-memory grant add --user <id> --kind USER|PROJECT|SESSION|GLOBAL --ref <target> --permission read|write` allows cross-scope access. Grants are non-escalatable: read never implies write.
+- **Read filtering**: `recall`, `get_profile`, `search_history`, `get_recent_interactions`, `memory_stats`, `export_memory` only return rows the identity may see (own USER + GLOBAL, plus granted scopes; anonymous interactions visible to owner/admin only).
+- **Capture attribution**: optional `MEMORY_CAPTURE_USER=<external_id>` (read by the plugin/capture core) tags new interaction rows; unknown id → NULL (never mints a user). NULL interactions are owner/admin-only in enforcement.
+- **Audit**: every enforced decision (allow + deny) is recorded in `audit_log` with bounded, content-free fields (`tool`, `kind`, `decision`, `reason`, `scope_kind`, `scope_ref`). Legacy mode writes no audit rows.
+
+See `SECURITY.md` for the full threat model, role matrix, and grant semantics.
+
 ## Known Limitations
 
 - **No encryption at rest** — `data/memory.db` is plain, unencrypted SQLite (WAL mode, `better-sqlite3`); "100% local & private" means no cloud/network exfiltration, **not** encrypted at rest — anyone with filesystem access can read it. For sensitive data: OS full-disk encryption (BitLocker / FileVault / LUKS) or an opt-in SQLCipher build (native rebuild + key management); no in-code encryption by default (`src/db/index.ts` documents this).
-- **Single-user by default; opt-in identity + RBAC only (Batch B-3 / Ph-1 / Ph-2)** — `userId` / `sessionId` / `projectId` are caller-supplied with **no authorization check inside the server by default**; scope isolation (retrieval, `get_context`, graph, `consolidate`, `link_memory`, `merge_memory`) binds only to caller-sent values, so any scope is readable/writable by passing a different id. Suitable for a **single-user local process**; do **not** share one server/DB across untrusted users without an auth layer in front enforcing the correct `userId` (`projectId` / `sessionId`). Opt-in `MEMORY_AUTH=on` verifies a startup identity, stops user minting, and gates every tool by role (Ph-2), but scope-ownership binding and membership/grants are not implemented yet, so it is not a full boundary.
+- **Not a full boundary until OS-level isolation** — scope isolation is an **application-layer** boundary. A local user with filesystem access to `data/memory.db` can bypass all app-level checks. Phase 4 (whole-DB encryption via SQLCipher) will address this. Until then, do not share one server/DB across mutually-untrusted users on the same machine.
+- **Residual gaps**: the plugin capture path uses `MEMORY_CAPTURE_USER` (optional) for attribution; without it, interactions are anonymous (NULL) and owner/admin-only in enforcement. Projects/sessions have no native membership table — grants are the only mechanism.
 
 ## License
 

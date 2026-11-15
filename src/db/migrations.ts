@@ -711,6 +711,104 @@ const M016_auth: Migration = {
   },
 };
 
+// TASK-AUTH-P3-SCOPE: identity-derived scope (Ph-3, opt-in via MEMORY_AUTH).
+// Purely additive: two new tables (scope_grants, audit_log) plus a nullable
+// owner column on the global stores (interactions, preferences, lessons) and
+// their lookup indexes. Every statement is idempotent — CREATE ... IF NOT EXISTS
+// for tables/indexes, and a PRAGMA table_info guard for the ALTERs because
+// SQLite has no ADD COLUMN IF NOT EXISTS. Old migrations are NOT edited.
+function hasColumn(db: DB, table: string, column: string): boolean {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(table)) {
+    throw new Error(`invalid table name in migration guard: ${JSON.stringify(table)}`);
+  }
+  const columns = db
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as Array<{ name: string }>;
+  return columns.some((c) => c.name === column);
+}
+
+function addColumnIfMissing(
+  db: DB,
+  table: string,
+  column: string,
+  ddl: string
+): void {
+  if (hasColumn(db, table, column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl};`);
+}
+
+const M017_scope: Migration = {
+  id: "017_scope",
+  up(db) {
+    // One row = one permission on one scope target for one user. `scope_ref`
+    // is the target's external id (USER), its project/session id, or '*'
+    // (GLOBAL). `permission` is 'read' | 'write'; write implies read for the
+    // same (kind, ref) and is enforced by the repository, not by the schema.
+    db.exec(`CREATE TABLE IF NOT EXISTS scope_grants (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      grantee_user_id INTEGER NOT NULL REFERENCES users(id),
+      scope_kind      TEXT NOT NULL,
+      scope_ref       TEXT NOT NULL,
+      permission      TEXT NOT NULL DEFAULT 'read',
+      granted_by      INTEGER REFERENCES users(id),
+      created_at      TEXT NOT NULL,
+      UNIQUE(grantee_user_id, scope_kind, scope_ref, permission)
+    );`);
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_scope_grants_lookup ON scope_grants(grantee_user_id, scope_kind, scope_ref);`
+    );
+
+    // One row per enforced tool decision (allow + deny). Content-free and
+    // bounded: reason is a fixed enum, scope_ref is truncated by the repo.
+    db.exec(`CREATE TABLE IF NOT EXISTS audit_log (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts         TEXT NOT NULL,
+      user_id    INTEGER REFERENCES users(id),
+      tool       TEXT NOT NULL,
+      kind       TEXT NOT NULL,
+      decision   TEXT NOT NULL,
+      reason     TEXT,
+      scope_kind TEXT,
+      scope_ref  TEXT
+    );`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts);`);
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id, ts);`
+    );
+
+    // Attribution for captured interactions (T4). NULL = anonymous/legacy.
+    addColumnIfMissing(
+      db,
+      "interactions",
+      "user_id",
+      "user_id INTEGER REFERENCES users(id)"
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_interactions_user ON interactions(user_id, ts);`
+    );
+
+    // Personal preferences/lessons (Q2). NULL = shared/GLOBAL.
+    addColumnIfMissing(
+      db,
+      "preferences",
+      "user_id",
+      "user_id INTEGER REFERENCES users(id)"
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_preferences_user ON preferences(user_id);`
+    );
+    addColumnIfMissing(
+      db,
+      "lessons",
+      "user_id",
+      "user_id INTEGER REFERENCES users(id)"
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_lessons_user ON lessons(user_id);`
+    );
+  },
+};
+
 export const MIGRATIONS: Migration[] = [
   M001_schema_meta,
   M002_memories,
@@ -728,6 +826,7 @@ export const MIGRATIONS: Migration[] = [
   M014_thai_dict,
   M015_search_index_keys,
   M016_auth,
+  M017_scope,
 ];
 
 const KEEP_BACKUPS = 5;

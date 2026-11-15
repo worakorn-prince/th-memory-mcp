@@ -7,6 +7,13 @@ import {
   err,
   type ToolResult,
 } from "../db/index.js";
+import { getIdentity } from "../auth/identity.js";
+import {
+  canAccessPersonalRow,
+  canAccessRow,
+  getEffectiveScope,
+  type ScopeRowLike,
+} from "../auth/scope-resolver.js";
 
 export const forgetInput = {
   target_id: z
@@ -43,6 +50,15 @@ const clearSupersedes = db.prepare(
 );
 const delMemory = db.prepare("DELETE FROM memories WHERE id = ?");
 
+// Ph-3: a by-id tool takes no scope args, so the target row's own scope
+// columns decide visibility. Rows are read before any delete.
+const memoryScopeRow = db.prepare(
+  "SELECT scope, user_id, session_id, project_id FROM memories WHERE id = ?"
+);
+const preferenceOwner = db.prepare("SELECT user_id FROM preferences WHERE id = ?");
+const lessonOwner = db.prepare("SELECT user_id FROM lessons WHERE id = ?");
+const interactionOwner = db.prepare("SELECT user_id FROM interactions WHERE id = ?");
+
 type Kind = "memories" | "preferences" | "lessons" | "interactions";
 
 function existsIn(kind: Kind, id: number): boolean {
@@ -54,6 +70,17 @@ function existsIn(kind: Kind, id: number): boolean {
     return !!existsLesson.get(id);
   }
   return !!existsInteraction.get(id);
+}
+
+/** Owner of a personal (preferences/lessons/interactions) row, NULL = shared. */
+function personalOwner(kind: Kind, id: number): number | null {
+  const row =
+    kind === "preferences"
+      ? (preferenceOwner.get(id) as { user_id: number | null } | undefined)
+      : kind === "lessons"
+        ? (lessonOwner.get(id) as { user_id: number | null } | undefined)
+        : (interactionOwner.get(id) as { user_id: number | null } | undefined);
+  return row?.user_id ?? null;
 }
 
 export async function forgetHandler(args: {
@@ -98,6 +125,28 @@ export async function forgetHandler(args: {
       return err(
         `ambiguous id=${id}: found in ${targets.join(", ")}. Specify type explicitly (one of memory, preference, lesson, interaction)`
       );
+    }
+
+    // Ph-3: visibility is decided per TARGET ROW (no scope args exist here).
+    // The whole call is all-or-nothing: one out-of-scope target deletes nothing.
+    const scope = getEffectiveScope();
+    if (scope !== null) {
+      const identity = getIdentity();
+      for (const kind of targets) {
+        const allowed =
+          kind === "memories"
+            ? canAccessRow(
+                identity,
+                (memoryScopeRow.get(id) as ScopeRowLike | undefined) ?? {
+                  scope: "UNKNOWN",
+                },
+                "write"
+              )
+            : canAccessPersonalRow(identity, personalOwner(kind, id));
+        if (!allowed) {
+          return err("denied: forget target out of scope (auth enforced)");
+        }
+      }
     }
 
     const removed: string[] = [];

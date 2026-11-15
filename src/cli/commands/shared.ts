@@ -72,6 +72,16 @@ export function optBool(opts: Record<string, string | boolean | undefined>, name
   return opts[name] === true;
 }
 
+export function optInt(opts: Record<string, string | boolean | undefined>, name: string): number | undefined {
+  const v = opts[name];
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isInteger(n) ? n : undefined;
+  }
+  return undefined;
+}
+
 export async function loadHighlightFn(): Promise<HighlightFn> {
   let mod: unknown;
   try {

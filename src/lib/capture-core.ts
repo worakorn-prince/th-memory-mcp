@@ -38,6 +38,39 @@ export const LIMITS: Record<CaptureKind, number> = {
   error: 500,
 };
 
+let _captureUserId: number | null = null;
+let _captureUserIdResolved = false;
+
+/**
+ * Resolve the capture user id from the optional MEMORY_CAPTURE_USER env var.
+ * Returns the internal user id if the external id exists in the users table,
+ * otherwise returns null (never mints a new user).
+ * Result is cached for the process lifetime.
+ */
+export async function resolveCaptureUserId(): Promise<number | null> {
+  if (_captureUserIdResolved) return _captureUserId;
+
+  const externalId = process.env.MEMORY_CAPTURE_USER;
+  if (!externalId) {
+    _captureUserId = null;
+    _captureUserIdResolved = true;
+    return null;
+  }
+
+  // Dynamic import to avoid circular dependency at module load
+  const { getUserByExternalId } = await import("../db/repositories/users.js");
+  const user = getUserByExternalId(externalId);
+  _captureUserId = user ? user.id : null;
+  _captureUserIdResolved = true;
+  return _captureUserId;
+}
+
+/** Reset the cached capture user id (for tests). */
+export function resetCaptureUserId(): void {
+  _captureUserId = null;
+  _captureUserIdResolved = false;
+}
+
 export function filterSecrets(text: string): string {
   let out = text;
   for (const p of SECRET_PATTERNS) out = out.replace(p, "[REDACTED]");
@@ -74,6 +107,7 @@ export function createDedupe(maxSize: number = 1000): Dedupe {
 export interface BuildRowOptions {
   sessionId?: string;
   meta?: unknown;
+  userId?: number | null;
 }
 
 export interface InteractionRow {
@@ -84,6 +118,7 @@ export interface InteractionRow {
   kind: CaptureKind;
   content: string;
   meta: string | null;
+  user_id: number | null;
 }
 
 export function buildRow(
@@ -97,8 +132,9 @@ export function buildRow(
     kind,
     content: truncate(filterSecrets(content), LIMITS[kind]),
     meta: JSON.stringify(opts?.meta) ?? null,
+    user_id: opts?.userId ?? null,
   };
 }
 
 export const INSERT_SQL =
-  "INSERT INTO interactions (ts, session_id, kind, content, meta) VALUES (?, ?, ?, ?, ?)";
+  "INSERT INTO interactions (ts, session_id, kind, content, meta, user_id) VALUES (?, ?, ?, ?, ?, ?)";

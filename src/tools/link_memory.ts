@@ -2,6 +2,8 @@ import { z } from "zod";
 import { ok, err, type ToolResult } from "../db/index.js";
 import { linkMemories } from "../core/graph-engine.js";
 import { getMemoryById } from "../db/repositories/memories.js";
+import { getIdentity } from "../auth/identity.js";
+import { canAccessRow, getEffectiveScope } from "../auth/scope-resolver.js";
 import { LINK_RELATIONS } from "../memory/types.js";
 
 export const linkMemoryInput = {
@@ -22,6 +24,17 @@ export function linkMemoryHandler(args: {
     const tgt = getMemoryById(args.targetId);
     if (!src) return err(`source memory ${args.sourceId} not found`);
     if (!tgt) return err(`target memory ${args.targetId} not found`);
+    // Ph-3: both rows must be writable by the identity; checked before any
+    // mutation so a denied call leaves no link behind.
+    if (getEffectiveScope() !== null) {
+      const identity = getIdentity();
+      if (
+        !canAccessRow(identity, src, "write") ||
+        !canAccessRow(identity, tgt, "write")
+      ) {
+        return err("denied: link_memory target out of scope (auth enforced)");
+      }
+    }
     if (src.status === "deleted" || tgt.status === "deleted")
       return err("cannot link deleted memories");
     if (src.id === tgt.id) return err("cannot link a memory to itself");
