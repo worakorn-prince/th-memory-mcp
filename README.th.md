@@ -1,183 +1,75 @@
-<div align="center">
-  <img src="access/Banner.png" alt="th-memory-mcp Banner" width="100%" />
-</div>
+<img src="access/Banner.png" alt="th-memory-mcp Banner" width="100%" />
+
+[![npm version](https://img.shields.io/npm/v/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp) [![npm downloads](https://img.shields.io/npm/dm/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-brightgreen.svg)](https://nodejs.org) [![CI](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/worakorn-prince/th-memory-mcp/actions/workflows/ci.yml)
+
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/worakorn-prince/th-memory-mcp) [![Glama score](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/score.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp) [![mcprush](https://mcprush.com/badge/th-memory-mcp/score.svg)](https://mcprush.com/to/th-memory-mcp?ref=badge) [![Audited by AddonAudit](https://addonaudit.com/badges/audited.svg)](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/)
 
 # th-memory-mcp
 
-<div align="center">
+**ความจำถาวรสำหรับ AI coding agent ผ่าน MCP — เก็บในเครื่องคุณคนเดียว.**
+ฐานข้อมูล SQLite ไฟล์เดียวจำ preference, lesson, decision และบริบทของโปรเจกต์ แล้วส่งข้อมูลที่เกี่ยวข้อง
+กลับให้ agent ก่อนเริ่มงาน. ค้นหาแบบ hybrid (FTS5 + vector ท้องถิ่น), รองรับไทย/อังกฤษ, ไม่ใช้ cloud และไม่ต้องใช้ API key.
 
-[![npm version](https://img.shields.io/npm/v/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
-[![npm downloads](https://img.shields.io/npm/dm/th-memory-mcp.svg)](https://www.npmjs.com/package/th-memory-mcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-brightgreen.svg)](https://nodejs.org)
+## ได้อะไรจากโปรเจกต์นี้
 
-[![th-memory-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp/badges/score.svg)](https://glama.ai/mcp/servers/worakorn-prince/th-memory-mcp)
-[![Th Memory MCP on mcprush](https://mcprush.com/badge/th-memory-mcp/score.svg)](https://mcprush.com/to/th-memory-mcp?ref=badge)
-[![Audited by AddonAudit](https://addonaudit.com/badges/audited.svg)](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/)
+| | |
+|---|---|
+| 🧠 **16 MCP tools** | `remember`, `recall`, `get_context`, `get_profile`, `save_lesson`, `consolidate`, `link_memory`, `merge_memory`, `update_memory`, `forget`, `search_history`, `get_recent_interactions`, `memory_stats`, `export_memory`, `import_memory`, `extract_memories` |
+| 🔎 **ค้นหาแบบ hybrid** | FTS5 (ตัดคำไทย, ทนวรรณยุกต์ผิด) ผสานกับ vector 512 มิติด้วย RRF แล้วจัดอันดับใหม่ด้วย confidence/importance/recency/scope |
+| 🕰 **เข้าใจเวลาและความขัดแย้ง** | ช่วงความถูกต้อง (validity), supersession, แยก duplicate/contradiction — ข้อมูลที่กำกวมถูกเก็บไว้ ไม่ลบเงียบ ๆ |
+| 🔌 **ใช้ได้กับหลาย harness** | plugin OpenCode (capture อัตโนมัติ), Claude Code hooks, Codex, Cursor, Qwen Code, DeepSeek Harness ผ่าน MCP |
+| 🔐 **ความปลอดภัยแบบ opt-in** | RBAC ทุกเครื่องมือ, แยกขอบเขตตาม identity พร้อม grant, `audit_log` ที่ไม่เก็บเนื้อหา, เข้ารหัสทั้ง DB ด้วย SQLCipher พร้อม rotate/backup/drill |
+| 📴 **ออฟไลน์โดยค่าเริ่มต้น** | ไม่เรียกเครือข่าย ไม่มีบัญชี ไม่ต้องใช้ API key — ข้อมูลอยู่ในไฟล์เดียวในเครื่อง |
 
-</div>
-
-MCP server ความจำระยะยาวสำหรับ OpenCode — เก็บ preferences, lessons และประวัติการใช้งานลง SQLite ไฟล์เดียว (local 100%, ไม่มี external API) ให้ AI ปรับตัวกับคุณผ่าน context-based learning
-
-> English: [README.md](README.md)
-
-## Requirements (ความต้องการระบบ)
-
-- **Node.js 22.23.4+, 24.22.1+ หรือ 26.12.1+ และ npm** — เฉพาะรุ่นที่ได้รับ patch; server ใช้ API เฉพาะของ Node (`better-sqlite3` native build, `import.meta.url`); CI ทดสอบรุ่น patch ขั้นต่ำของแต่ละ line (22/24/26); Node 20 EOL แล้ว เม.ย. 2026 และไม่รองรับ — ติดตั้ง dependencies และรัน build/test ด้วย npm (`npm install`, `npm run build`, `npm test`); ไม่ต้องมี external services, บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite เดียวในเครื่อง
-- **OpenCode** — โปรแกรมหลักที่โหลด MCP server และ plugin auto-capture (รองรับ MCP over stdio + plugins); plugin ใช้ `node:sqlite` บน OpenCode Desktop/Node 22.5+ และ fallback ไป `bun:sqlite` บน CLI ที่ใช้ Bun
-- **OS: Windows / macOS / Linux** — ข้ามแพลตฟอร์ม (Node); Windows ตั้ง `MEMORY_DB_PATH` ด้วย `setx`, macOS/Linux ใช้ `export` ใน shell profile
-
-> **ความปลอดภัย:** ใช้ Node.js รุ่นที่ได้รับ patch — ตรวจ runtime ด้วย `npx is-my-node-vulnerable`; `npm audit` ครอบคลุมเฉพาะ dependencies ของ npm ไม่ครอบคลุม CVE ใน Node.js core
-
-> **การตรวจสอบ:** ผ่านการ audit โดย [AddonAudit](https://addonaudit.com/addon/io-github-worakorn-prince-th-memory-mcp/) — v2.4.3 ผ่านทุกข้อที่เผยแพร่ด้วย 0 advisories (critical/high/medium/low, ตรวจเมื่อ 9 พ.ย. 2026) เป็นการทดสอบอัตโนมัติ ไม่ใช่การรับประกันความปลอดภัย
-
-## Quick Start (เริ่มใช้งานไว)
-
-**ทางที่เร็วที่สุด:** `npm run quickstart` (หลัง clone) — build, ต่อไฟล์ `opencode.json`/`opencode.jsonc`, วาง plugin และตั้ง `MEMORY_DB_PATH` ให้ในคำสั่งเดียว (ขั้นตอนด้านล่างคือสิ่งที่สคริปต์ทำ) **ติดตั้งผ่าน npm (อีกทาง):** `npm install -g th-memory-mcp` (หรือ `npx th-memory-mcp`) แล้วชี้ `mcp.command` ไปที่ `th-memory-mcp` แทน `dist/index.js` (plugin ยังมาจาก repo นี้; ไม่พับลิชขึ้น GitHub Packages แล้ว)
+## ติดตั้งใน 60 วินาที
 
 ```bash
-# 1. Clone และ build
 git clone https://github.com/worakorn-prince/th-memory-mcp.git
 cd th-memory-mcp && npm install && npm run build
-# 2. ให้ server และ plugin ใช้ DB เดียวกัน (Windows; macOS/Linux ใช้ export แบบบรรทัดล่าง)
-setx MEMORY_DB_PATH "$PWD/data/memory.db"      # Windows (PowerShell)
-# export MEMORY_DB_PATH="$PWD/data/memory.db"  # macOS/Linux — เพิ่มใน shell profile (~/.zshrc)
+
+# ใช้ DB ไฟล์เดียวร่วมกันระหว่าง server และ plugin
+setx MEMORY_DB_PATH "%CD%\data\memory.db"          # Windows
+# export MEMORY_DB_PATH="$PWD/data/memory.db"      # macOS/Linux (ใส่ใน shell profile)
 ```
 
-3. Merge นี่เข้า `~/.config/opencode/opencode.json` (แทน `<REPO>` ด้วย path เต็มของโฟลเดอร์ที่ clone; บล็อกสำเร็จรูปดู [`opencode.example.json`](opencode.example.json)) — `MEMORY_DB_PATH` ต้องชี้ไฟล์ DB เดียวกันทั้ง server และ plugin:
+จากนั้นลงทะเบียน MCP server ด้วยบล็อกสำเร็จรูปที่
+[`setup/opencode.example.json`](setup/opencode.example.json) (หรือรัน `npm run quickstart`)
+กฎความจำตัวอย่าง: [`setup/AGENTS.memory.example.md`](setup/AGENTS.memory.example.md)
 
-```json
-{ "instructions": ["<REPO>/AGENTS.memory.example.md"],
-  "mcp": { "memory": { "type": "local", "command": ["node", "<REPO>/dist/index.js"], "enabled": true, "environment": { "MEMORY_DB_PATH": "<REPO>/data/memory.db" } } } }
-```
+## เอกสาร
 
-4. (Optional) เปิด auto-capture: deploy plugin แบบ dual-mode ลง **โฟลเดอร์** (OpenCode V2 auto-discover local plugin จากโฟลเดอร์เท่านั้น) — `src/plugin/learning-capture.ts` → `~/.config/opencode/plugins/learning-capture/index.ts`
-5. **Restart OpenCode** (config โหลดตอน start เท่านั้น) แล้วลองใช้: *"จำไว้ว่าฉันชอบใช้ pnpm"* → เปิด session ใหม่ → *"ฉันชอบ package manager อะไร?"*
+| หัวข้อ | ที่ไหน |
+|---|---|
+| **เอกสารฉบับเต็ม** — ความต้องการระบบ, สถาปัตยกรรม, เครื่องมือทุกตัว, CLI, การใช้งานประจำวัน | [`docs/Docs.th.md`](docs/Docs.th.md) |
+| Full documentation (English) | [`docs/Docs.md`](docs/Docs.md) |
+| การยืนยันตัวตน, RBAC และการแยกขอบเขตข้อมูล | [docs/Docs.th.md § ความปลอดภัย](docs/Docs.th.md#ความปลอดภัย-opt-in) |
+| เข้ารหัสฐานข้อมูล, rotate key, backup / verify / restore / drill | [docs/Docs.th.md § การเข้ารหัส](docs/Docs.th.md#การเข้ารหัสฐานข้อมูล-encryption-at-rest-opt-in) |
+| Threat model และความเสี่ยงที่เหลือ | [`SECURITY.md`](SECURITY.md) |
+| อัปเกรดจาก 2.x | [`MIGRATION_v3.md`](MIGRATION_v3.md) |
+| ผลวัดประสิทธิภาพ | [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) |
+| รายละเอียด Thai search (ใช้ซ้ำได้) | [`docs/thai-fts.md`](docs/thai-fts.md) |
+| ประวัติการเปลี่ยนแปลง | [`CHANGELOG.md`](CHANGELOG.md) |
 
-plugin ไฟล์เดียวรองรับทั้งสองโหมด: OpenCode V2 เรียก `id` + `setup(ctx)` จาก default export (ลงทะเบียน domain hooks สำหรับ prompt/tool/compaction/event ล้มเหลว) ส่วน V1 (1.18.29+) เรียก `server()` จาก default export เดียวกันเพื่อรับ legacy hook object — ไม่มี runtime import ของ `@opencode/plugin` (ใช้ `import type` เท่านั้น) จึงโหลดได้ทั้ง Node และ Bun
+## ตั้งค่าตามเครื่องมือ
 
-ถ้าตอน start แจ้ง `Failed to load plugin ... Received protocol 'bun:'` หรือ V2 ไม่โหลด plugin เลย แสดงว่าใช้ layout การติดตั้งแบบเก่า — ให้ deploy `src/plugin/learning-capture.ts` ตัวล่าสุดไปที่ `~/.config/opencode/plugins/learning-capture/index.ts`; ไฟล์เก่า `~/.config/opencode/plugins/learning-capture.ts` จะถูก `npm run quickstart` เปลี่ยนชื่อเป็น `.bak-<timestamp>` (ไม่ลบ) และตัว plugin จะลอง `node:sqlite` ก่อนแล้ว fallback ไป `bun:sqlite` เฉพาะตอนรันบน Bun
+| เครื่องมือ | คู่มือ |
+|---|---|
+| OpenCode | [`setup/opencode.example.json`](setup/opencode.example.json) + `npm run quickstart` |
+| Claude Code | [`setup/CLAUDE_CODE_HOOKS.md`](setup/CLAUDE_CODE_HOOKS.md) |
+| Codex | [`setup/CODEX_SETUP.md`](setup/CODEX_SETUP.md) |
+| Cursor | [`setup/CURSOR_SETUP.md`](setup/CURSOR_SETUP.md) |
+| Qwen Code | [`setup/QWEN_SETUP.md`](setup/QWEN_SETUP.md) |
+| DeepSeek Harness | [`setup/DSH_SETUP.md`](setup/DSH_SETUP.md) |
 
-## สถาปัตยกรรม
+## ความปลอดภัยในย่อหน้าเดียว
 
-OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-mode V1/V2, Node/Bun) — จับ prompt/tool/error ลง DB อัตโนมัติและฉีด profile กลับตอน compaction — และ **MCP server** `th-memory-mcp` (Node stdio) เปิด 16 tools บน SQLite DB เดียวกัน; กฎกลาง (`memory-protocol.md`) สอน AI ให้ใช้ tools
-
-## ทำไมต้องใช้ th-memory-mcp?
-
-- **Context-based learning, local 100%** — จับความชอบ/การถูกแก้/พฤติกรรม แล้วเรียกกลับเข้า context ครั้งหน้า โดยไม่ส่งข้อมูลออกนอกเครื่อง; SQLite ไฟล์เดียว ไม่มีคลาวด์/external API และกรอง secret (`api_key=`, `password:`, `token`) ก่อนบันทึกเสมอ
-- **เบา ทนทาน เปิดกว้าง** — tool calls มีเพดาน (ขนาด output จำกัด, ระดับ ms ที่ DB ขนาดปกติ) และ graceful degradation เมื่อ DB ไม่พร้อม; ที่ 20,000 memories `retrieve` ใช้ ~90 ms — ดู [docs/PERFORMANCE.md](docs/PERFORMANCE.md); Node + `better-sqlite3` เท่านั้น; MIT license, 16 tools, rule-based distill, plugin auto-capture
-- **Lifecycle & temporal** — states (active/stale/superseded/archived), confidence/importance/salience, decay ต่อ type, validity intervals รองรับ point-in-time truth และ supersession chains
-- **Conflict-aware & consolidation** — ตรวจจับ duplicate/contradiction และเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้ง; คลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from`)
-- **Hybrid retrieval & ไทย** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion) แบบ token budget พร้อมขยายผ่าน memory graph; tokenize ไทยใน distill และ Thai-aware FTS5 แบ่งคำไทยด้วย `Intl.Segmenter` + tokenizer ที่เก็บวรรณยุกต์/สระไว้ใน token ทำให้ค้นคำไทยในข้อความที่เขียนติดกันได้ และวรรณยุกต์ยังมีผลต่อการ match (`ติดตัง` ≠ `ติดตั้ง`); มีช่องแบบทนวรรณยุกต์ (`looseForm`), คำพ้อง TH↔EN และพจนานุกรมไทยส่วนตัว นำกลับไปใช้ standalone ได้ผ่าน CLI ไร้ dependency `thai-fts` ([docs/thai-fts.md](docs/thai-fts.md)); รับไทย/อังกฤษสลับกันได้
-
-## Performance (ประสิทธิภาพ)
-
-วัดด้วย benchmark harness ภายในที่ **20,000 memories / 5,000 queries** (เครื่องเดียวกัน, seed เดียวกัน) — ตัวเลขสัมบูรณ์ขึ้นกับเครื่อง แต่ทิศทางของส่วนต่างทำซ้ำได้; วิธีวัดและ trade-off ทั้งหมดอยู่ที่ **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**
-
-| metric | 2.5.1 | 2.5.2 | Δ |
-|---|---:|---:|---:|
-| ความเร็วการเขียน | 73.6 mem/s | **320.5 mem/s** (320–352 ตามรอบ) | **+335%** |
-| `retrieve` (20k memories) | 363 ms | **90 ms** | −75% |
-| `get_context` (20k memories) | 357 ms | **86 ms** | −76% |
-| `recall` p95 | 3 ms | **1 ms** | −67% |
-| คุณภาพการค้น (scope / supersession / MRR) | 100% / 100% / 0.955 | ไม่เปลี่ยน | — |
-
-แก้ที่ต้นเหตุ 2 จุด ไม่ใช่จูนค่า: การเขียน index บน FTS5 เคยสแกนทั้งตารางต่อ record (ทำให้ write เป็น O(n) ตามขนาด DB) และการค้นทุกครั้งเคยอ่าน+decode embedding BLOB ทั้งหมดใหม่ — cache ฝั่งค้นเป็นการสแกนแบบ **exact** (ไม่ใช่ ANN/ประมาณผล) จำกัดด้วย `MEMORY_VECTOR_CACHE_MB` (default 64 MB, `0` = ปิด)
-
-## Scripts
-
-| คำสั่ง | คำอธิบาย |
-|-------|----------|
-| `npm run build` | compile TypeScript → `dist/` |
-| `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
-| `npm run distill` | interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | build + เทสทั้งชุด (57 ไฟล์, 255 tests: ผ่าน 254, skip 1) |
-| `node test/<name>.test.mjs` | รันทีละ suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security` |
-| `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (16 tools) |
-
-## Tools (16)
-
-| Tool | คำอธิบาย |
-|------|----------|
-| `remember` | upsert preference (category+key); ยืนยันซ้ำ +0.1 confidence (cap 1.0) |
-| `recall` | ค้น preferences + lessons (FTS5) + interactions ล่าสุดที่ match — ใช้ก่อนเริ่มงานใหม่ |
-| `get_profile` | profile sections + top preferences + lessons ล่าสุด 5 รายการ |
-| `save_lesson` | บันทึกบทเรียนจากการถูกแก้ (situation / mistake / correction) |
-| `search_history` | ค้น prompt เก่าด้วย keyword (snippet 200 chars) |
-| `forget` | ลบ row เดียว (preference/lesson/interaction) ตาม id (+type กัน id ชนข้ามตาราง) |
-| `memory_stats` | counts แยก kind, ขนาด DB, interaction เก่า/ใหม่สุด, profile sections |
-| `get_recent_interactions` | interactions ล่าสุดแบบดิบ (กรองตาม kind) — วัตถุดิบของ Smart Distill |
-| `export_memory` | export เป็น JSON ลง `data/exports/` เท่านั้น (sanitize filename) |
-| `get_context` | ประกอบความจำที่เกี่ยวข้องผ่าน hybrid retrieval (+ ขยายผ่าน graph), token budgeting |
-| `consolidate` | คลัสเตอร์ความจำที่คล้ายกันด้วย embedding; สร้าง derived memory ผูกด้วย `derived_from` ได้ |
-| `link_memory` | ลิงก์แบบมีประเภทระหว่างความจำสองอัน: supports/contradicts/supersedes/derived_from/related_to/caused_by/depends_on |
-| `merge_memory` | รวมความจำซ้ำเข้า canonical (ต้นทาง superseded; provenance ใน `metadata.merged_from`) |
-| `update_memory` | แก้ฟิลด์ที่เปลี่ยนได้ในที่ หรือสร้างความจำแทนที่เมื่อ `content` เปลี่ยน (`supersede=false` = แก้ในที่) |
-| `import_memory` | นำเข้าจาก JSON (ตรวจ type, dedup, ไม่เขียนทับมืดบอด); dry-run by default, `apply=true` เพื่อเพิ่ม |
-| `extract_memories` | สแกน interactions หาเจตนาบันทึกความจำ เสนอ candidates (ไม่ใช้ LLM); dry-run, `apply=true` เพื่อสร้าง (source=captured) |
-
-## CLI (`th-memory`)
-
-ไบนารี 2 ตัวใน `package.json` (`bin`): `th-memory-mcp` — MCP server (stdio) จาก `dist/index.js` (tools 16 ตัวข้างบน) และ `th-memory` — CLI ภายในเครื่องแบบ zero-dep (`dist/cli.js`, ใช้ DB เดียวกันผ่าน `MEMORY_DB_PATH`)
-
-วิธีใช้: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — help รายคำสั่ง: `th-memory <command> --help`; `highlight`/`recall --highlight` ขีดเส้นใต้ส่วนที่ตรง (`ESC[4m`) บน TTY สี มิฉะนั้นใช้ `[mem]`…`[/mem]` (pipe, `--plain`, `--json`)
-
-| แฟล็ก | ผล |
-|------|-----|
-| `--db <path>` | ใช้ไฟล์ SQLite นี้ (ตั้งค่า `MEMORY_DB_PATH`) |
-| `--json` | พิมพ์ JSON `{ok,data}` แทนข้อความธรรมดา |
-| `--plain` / `--no-color` | ปิดสี |
-| `-h, --help` / `-V, --version` | แสดง help / เวอร์ชัน |
-
-| คำสั่ง | วิธีใช้ |
-|--------|---------|
-| `remember` | `remember --category <c> --key <k> --value <v\|->` — บันทึก preference (`--value -` อ่านจาก stdin) |
-| `recall` | `recall <topic> [--limit <n>] [--highlight]` — ค้นความจำ |
-| `forget` | `forget <id> [--type <t>]` — ลบตาม id (`t`: `memory\|preference\|lesson\|interaction`) |
-| `export` | `export [--include-interactions] [--filename <n>]` — export ไป `data/exports/*.json` |
-| `import` | `import (--file <p>\|--json <s>) [--apply] [--user-id <id>]` — นำเข้า backup (dry-run by default) |
-| `stats` / `profile` | `stats` — สถิติความจำ; `profile` — โปรไฟล์ผู้ใช้ที่กลั่นแล้ว |
-| `history` | `history [--query <q>] [--limit <n>]` — ค้น prompt เก่า (ไม่ใส่ query = ล่าสุด) |
-| `recent` | `recent [--limit <n>] [--kind <k>]` — interactions ล่าสุด (`k`: `prompt\|tool_call\|error`) |
-| `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — ไฮไลต์คำที่ match (ไม่ใส่ text = อ่านจาก stdin) |
-
-```bash
-th-memory remember --category coding_pref --key package_manager --value pnpm
-echo "I prefer pnpm for installs" | th-memory highlight -q pnpm
-```
-
-## ติดตั้งกับ OpenCode
-
-จุดเพิ่มเติมจาก Quick Start: ตั้ง `MEMORY_DB_PATH` เป็น env var ระดับระบบ/ผู้ใช้ (เช่น `setx MEMORY_DB_PATH "D:/path/to/memory.db"`) จะครอบทั้ง server และ plugin โดยอัตโนมัติทุกโปรเจกต์ (plugin รันใน process เดียวกับ OpenCode); ส่วน `environment` ใน mcp ครอบเฉพาะ server — ใช้ [`opencode.example.json`](opencode.example.json) เป็นบล็อกสำเร็จรูป (global หรือ project) และกฎความจำตัวอย่างใน [`AGENTS.memory.example.md`](AGENTS.memory.example.md) (แนบระดับโปรเจกต์แทนได้)
-
-## ใช้งานกับ DeepSeek Harness (dsh)
-
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`, agent harness แบบ everything-is-a-plugin ของ DeepSeek AI) มี MCP client ในตัว (`@deepseek-ai/dsh-mcp-client`) — ต่อ th-memory-mcp ผ่าน MCP bridge ได้โดยไม่ต้องเขียนปลั๊กอิน: 16 tools ถูก expose เป็น `mcp__memory__<tool>` (เช่น `mcp__memory__remember`)
-
-**ไม่ซ้ำซ้อน** — dsh มีความจำระดับ session (session persistence, compaction, ค้น session เก่า) แต่ตั้งใจ delegate **ความจำระยะยาวข้าม session** ไปยัง memory MCP server (ซึ่งคือจุดที่ th-memory-mcp ถนัด: hybrid retrieval, conflict/temporal, ภาษาไทย)
-
-วิธีติดตั้ง: [DSH_SETUP.md](DSH_SETUP.md) · ไฟล์ patch สำเร็จรูป: [`dsh/cordis.memory.example.yml`](dsh/cordis.memory.example.yml)
-
-> dsh ยังเป็น developer preview (มี breaking changes ได้) — ใช้ช่อง MCP bridge ซึ่งเป็นขอบเขตที่เสถียร; auto-capture แบบ `learning-capture` ยังไม่รองรับบน dsh — ใช้การเรียก `mcp__memory__*` ชัดเจน + model instruction สั้นๆ แทน เหมือน Cursor/Codex
-
-## การใช้งานประจำวัน
-
-AI รับไทย/อังกฤษสลับกันได้ตลอด; ดูแลระยะยาว: รัน `npm run distill` เป็นครั้งคราวเพื่อสรุปสถิติ + ลบ interactions เก่าเกิน 30 วัน
-
-- "จำไว้ว่า..." / "Remember that..." → `remember` — บันทึกความชอบ
-- "สรุปความจำ" / "Summarize memory" / "distill memory" → **Smart Distill** — AI อ่าน `get_recent_interactions` วิเคราะห์ pattern แล้วบันทึก insight เอง
-- "ระบบความจำเป็นไงบ้าง" / "memory status" → `memory_stats`
-- "สำรองความจำ" / "Export memory" → `export_memory`
-- "ค้นประวัติ..." / "Search history..." → `search_history` · "ลืม..." / "Forget..." → `forget`
-
-## โครงสร้าง data/
-
-```
-data/
-├── memory.db          # SQLite (WAL mode) — DB หลัก (+ .db-wal, .db-shm); override path ได้ผ่าน MEMORY_DB_PATH
-└── exports/           # ไฟล์ JSON จาก tool export_memory (เขียนได้เฉพาะ dir นี้); นอกนั้นใน data/ ถูก git ignore
-```
+ถ้าไม่ตั้ง environment variable ใด ๆ เซิร์ฟเวอร์ทำงานเหมือน 2.5.x ทุกประการ: ไม่มี auth, DB เป็น plaintext,
+ไม่มี I/O เพิ่ม. ความปลอดภัยเป็น opt-in และแยกจากกัน: `MEMORY_AUTH=on` เพิ่ม identity ที่ตรวจสอบได้,
+role gate เดียวครอบทั้ง 16 tools, การแยกขอบเขตตาม identity พร้อม grant ที่ชัดเจน และ `audit_log`;
+`MEMORY_ENCRYPTION=on` เข้ารหัสทั้งฐานข้อมูล (SQLCipher ผ่าน `better-sqlite3-multiple-ciphers`)
+พร้อม `db rekey`, `db verify-backup`, `db restore`, `db drill`.
+รายละเอียดและความเสี่ยงที่เหลือ: [`SECURITY.md`](SECURITY.md)
 
 ## License
 
-[MIT](LICENSE) © 2026 worakorn-prince — อ่านข้อความฉบับเต็มได้ในไฟล์ [LICENSE](LICENSE)
+[MIT](LICENSE) © 2026 worakorn-prince

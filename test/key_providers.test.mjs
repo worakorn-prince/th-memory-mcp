@@ -69,7 +69,14 @@ function env(extra) {
 
 function writeKeyFile(name, contents) {
   const path = join(workDir, name);
-  writeFileSync(path, contents, "utf8");
+  // 0600 so the POSIX group/world-readable warning does not fire in tests that
+  // assert an otherwise empty stderr. Windows has no file modes.
+  writeFileSync(path, contents, { encoding: "utf8", mode: 0o600 });
+  try {
+    chmodSync(path, 0o600);
+  } catch {
+    /* best effort on platforms without POSIX modes */
+  }
   return path;
 }
 

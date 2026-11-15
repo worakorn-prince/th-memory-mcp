@@ -51,12 +51,12 @@ jobs:
           MEMORY_ENCRYPTION_KEY: ''
         run: |
           set -o pipefail
-          if node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs; then
+          if node scripts/run-tests.mjs --test-concurrency=1 test/*.test.mjs test/smoke.mjs; then
             echo "tests passed on first run"
             exit 0
           fi
           echo "first run failed; retrying once to rule out a load-induced flake"
-          node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
+          node scripts/run-tests.mjs --test-concurrency=1 test/*.test.mjs test/smoke.mjs
 
   encrypted:
     name: Encrypted DB (Ubuntu / Node 26)
@@ -80,7 +80,7 @@ jobs:
           set -o pipefail
           export MEMORY_ENCRYPTION=on
           export MEMORY_ENCRYPTION_KEY="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64'))")"
-          node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
+          node scripts/run-tests.mjs --test-concurrency=1 test/*.test.mjs test/smoke.mjs
 
   authenticated:
     name: Auth + scope (Ubuntu / Node 26)
@@ -108,7 +108,7 @@ jobs:
           TOKEN="$(node dist/cli.js auth issue-token ci-runner --label ci)"
           export MEMORY_AUTH=on
           export MEMORY_AUTH_TOKEN="$TOKEN"
-          node --test --test-concurrency=1 \
+          node scripts/run-tests.mjs --test-concurrency=1 \
             test/auth_identity.test.mjs \
             test/auth_guard.test.mjs \
             test/auth_policy.test.mjs \

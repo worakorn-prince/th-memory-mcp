@@ -19,13 +19,20 @@
   "files": [
     "dist",
     "docs/thai-fts.md",
+    "docs/PERFORMANCE.md",
+    "docs/Docs.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
     "SECURITY.md",
-    "opencode.example.json",
-    "AGENTS.memory.example.md",
-    "docs/PERFORMANCE.md"
+    "setup/opencode.example.json",
+    "setup/AGENTS.memory.example.md",
+    "setup/CLAUDE_CODE_HOOKS.md",
+    "setup/CODEX_SETUP.md",
+    "setup/CURSOR_SETUP.md",
+    "setup/DSH_SETUP.md",
+    "setup/QWEN_SETUP.md",
+    "setup/dsh/cordis.memory.example.yml"
   ],
   "scripts": {
     "build": "tsc",
@@ -36,7 +43,7 @@
     "typecheck:plugin": "tsc -p tsconfig.plugin.json",
     "start": "node dist/index.js",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
-    "test": "npm run build && node --test test/*.test.mjs test/smoke.mjs",
+    "test": "npm run build && node scripts/run-tests.mjs --test-concurrency=1 test/*.test.mjs test/smoke.mjs",
     "distill": "node dist/distill.js",
     "scrub-secrets": "node dist/scrub-cli.js",
     "quickstart": "npm run build && node scripts/quickstart.mjs",

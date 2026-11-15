@@ -34,7 +34,7 @@ const pluginDst = join(pluginsDir, "learning-capture", "index.ts");
 const legacyPluginDst = join(pluginsDir, "learning-capture.ts");
 const opencodeJsonc = join(opencodeDir, "opencode.jsonc");
 const opencodeJson = join(opencodeDir, "opencode.json");
-const instructionsPath = join(repoRoot, "AGENTS.memory.example.md");
+const instructionsPath = join(repoRoot, "setup", "AGENTS.memory.example.md");
 
 const log = (m) => console.log(`[quickstart] ${m}`);
 const warn = (m) => console.warn(`[quickstart] WARNING: ${m}`);

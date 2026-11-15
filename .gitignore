@@ -47,3 +47,5 @@ run_dashboard.bat
 run_dashboard.sh
 scripts/*.py
 scripts/run_dashboard.ps1
+!docs/Docs.md
+!docs/Docs.th.md
