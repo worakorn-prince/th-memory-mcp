@@ -2,24 +2,125 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, main]
   pull_request:
-    branches: [master]
+    branches: [master, main]
+  release:
+    types: [published]
 
 jobs:
   test:
-    name: test (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    name: Test Node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
-        node-version: [22.23.4, 24.22.1, 26.12.1]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ['22', '24', '26']
+        include:
+          # Additional Windows-specific setup
+          - os: windows-latest
+            node: '22'
+            npm_args: ''
+          - os: windows-latest
+            node: '24'
+            npm_args: ''
+          - os: windows-latest
+            node: '26'
+            npm_args: ''
+      fail-fast: false
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        shell: bash
+
+      - name: Build
+        run: npm run build
+        shell: bash
+
+      - name: Run tests
+        run: npm test
+        shell: bash
+        env:
+          # Disable encryption/auth for baseline tests
+          MEMORY_AUTH: ''
+          MEMORY_ENCRYPTION: ''
+
+      # Test with encryption enabled (opt-in)
+      - name: Run tests with encryption enabled
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '26'
+        run: |
+          # Generate test key
+          TEST_KEY=$(openssl rand -base64 32)
+          MEMORY_ENCRYPTION=on MEMORY_ENCRYPTION_KEY=$TEST_KEY npm test
+        shell: bash
+
+      # Test with auth enabled (opt-in)
+      - name: Run tests with auth enabled
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '26'
+        run: |
+          # Setup test users and tokens via CLI
+          node dist/cli.js auth add-user testuser --role writer
+          TOKEN=$(node dist/cli.js auth issue-token testuser --label test)
+          MEMORY_AUTH=on MEMORY_AUTH_TOKEN=$TOKEN npm test
+        shell: bash
+
+  lint:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
+          node-version: '26'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+      - name: Capture sync check
+        run: npm run check:capture-sync
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: 'npm'
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --audit-level=moderate || true
+
+  release:
+    name: Release
+    needs: [test, lint, audit]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm run build
       - run: npm test
+      - name: Publish to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

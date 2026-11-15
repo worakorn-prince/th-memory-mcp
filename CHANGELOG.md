@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-16
+
+### Security — Encryption at Rest (Phase 4, opt-in)
+
+- **Whole-DB encryption via SQLCipher** — `better-sqlite3-multiple-ciphers@13.1.1` replaces `better-sqlite3`; entire database file (including WAL/SHM) encrypted via AES-256-CBC.
+- **One-time migration** — existing plaintext DB automatically migrated on first startup with `MEMORY_ENCRYPTION=on` via manual schema+data copy (no `sqlcipher_export`); idempotent via `schema_meta` marker.
+- **All data encrypted** — main DB, WAL, SHM, FTS5 indexes, vector embeddings, `interactions` table (with `user_id` column from Ph-3).
+- **Backup** — `VACUUM INTO` produces encrypted backup; restore by replacing file + same key.
+- **Key management** — `MEMORY_ENCRYPTION_KEY` (base64-encoded 32 bytes) required when `MEMORY_ENCRYPTION=on`; fail-fast exit 2 if missing/invalid. Optional `MEMORY_ENCRYPTION_KDF_ITER` (default 256000).
+- **Cipher** — AES-256-CBC (SQLCipher default), page size 4096.
+- **Default (off)** — byte-identical to v2.5.2/Ph-3 (plaintext DB, no encryption overhead, no native build dependency if `better-sqlite3` already installed).
+
+### Authorization & Scope Isolation (Phase 3)
+
+- **Identity-derived scope binding** — `bindScopeToIdentity()` resolves scope from verified `AuthIdentity`; caller-supplied `userId`/`sessionId`/`projectId` are checks, never authority.
+- **Grants** — `scope_grants` table (`grantee_user_id`, `scope_kind` ∈ USER|PROJECT|SESSION|GLOBAL, `scope_ref`, `permission` ∈ read|write); managed by CLI: `th-memory grant add|remove|list`. Grants non-escalatable: read never implies write.
+- **Read filtering** — `recall`/`get_profile` filter `preferences`/`lessons` by `user_id IS NULL OR user_id = uid`. `search_history`/`get_recent_interactions`/`recall` filter `interactions` by `user_id = uid` (NULL visible to owner/admin only). `export_memory` exports only visible rows.
+- **Capture attribution** — optional `MEMORY_CAPTURE_USER=<external_id>` tags new `interactions` rows (unknown → NULL, never mint). NULL interactions are owner/admin-only in enforcement.
+- **Audit** — `audit_log` records every enforced decision (allow + deny) with bounded, content-free fields (`tool`, `kind`, `decision`, `reason`, `scope_kind`, `scope_ref`). Legacy mode writes no audit rows.
+- **FILTER_ONLY_SCOPE_TOOLS** — `search_history` and `get_recent_interactions` accept `sessionId` as pure row filter (no grant required, row set already bounded by `user_id`).
+- **CLI** — `th-memory grant add|remove|list`, `th-memory auth backfill-interactions --user <id> [--session <id>]`.
+
+### Authorization (Phase 2)
+
+- **Single choke point** — `withAuth` wraps all 16 MCP tools; structural default-deny at registration; role gate before handler.
+- **Role matrix** — `reader` (6 read), `writer` (+4 additive writes), `owner` (+6 destructive), `admin` (all 16).
+- **Deny shape** — bounded `isError: true` tool result (not thrown MCP error); no caller role echo.
+- **Audit replaces deny trail** — Ph-2's stderr deny trail removed; structured `audit_log` is the single audit mechanism.
+
+### Authentication (Phase 1)
+
+- **Opt-in identity** — `MEMORY_AUTH=on` enables env-only identity; tokens via `MEMORY_AUTH_TOKEN`/`MEMORY_AUTH_TOKEN_FILE`.
+- **Hash-only storage** — `sha256(token)` in `auth_tokens`; plaintext printed once by `th-memory auth issue-token`.
+- **Fail-fast** — missing/invalid/revoked token → exit 2, bounded stderr.
+- **No user minting** — enforced mode throws for unknown `userId`; `import_memory` never restores payload users.
+- **CLI** — `th-memory auth add-user|issue-token|list|revoke|backfill-interactions`.
+
+### Security
+
+- **Encryption at rest (opt-in)** — whole-DB encryption via SQLCipher (see Security section above).
+- **Dependency audit** — `npm audit --omit=dev --audit-level=high` passes (0 vulnerabilities); `better-sqlite3-multiple-ciphers@13.1.1` pinned.
+
+### Dependency Updates
+
+- `better-sqlite3` → `better-sqlite3-multiple-ciphers@13.1.1` (SQLCipher support)
+- `npm audit fix` applied — hono moderate vulnerabilities resolved
+
+### Verification
+
+- `npm run build` — exit 0
+- `npm run version:check` — exit 0
+- `npm test` — 396 tests, 395 pass, 0 fail, 1 skip (pre-existing boot-ready race flake)
+- `npm audit --omit=dev --audit-level=high` — exit 0, 0 vulnerabilities
+- `npm audit --omit=dev` — 0 vulnerabilities at all severities
+- `npm run check:capture-sync` — exit 0 (14 SECRET_PATTERNS, limits in sync)
+
+### Known Limitations
+
+- **Encryption is application-layer** — OS-level file access with key access bypasses app-level checks. Defense-in-depth: OS full-disk encryption + restricted key access.
+- **Key in process memory** — no HSM/TPM integration; key rotation not supported.
+- **No key rotation** — changing key requires full re-encryption (dump → re-encrypt → restore).
+- **Backup encrypted with same key** — if key compromised, all backups compromised.
+- **Not a full boundary until OS-level isolation** — scope isolation + encryption is application-layer; OS-level DB file access bypasses app-level checks.
+
+---
+
+## [2.5.2] - 2026-11-12
+
 ## [2.5.2] - 2026-11-12
 
 ### Performance
