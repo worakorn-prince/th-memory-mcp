@@ -320,7 +320,16 @@ test("CLI auth revoke by hash prefix disables the token", () => {
   assert.match(revoked.stdout, /revoked [0-9a-f]{12}/);
   assert.ok(!revoked.stdout.includes(aliceToken));
 
-  assert.equal(resolveIdentityLengthSafe(aliceToken), false);
+  // Verify through the CLI's own read path: each `cli()` call is a fresh
+  // process with a fresh connection, so this does not depend on the test
+  // process's long-lived connection observing another process's write.
+  const listed = cli(["auth", "list", "--json"]);
+  assert.equal(listed.status, 0, `list failed: ${listed.stderr}`);
+  const listedData = JSON.parse(JSON.parse(listed.stdout).data);
+  const row = listedData.tokens.find((t) => t.hash_prefix === prefix);
+  assert.ok(row, `revoked row must still be listed: ${listed.stdout}`);
+  assert.equal(row.revoked, true, "token must be marked revoked");
+
   const child = resolveInChild({ MEMORY_AUTH: "on", MEMORY_AUTH_TOKEN: aliceToken });
   assert.notEqual(child.status, 0);
   assert.match(child.stderr, /authentication failed/);
@@ -344,11 +353,16 @@ test("CLI auth revoke by label works; unknown target fails", () => {
   const issued = cli(["auth", "issue-token", "alice", "--label", "phone"]);
   assert.equal(issued.status, 0, `issue-token failed: ${issued.stderr}`);
   const phoneToken = issued.stdout.trim();
-  assert.equal(resolveIdentityLengthSafe(phoneToken), true);
+
+  // Resolve in a fresh process so the check does not depend on the test
+  // process's own connection seeing another process's write.
+  const valid = resolveInChild({ MEMORY_AUTH: "on", MEMORY_AUTH_TOKEN: phoneToken });
+  assert.equal(valid.status, 0, `fresh token must resolve: ${valid.stderr}`);
 
   const revoked = cli(["auth", "revoke", "phone"]);
   assert.equal(revoked.status, 0, `revoke by label failed: ${revoked.stderr}`);
-  assert.equal(resolveIdentityLengthSafe(phoneToken), false);
+  const afterRevoke = resolveInChild({ MEMORY_AUTH: "on", MEMORY_AUTH_TOKEN: phoneToken });
+  assert.notEqual(afterRevoke.status, 0, "revoked token must not resolve");
 
   const unknown = cli(["auth", "revoke", "no-such-token"]);
   assert.notEqual(unknown.status, 0);
@@ -558,13 +572,21 @@ test("CLI add-user/issue-token strip control characters and cap names/labels at 
   const weirdName = `ok\x1f\x7f${"x".repeat(150)}`;
   const added = cli(["auth", "add-user", "sanitized", "--name", weirdName]);
   assert.equal(added.status, 0, `add-user failed: ${added.stderr}`);
-  const user = getUserByExternalId("sanitized");
-  assert.ok(user, "user must exist");
+
+  // Read back through the CLI (fresh process, fresh connection).
+  const listed = cli(["auth", "list", "--json"]);
+  assert.equal(listed.status, 0, `list failed: ${listed.stderr}`);
+  const data = JSON.parse(JSON.parse(listed.stdout).data);
+  const user = data.users.find((u) => u.external_id === "sanitized");
+  assert.ok(user, `user must exist: ${listed.stdout}`);
   assert.equal(user.name, `ok${"x".repeat(98)}`, "control chars stripped, capped at 100");
 
   const labeled = cli(["auth", "issue-token", "alice", "--label", "tab\there"]);
   assert.equal(labeled.status, 0, `issue-token failed: ${labeled.stderr}`);
-  const tokens = listTokens().filter((t) => t.label !== null);
+  const listed2 = cli(["auth", "list", "--json"]);
+  assert.equal(listed2.status, 0, `list failed: ${listed2.stderr}`);
+  const data2 = JSON.parse(JSON.parse(listed2.stdout).data);
+  const tokens = data2.tokens.filter((t) => t.label !== null);
   assert.equal(
     tokens.some((t) => /[\x00-\x1f\x7f]/.test(t.label)),
     false,
