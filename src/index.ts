@@ -27,6 +27,7 @@ import { importMemoryInput, importMemoryHandler } from "./tools/import_memory.js
 import { extractMemoriesInput, extractMemoriesHandler } from "./tools/extract_memories.js";
 import { VERSION } from "./lib/config.js";
 import { resolveIdentity, setIdentity } from "./auth/identity.js";
+import { withAuth } from "./auth/guard.js";
 
 // Identity is resolved once, before any tool is registered, from the process
 // environment only. With MEMORY_AUTH=on a missing/invalid/revoked token is
@@ -57,7 +58,7 @@ server.registerTool(
       "Save or update a user preference (category+key upsert). Re-saving the same key increases confidence by 0.1 (cap 1.0). Returns the row id for forget().",
     inputSchema: rememberInput,
   },
-  (args) => rememberHandler(args)
+  withAuth("remember", (args) => rememberHandler(args))
 );
 
 server.registerTool(
@@ -68,7 +69,7 @@ server.registerTool(
       "Search preferences + lessons via full-text index, plus recent matching interactions. Use before starting a new task.",
     inputSchema: recallInput,
   },
-  (args) => recallHandler(args)
+  withAuth("recall", (args) => recallHandler(args))
 );
 
 server.registerTool(
@@ -79,7 +80,7 @@ server.registerTool(
       "Get the distilled user profile: profile sections, top preferences by confidence (max 15), and the 5 most recent lessons. Optional userId/sessionId/projectId scope the auto-projected memories; without them only GLOBAL memories are included.",
     inputSchema: profileInput,
   },
-  (args) => getProfileHandler(args)
+  withAuth("get_profile", (args) => getProfileHandler(args))
 );
 
 server.registerTool(
@@ -90,7 +91,7 @@ server.registerTool(
       "Record a lesson learned from a correction: what situation, what mistake, what is the correct way. Call immediately after the user corrects your work.",
     inputSchema: saveLessonInput,
   },
-  (args) => saveLessonHandler(args)
+  withAuth("save_lesson", (args) => saveLessonHandler(args))
 );
 
 server.registerTool(
@@ -101,7 +102,7 @@ server.registerTool(
       "Search past user prompts (kind='prompt') by keyword. Returns timestamped snippets truncated to 200 chars each.",
     inputSchema: searchHistoryInput,
   },
-  (args) => searchHistoryHandler(args)
+  withAuth("search_history", (args) => searchHistoryHandler(args))
 );
 
 server.registerTool(
@@ -112,7 +113,7 @@ server.registerTool(
       "Delete one memory row (preference, lesson or interaction) by id and sync the search index. Pass type when you know it (ids from remember are preference ids, from save_lesson are lesson ids).",
     inputSchema: forgetInput,
   },
-  (args) => forgetHandler(args)
+  withAuth("forget", (args) => forgetHandler(args))
 );
 
 server.registerTool(
@@ -123,7 +124,7 @@ server.registerTool(
       "Summarize memory usage: interaction counts by kind, preference/lesson totals, DB file size, oldest/newest interaction timestamps, and profile sections.",
     inputSchema: {},
   },
-  () => memoryStatsHandler()
+  withAuth("memory_stats", () => memoryStatsHandler())
 );
 
 server.registerTool(
@@ -134,7 +135,7 @@ server.registerTool(
       "List recently captured raw interactions (newest first) as [id] ts [kind] content lines. Optionally filter by kind. Use for auditing history or before distilling memory.",
     inputSchema: recentInteractionsInput,
   },
-  (args) => getRecentInteractionsHandler(args)
+  withAuth("get_recent_interactions", (args) => getRecentInteractionsHandler(args))
 );
 
 server.registerTool(
@@ -145,7 +146,7 @@ server.registerTool(
       "Export preferences, lessons, profile (and optionally raw interactions) to a JSON file under data/exports/. Only writes inside that directory. Returns the file path, size in bytes and a JSON preview.",
     inputSchema: exportMemoryInput,
   },
-  (args) => exportMemoryHandler(args)
+  withAuth("export_memory", (args) => exportMemoryHandler(args))
 );
 
 server.registerTool(
@@ -156,7 +157,7 @@ server.registerTool(
       "Assemble relevant memories for the current task via hybrid retrieval (+ optional memory-graph expansion), with token budgeting. Use to load memory into context before a task.",
     inputSchema: contextInput,
   },
-  (args) => contextHandler(args)
+  withAuth("get_context", (args) => contextHandler(args))
 );
 
 server.registerTool(
@@ -167,7 +168,7 @@ server.registerTool(
       "Cluster similar memories via embedding similarity and optionally create derived/consolidated memories linked via 'derived_from'. Use during periodic consolidation.",
     inputSchema: consolidateInput,
   },
-  (args) => consolidateHandler(args)
+  withAuth("consolidate", (args) => consolidateHandler(args))
 );
 
 server.registerTool(
@@ -178,7 +179,7 @@ server.registerTool(
       "Create a typed relationship between two memories in the graph (supports/contradicts/supersedes/derived_from/related_to/caused_by/depends_on).",
     inputSchema: linkMemoryInput,
   },
-  (args) => linkMemoryHandler(args)
+  withAuth("link_memory", (args) => linkMemoryHandler(args))
 );
 
 server.registerTool(
@@ -189,7 +190,7 @@ server.registerTool(
       "Merge a duplicate/near-duplicate memory into a canonical one. The source becomes superseded and provenance is recorded in metadata.merged_from.",
     inputSchema: mergeMemoryInput,
   },
-  (args) => mergeMemoryHandler(args)
+  withAuth("merge_memory", (args) => mergeMemoryHandler(args))
 );
 
 server.registerTool(
@@ -200,7 +201,7 @@ server.registerTool(
       "Update mutable fields (summary/importance/confidence/valid_from/valid_until/metadata) in place. If content changes, a superseding memory is created by default (set supersede=false to edit in place).",
     inputSchema: updateMemoryInput,
   },
-  (args) => updateMemoryHandler(args)
+  withAuth("update_memory", (args) => updateMemoryHandler(args))
 );
 
 server.registerTool(
@@ -211,7 +212,7 @@ server.registerTool(
       "Import memories from a JSON array or a .json file inside data/exports/. Validates type, dedupes against existing memories, and never overwrites active memory blindly. Dry-run by default; pass apply=true to insert.",
     inputSchema: importMemoryInput,
   },
-  (args) => importMemoryHandler(args)
+  withAuth("import_memory", (args) => importMemoryHandler(args))
 );
 
 server.registerTool(
@@ -222,7 +223,7 @@ server.registerTool(
       "Scan recent captured interactions for memory-intent phrases and propose memory candidates (deterministic, no LLM). Dry-run by default; pass apply=true to create them (source=captured).",
     inputSchema: extractMemoriesInput,
   },
-  (args) => extractMemoriesHandler(args)
+  withAuth("extract_memories", (args) => extractMemoriesHandler(args))
 );
 
 function isSupportedHarness(): boolean {

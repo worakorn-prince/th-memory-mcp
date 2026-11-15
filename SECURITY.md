@@ -61,8 +61,25 @@ There is **no authentication or authorization layer enabled by default** in this
 - **Fail-fast** — with `MEMORY_AUTH=on`, a missing, malformed, unknown, or revoked token terminates the server: one bounded line on stderr and exit code 2; stdout stays protocol-clean. There is no plaintext fallback to legacy mode.
 - **No user minting** — with enforcement on, `createMemory` throws for an unknown `userId` and inserts no `users` row (admin CLI only). `import_memory` likewise never restores payload `users`: they are skipped with an honest count, and any memory row whose owner is unknown fails the whole import and rolls back atomically. Legacy mode still auto-creates, unchanged.
 - **Revocation timing** — revoking a token takes effect on the next server start (identity is resolved once at startup).
-- **Not yet a full authorization boundary** — Ph-1 only stops identity minting. Per-tool authorization (roles) and scope-ownership binding (caller `userId` must equal the authenticated identity, plus membership) land in Ph-2/Ph-3; until then, one server/DB must still not be shared across mutually-untrusted users.
+- **Not yet a full authorization boundary** — Ph-1 only stops identity minting. Per-tool roles (Ph-2) and scope-ownership binding (caller `userId` must equal the authenticated identity, plus membership) are separate phases; until Ph-3 lands, one server/DB must still not be shared across mutually-untrusted users.
 - **Known limitation** — export/import does not carry `users.role`; imported users default to `reader`.
+
+## Authorization (opt-in, Ph-2)
+
+With `MEMORY_AUTH=on` every one of the 16 MCP tools passes a single role gate (`withAuth`, `src/auth/guard.ts`) before its handler runs. Roles come from `users.role` and are ranked: `admin` ⊇ `owner` ⊇ `writer` ⊇ `reader` (`ROLE_RANK`, `src/auth/policy.ts`).
+
+| Role | Tools allowed |
+|---|---|
+| `reader` | `recall`, `get_profile`, `get_context`, `memory_stats`, `search_history`, `get_recent_interactions` (6 read) |
+| `writer` | read tools + `remember`, `save_lesson`, `update_memory`, `link_memory` (4 additive writes) |
+| `owner` | write tools + `forget`, `merge_memory`, `consolidate`, `export_memory`, `import_memory`, `extract_memories` (6 destructive/blast-radius) |
+| `admin` | all 16 — superset via ranking; there is no admin-only MCP tool (user/token management is the local CLI) |
+
+- **Default-deny is structural (test-enforced)** — every `registerTool` in `src/index.ts` goes through `withAuth`, and `withAuth` throws at registration when the tool has no `TOOL_POLICY` entry, so an unpoliced tool cannot be served; a pairing test asserts the two name sets match on the built artifact. An unknown tool name in `canCallTool` is denied, and a defensive enforced identity with no usable role is denied on every tool (the resolver currently defaults an unparseable `users.role` to `reader`, so this can only happen with corrupted data).
+- **Deny shape** — a bounded tool result `{ isError: true, content: "error: denied: <tool> requires role <minRole> (auth enforced)" }`, not a thrown MCP protocol error. The role check runs **before** the handler, so a denied call has no side effects, and the caller's own roles are never echoed (only the public minimum role for that tool appears).
+- **Deny trail (interim)** — one redacted, newline-stripped stderr line capped at 240 chars: `[th-memory-mcp] authz: deny <tool> user=<externalId> needs=<minRole>`. Structured `audit_log` rows are Ph-3.
+- **Interim gap — interactions are not scoped** — `search_history` and `get_recent_interactions` are `reader`-level but read rows that carry no owner today, so in enforced mode any authenticated role can read the shared interaction history. Ph-3 adds `interactions.user_id` and scope binding; raising these two tools to `writer` would not isolate anything while the data is unscoped, so the gap is documented rather than hidden.
+- **Still not a full authorization boundary** — Ph-2 gates *which tool* a caller may invoke. It does not yet bind caller-supplied `userId` / `sessionId` / `projectId` to the authenticated identity, enforce project/session membership or grants, or audit decisions (all Ph-3). Identity is also resolved once per server process, so one server/DB still must not be shared across mutually-untrusted users.
 
 ## Hardening changes (unreleased)
 

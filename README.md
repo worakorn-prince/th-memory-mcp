@@ -118,7 +118,22 @@ th-memory auth list                                        # labels + hash prefi
 th-memory auth revoke <hash-prefix|label>                  # sets revoked_at
 ```
 
-Tokens are stored **hash-only** (`sha256`) in `auth_tokens`; the plaintext is printed exactly once by `issue-token`. With `MEMORY_AUTH=on`, minting users is blocked on **all** production write paths — `create_memory` throws for an unknown `userId`, and `import_memory` skips payload users (an unknown row owner fails the whole import atomically) — so users/tokens are created via the admin CLI only. Ph-1 closes identity minting only — per-tool RBAC and scope-ownership binding arrive in later phases, so this is **not yet a full authorization boundary** (see [SECURITY.md](SECURITY.md)).
+Tokens are stored **hash-only** (`sha256`) in `auth_tokens`; the plaintext is printed exactly once by `issue-token`. With `MEMORY_AUTH=on`, minting users is blocked on **all** production write paths — `create_memory` throws for an unknown `userId`, and `import_memory` skips payload users (an unknown row owner fails the whole import atomically) — so users/tokens are created via the admin CLI only. Ph-1 closes identity minting only — per-tool RBAC (Ph-2) and scope-ownership binding (Ph-3) complete the picture, so this is **not yet a full authorization boundary** (see [SECURITY.md](SECURITY.md)).
+
+### Authorization (opt-in)
+
+With `MEMORY_AUTH=on`, every tool call passes one role gate (`withAuth` in `src/auth/guard.ts`); with it off the gate is a pass-through and behaviour is unchanged. Roles are ranked and stored per user (`th-memory auth add-user <id> --role <role>`): `admin` ⊇ `owner` ⊇ `writer` ⊇ `reader`.
+
+| Role | Tools allowed |
+|---|---|
+| `reader` | `recall`, `get_profile`, `get_context`, `memory_stats`, `search_history`, `get_recent_interactions` |
+| `writer` | reader tools + `remember`, `save_lesson`, `update_memory`, `link_memory` |
+| `owner` | writer tools + `forget`, `merge_memory`, `consolidate`, `export_memory`, `import_memory`, `extract_memories` |
+| `admin` | all 16 (superset of `owner`; user/token admin is CLI-only, not an MCP tool) |
+
+A call above the caller's role returns a normal bounded tool error — `error: denied: <tool> requires role <minRole> (auth enforced)` with `isError: true`. The handler never runs, so a denied call changes nothing; the caller's own roles are not echoed, and one bounded (redacted, 240-char) line is written to stderr. A tool with no policy entry cannot register at all (server boot fails), so a new tool cannot slip in unpoliced.
+
+Roles gate **tools, not data**: scope-ownership binding (caller `userId` vs the authenticated identity, project/session membership, grants) is Phase 3. Interim gap: `search_history` and `get_recent_interactions` read interactions, which are shared/unscoped today, so any authenticated role can read them until Phase 3 adds `interactions.user_id`.
 
 ## Scripts
 
@@ -127,7 +142,7 @@ Tokens are stored **hash-only** (`sha256`) in `auth_tokens`; the plaintext is pr
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune old data (`RETENTION_DAYS`, default 30) |
-| `npm test` | build + full suite (59 files, 289 tests: 288 pass, 1 skip) |
+| `npm test` | build + full suite (61 files, 310 tests: 309 pass, 1 skip; the `smoke.mjs` tool-latency budget can flake on a loaded machine — use `SMOKE_MAX_TOOL_MS=200` or `--test-concurrency=1`) |
 | `node test/<name>.test.mjs` | run one suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security`, `thai_fts` |
 | `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (16 tools) |
 
@@ -210,7 +225,7 @@ data/
 ## Known Limitations
 
 - **No encryption at rest** — `data/memory.db` is plain, unencrypted SQLite (WAL mode, `better-sqlite3`); "100% local & private" means no cloud/network exfiltration, **not** encrypted at rest — anyone with filesystem access can read it. For sensitive data: OS full-disk encryption (BitLocker / FileVault / LUKS) or an opt-in SQLCipher build (native rebuild + key management); no in-code encryption by default (`src/db/index.ts` documents this).
-- **Single-user by default; opt-in identity only (Batch B-3 / Ph-1)** — `userId` / `sessionId` / `projectId` are caller-supplied with **no authorization check inside the server by default**; scope isolation (retrieval, `get_context`, graph, `consolidate`, `link_memory`, `merge_memory`) binds only to caller-sent values, so any scope is readable/writable by passing a different id. Suitable for a **single-user local process**; do **not** share one server/DB across untrusted users without an auth layer in front enforcing the correct `userId` (`projectId` / `sessionId`). Opt-in `MEMORY_AUTH=on` verifies a startup identity and stops user minting, but per-tool authorization and scope-ownership binding are not implemented yet, so it is not a full boundary.
+- **Single-user by default; opt-in identity + RBAC only (Batch B-3 / Ph-1 / Ph-2)** — `userId` / `sessionId` / `projectId` are caller-supplied with **no authorization check inside the server by default**; scope isolation (retrieval, `get_context`, graph, `consolidate`, `link_memory`, `merge_memory`) binds only to caller-sent values, so any scope is readable/writable by passing a different id. Suitable for a **single-user local process**; do **not** share one server/DB across untrusted users without an auth layer in front enforcing the correct `userId` (`projectId` / `sessionId`). Opt-in `MEMORY_AUTH=on` verifies a startup identity, stops user minting, and gates every tool by role (Ph-2), but scope-ownership binding and membership/grants are not implemented yet, so it is not a full boundary.
 
 ## License
 
