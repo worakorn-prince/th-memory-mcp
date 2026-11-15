@@ -66,25 +66,27 @@ jobs:
         continue-on-error: true
 
       # Test with encryption enabled (opt-in) - only on ubuntu
+      # Test with encryption enabled (opt-in) - only on ubuntu
       - name: Run tests with encryption enabled
         if: matrix.os == 'ubuntu-latest' && matrix.node == '26'
-        run: |
-          node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
+        run: node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
         shell: bash
         env:
           MEMORY_ENCRYPTION: 'on'
           MEMORY_ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY }}
+          MEMORY_AUTH: ''
 
       # Test with auth enabled (opt-in) - only on ubuntu
       - name: Run tests with auth enabled
         if: matrix.os == 'ubuntu-latest' && matrix.node == '26'
         run: |
           node dist/cli.js auth add-user testuser --role writer
-          echo "TOKEN=$(node dist/cli.js auth issue-token testuser --label test)"
+          TOKEN=$(node dist/cli.js auth issue-token testuser --label test)
           MEMORY_AUTH=on MEMORY_AUTH_TOKEN=$TOKEN node --test --test-concurrency=1 test/*.test.mjs test/smoke.mjs
         shell: bash
         env:
           MEMORY_AUTH: 'on'
+          MEMORY_ENCRYPTION: ''
 
   lint:
     name: Lint & Typecheck
