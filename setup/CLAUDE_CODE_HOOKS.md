@@ -22,6 +22,11 @@ npm install
 npm run build
 ```
 
+> The MCP server requires `npm run build`. Plaintext hook capture does not:
+> it only needs the installed dependencies. Encrypted hook capture
+> (`MEMORY_ENCRYPTION=on`) reuses the compiled server modules in `dist/`, so
+> run `npm run build` before using that mode.
+
 Add the MCP server (points at the built binary — same on every harness):
 
 ```bash
@@ -100,7 +105,9 @@ The auto-capture hooks will have stored your prompt + tool activity in
 - content is truncated (`prompt` 4000 / `tool_call` 500 chars)
 - a 3-second same-content dedupe avoids double inserts from hook re-fires
 - opens the DB with `WAL` + `busy_timeout=5000` so it coexists with the MCP server
-- **never blocks** Claude Code — every error is swallowed and it exits 0
+- uses the `better-sqlite3-multiple-ciphers` driver installed by `npm install`
+- supports encrypted databases with the same key providers and KDF settings as the MCP server
+- **never blocks** Claude Code — every error is logged and it exits 0
 
 ## Notes / limits vs OpenCode
 
@@ -110,4 +117,7 @@ The auto-capture hooks will have stored your prompt + tool activity in
 - **Injection timing**: OpenCode injects on compaction; Claude Code injects on
   every `UserPromptSubmit` via `additionalContext`. This is slightly more eager
   but functionally equivalent for keeping memory in context.
-- The `better-sqlite3` native binary must be present (it is, after `npm install`).
+- The `better-sqlite3-multiple-ciphers` native binary must be present (it is, after `npm install`).
+- Plaintext hook capture does not require `npm run build`. When `MEMORY_ENCRYPTION=on`, the hook dynamically loads the server's compiled encryption helpers from `dist/`, so that mode requires `npm run build`.
+- If `MEMORY_ENCRYPTION=on`, the hook must receive the same key as the MCP server. Providers are tried in the same order: `MEMORY_ENCRYPTION_KEY`, then `MEMORY_ENCRYPTION_KEY_FILE`, then `MEMORY_ENCRYPTION_KEY_CMD`. `MEMORY_ENCRYPTION_KDF_ITER` is also shared (default `256000`).
+- The hook never falls back to plaintext and never runs the plaintext-to-encrypted migration. If the key is missing or wrong, or the database is still plaintext, the hook disables itself, writes the error to `hook-errors.log` beside `MEMORY_DB_PATH` (`data/hook-errors.log` with the default path), emits valid JSON, and exits 0.
