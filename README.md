@@ -21,6 +21,22 @@ agent before each task. Hybrid FTS5 + local vectors, Thai/English aware, no clou
 | 🔐 **Opt-in security** | RBAC over every tool, identity-derived scope isolation with grants, a content-free `audit_log`, whole-DB SQLCipher encryption with rotation/backups/drills, and per-user capture attribution |
 | 📴 **Offline by default** | no network calls, no accounts, no API keys — the database is a single local file |
 
+## Performance
+
+Measured with the internal harness on one machine, seed 42; profile normal = 20,000 memories / 5,000 queries. Each cell shows the latest three runs, oldest → newest.
+
+| metric | 2.5.1 | 3.0.0 | 3.0.1 |
+|---|---:|---:|---:|
+| insert throughput (mem/s) | 352.6 / 331.9 / 320.5 | 331.7 / 277.4 / 361.5 | 348.0 / 337.4 / 352.9 |
+| `retrieve` @20k (ms) | 103.9 / 106.2 / 90.3 | 75.8 / 87.2 / 82.2 | 76.7 / 74.4 / 73.5 |
+| `get_context` @20k (ms) | 102.5 / 116.5 / 86.2 | 70.3 / 70.7 / 80.5 | 70.5 / 68.5 / 69.5 |
+| `recall` p95 (ms) | 1.00 / 2.00 / 1.00 | 1.00 / 2.00 / 1.00 | 2.00 / 2.00 / 1.00 |
+| DB size (MB) | 101.1 / 101.1 / 101.1 | 101.1 / 101.3 / 100.7 | 100.7 / 100.7 / 100.7 |
+
+Observation: v3.0.x `retrieve` / `get_context` took ~68–87 ms vs ~86–116 ms for 2.5.1; peak RSS was higher (quick ~262–306 MB vs ~110–199 MB; normal ~432 MB vs ~113–203 MB). The auth/encryption modules and native `better-sqlite3-multiple-ciphers` coincide with the increase, but these runs do not isolate which component consumed the extra memory.
+
+[Full performance history, three-run tables, and quality gates → `docs/PERFORMANCE.md`](docs/PERFORMANCE.md)
+
 ## Install in 60 seconds
 
 ```bash

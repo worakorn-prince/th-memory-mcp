@@ -8,7 +8,7 @@
 
 ## Requirements (ความต้องการระบบ)
 
-- **Node.js 22.23.4+, 24.22.1+ หรือ 26.12.1+ และ npm** — เฉพาะรุ่นที่ได้รับ patch; server ใช้ API เฉพาะของ Node (`better-sqlite3` native build, `import.meta.url`); CI ทดสอบรุ่น patch ขั้นต่ำของแต่ละ line (22/24/26); Node 20 EOL แล้ว เม.ย. 2026 และไม่รองรับ — ติดตั้ง dependencies และรัน build/test ด้วย npm (`npm install`, `npm run build`, `npm test`); ไม่ต้องมี external services, บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite เดียวในเครื่อง
+- **Node.js 22.23.4+, 24.22.1+ หรือ 26.12.1+ และ npm** — เฉพาะรุ่นที่ได้รับ patch; server ใช้ `import.meta.url` และ native driver `better-sqlite3-multiple-ciphers@13.1.1`; CI ทดสอบรุ่น patch ขั้นต่ำของแต่ละ line (22/24/26); Node 20 EOL แล้ว เม.ย. 2026 และไม่รองรับ — ติดตั้ง dependencies และรัน build/test ด้วย npm (`npm install`, `npm run build`, `npm test`); ไม่ต้องมี external services, บัญชี หรือ API key — ทุกอย่างอยู่ในไฟล์ SQLite เดียวในเครื่อง
 - **OpenCode** — โปรแกรมหลักที่โหลด MCP server และ plugin auto-capture (รองรับ MCP over stdio + plugins); plugin ใช้ `node:sqlite` บน OpenCode Desktop/Node 22.5+ และ fallback ไป `bun:sqlite` บน CLI ที่ใช้ Bun
 - **OS: Windows / macOS / Linux** — ข้ามแพลตฟอร์ม (Node); Windows ตั้ง `MEMORY_DB_PATH` ด้วย `setx`, macOS/Linux ใช้ `export` ใน shell profile
 
@@ -50,24 +50,39 @@ OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-
 ## ทำไมต้องใช้ th-memory-mcp?
 
 - **Context-based learning, local 100%** — จับความชอบ/การถูกแก้/พฤติกรรม แล้วเรียกกลับเข้า context ครั้งหน้า โดยไม่ส่งข้อมูลออกนอกเครื่อง; SQLite ไฟล์เดียว ไม่มีคลาวด์/external API และกรอง secret (`api_key=`, `password:`, `token`) ก่อนบันทึกเสมอ
-- **เบา ทนทาน เปิดกว้าง** — tool calls มีเพดาน (ขนาด output จำกัด, ระดับ ms ที่ DB ขนาดปกติ) และ graceful degradation เมื่อ DB ไม่พร้อม; ที่ 20,000 memories `retrieve` ใช้ ~90 ms — ดู [PERFORMANCE.md](PERFORMANCE.md); Node + `better-sqlite3` เท่านั้น; MIT license, 16 tools, rule-based distill, plugin auto-capture
+- **เบา ทนทาน เปิดกว้าง** — tool calls มีเพดาน (ขนาด output จำกัด, ระดับ ms ที่ DB ขนาดปกติ) และ graceful degradation เมื่อ DB ไม่พร้อม; ที่ 20,000 memories รอบ normal-profile ล่าสุดของ v3.0.1 วัด `retrieve` เต็มรูปแบบได้ 73.5 ms — ดู [PERFORMANCE.md](PERFORMANCE.md); Node + native driver `better-sqlite3-multiple-ciphers@13.1.1` เท่านั้น (ไม่มี native extension อื่น); MIT license, 16 tools, rule-based distill, plugin auto-capture
 - **Lifecycle & temporal** — states (active/stale/superseded/archived), confidence/importance/salience, decay ต่อ type, validity intervals รองรับ point-in-time truth และ supersession chains
 - **Conflict-aware & consolidation** — ตรวจจับ duplicate/contradiction และเก็บทั้งสองฝ่ายของหลักฐานที่ขัดแย้ง; คลัสเตอร์ความจำที่คล้ายกันเป็น derived memory พร้อม provenance (`derived_from`)
 - **Hybrid retrieval & ไทย** — `get_context` ผสาน FTS5 + local vector embedding (RRF fusion) แบบ token budget พร้อมขยายผ่าน memory graph; tokenize ไทยใน distill และ Thai-aware FTS5 แบ่งคำไทยด้วย `Intl.Segmenter` + tokenizer ที่เก็บวรรณยุกต์/สระไว้ใน token ทำให้ค้นคำไทยในข้อความที่เขียนติดกันได้ และวรรณยุกต์ยังมีผลต่อการ match (`ติดตัง` ≠ `ติดตั้ง`); มีช่องแบบทนวรรณยุกต์ (`looseForm`), คำพ้อง TH↔EN และพจนานุกรมไทยส่วนตัว นำกลับไปใช้ standalone ได้ผ่าน CLI ไร้ dependency `thai-fts` ([thai-fts.md](thai-fts.md)); รับไทย/อังกฤษสลับกันได้
 
 ## Performance (ประสิทธิภาพ)
 
-วัดด้วย benchmark harness ภายในที่ **20,000 memories / 5,000 queries** (เครื่องเดียวกัน, seed เดียวกัน) — ตัวเลขสัมบูรณ์ขึ้นกับเครื่อง แต่ทิศทางของส่วนต่างทำซ้ำได้; วิธีวัดและ trade-off ทั้งหมดอยู่ที่ **[PERFORMANCE.md](PERFORMANCE.md)**
+วัดด้วย benchmark harness ภายในบนเครื่องเดียวกันและ seed 42 แบบ deterministic;
+profile normal = **20,000 memories / 5,000 queries** แต่ละช่องแสดง 3 รอบล่าสุดของ version
+นั้น เรียงจากเก่าไปใหม่ การ retro v3.0.0 ใช้ harness และ framework เดียวกับ v3.0.1 ตัวเลข
+สัมบูรณ์ขึ้นกับเครื่อง จึงควรดูทิศทางและสัดส่วนของการเปลี่ยนแปลงมากกว่าค่าเดี่ยว
 
-| metric | 2.5.1 | 2.5.2 | Δ |
+| metric | 2.5.1 | 3.0.0 | 3.0.1 |
 |---|---:|---:|---:|
-| ความเร็วการเขียน | 73.6 mem/s | **320.5 mem/s** (320–352 ตามรอบ) | **+335%** |
-| `retrieve` (20k memories) | 363 ms | **90 ms** | −75% |
-| `get_context` (20k memories) | 357 ms | **86 ms** | −76% |
-| `recall` p95 | 3 ms | **1 ms** | −67% |
-| คุณภาพการค้น (scope / supersession / MRR) | 100% / 100% / 0.955 | ไม่เปลี่ยน | — |
+| insert throughput (mem/s) | 352.6 / 331.9 / 320.5 | 331.7 / 277.4 / 361.5 | 348.0 / 337.4 / 352.9 |
+| `retrieve` @20k (ms) | 103.9 / 106.2 / 90.3 | 75.8 / 87.2 / 82.2 | 76.7 / 74.4 / 73.5 |
+| `get_context` @20k (ms) | 102.5 / 116.5 / 86.2 | 70.3 / 70.7 / 80.5 | 70.5 / 68.5 / 69.5 |
+| `recall` p95 (ms) | 1.00 / 2.00 / 1.00 | 1.00 / 2.00 / 1.00 | 2.00 / 2.00 / 1.00 |
+| DB size (MB) | 101.1 / 101.1 / 101.1 | 101.1 / 101.3 / 100.7 | 100.7 / 100.7 / 100.7 |
 
-แก้ที่ต้นเหตุ 2 จุด ไม่ใช่จูนค่า: การเขียน index บน FTS5 เคยสแกนทั้งตารางต่อ record (ทำให้ write เป็น O(n) ตามขนาด DB) และการค้นทุกครั้งเคยอ่าน+decode embedding BLOB ทั้งหมดใหม่ — cache ฝั่งค้นเป็นการสแกนแบบ **exact** (ไม่ใช่ ANN/ประมาณผล) จำกัดด้วย `MEMORY_VECTOR_CACHE_MB` (default 64 MB, `0` = ปิด)
+ใน profile normal v3.0.0/v3.0.1 ใช้เวลา `retrieve` / `get_context` ~68–87 ms เร็วกว่า ~86–116 ms
+ของ 2.5.1 ส่วน peak RSS ของ v3.0.x สูงขึ้น: quick ~262–306 MB เทียบกับ ~110–199 MB ของ 2.5.1
+และ normal ~432 MB เทียบกับ ~113–203 MB ช่วงที่เพิ่มขึ้นตรงกับโมดูล auth/encryption และ
+native `better-sqlite3-multiple-ciphers` แต่ยังไม่ได้วัดแยกว่าส่วนใดกิน memory เพิ่ม คุณภาพ
+ล่าสุดของ v3.0.0 และ v3.0.1 เหมือนเดิมทุกตัว: storage 100%, scope selection 100%, cross-scope
+contamination 0%, supersession 100%, R@5 90.6%, MRR 1.000, semantic-hard MRR 0.955, non-crash 100%
+และ graph hop1 100%
+
+การแก้ที่ต้นเหตุใน 2.5.2 ยังอยู่: การเขียน index บน FTS5 ไม่สแกนทั้งตารางต่อ record และการค้น
+ไม่อ่าน+decode embedding BLOB ทั้งหมดใหม่ทุกครั้ง — cache ฝั่งค้นเป็นการสแกนแบบ **exact**
+(ไม่ใช่ ANN/ประมาณผล) จำกัดด้วย `MEMORY_VECTOR_CACHE_MB` (default 64 MB, `0` = ปิด) วิธีวัด
+ตารางครบทั้ง 3 profile, quality gates และคำสั่ง reproduce อยู่ที่
+**[PERFORMANCE.md](PERFORMANCE.md)**
 
 ## Scripts
 
@@ -76,7 +91,7 @@ OpenCode โหลดสองส่วน: **plugin** `learning-capture` (dual-
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | รัน MCP server (stdio) จาก `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune ข้อมูลเก่า (env `RETENTION_DAYS` default 30) |
-| `npm test` | build + เทสทั้งชุด (57 ไฟล์, 255 tests: ผ่าน 254, skip 1) |
+| `npm test` | build + เทสทั้งชุดผ่าน entry point `scripts/run-tests.mjs` (529 tests: ผ่าน 528, fail 0, skip 1; ลบ `MEMORY_DB_PATH` ออกจาก environment ก่อนรัน เทสต์จึงไม่แตะ DB จริงของผู้ใช้) |
 | `node test/<name>.test.mjs` | รันทีละ suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security` |
 | `node test/smoke.mjs` | smoke test end-to-end ผ่าน JSON-RPC (16 tools) |
 

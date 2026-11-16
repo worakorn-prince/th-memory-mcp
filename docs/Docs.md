@@ -8,7 +8,7 @@ For a one-screen overview see [../README.md](../README.md). Harness setup guides
 
 ## Requirements
 
-- **Node.js 22.23.4+, 24.22.1+, or 26.12.1+** — patched releases only; the server uses Node-only APIs (`better-sqlite3` native build, `import.meta.url`). Node.js 20 is EOL and unsupported. CI tests the minimum patched version of each supported line (22/24/26).
+- **Node.js 22.23.4+, 24.22.1+, or 26.12.1+** — patched releases only; the server relies on `import.meta.url` and the native `better-sqlite3-multiple-ciphers@13.1.1` driver. Node.js 20 is EOL and unsupported. CI tests the minimum patched version of each supported line (22/24/26).
 - **npm** — for `npm install`, `npm run build`, `npm test`. No external services, accounts, or API keys — everything lives in a single local SQLite file.
 - **OpenCode** — the host that loads the MCP server and the auto-capture plugin (any build with MCP over stdio + plugins). The plugin uses `node:sqlite` on OpenCode Desktop/Node 22.5+ and falls back to `bun:sqlite` on the Bun-based CLI.
 - **OS: Windows / macOS / Linux** — cross-platform (Node); Windows: set `MEMORY_DB_PATH` with `setx`, macOS/Linux: `export` in your shell profile.
@@ -52,27 +52,38 @@ OpenCode loads the plugin `learning-capture` (dual-mode V1/V2, Node/Bun) — aut
 
 - **Context-based learning, not fine-tuning** — captures your preferences, corrections, and habits, then recalls them next session; no data leaves your machine.
 - **100% local & private** — one SQLite file, no cloud, no external API; secrets (`api_key=`, `password:`, `token`) filtered before storage.
-- **Low overhead & resilient** — tool calls are capped (bounded output, low single-digit ms on typical databases) and degrade gracefully if the DB is unavailable; at 20,000 memories a full `retrieve` is ~90 ms — see [PERFORMANCE.md](PERFORMANCE.md).
-- **Open & extensible** — MIT licensed; 16 documented tools, rule-based distill, auto-capture plugin; Node + `better-sqlite3` only (no extra native extensions).
+- **Low overhead & resilient** — tool calls are capped (bounded output, low single-digit ms on typical databases) and degrade gracefully if the DB is unavailable; at 20,000 memories the latest v3.0.1 normal-profile run measured a full `retrieve` at 73.5 ms — see [PERFORMANCE.md](PERFORMANCE.md).
+- **Open & extensible** — MIT licensed; 16 documented tools, rule-based distill, auto-capture plugin; Node + the native `better-sqlite3-multiple-ciphers@13.1.1` driver; no other native extensions.
 
 ## Performance
 
-Measured with the internal benchmark harness at **20,000 memories / 5,000 queries** (same machine,
-deterministic seed). Numbers are machine-specific; the deltas are not. Full method, per-step
-breakdown and trade-offs: **[PERFORMANCE.md](PERFORMANCE.md)**.
+Measured with the internal benchmark harness on the same machine and deterministic seed 42;
+profile normal = **20,000 memories / 5,000 queries**. Each cell shows the latest three runs for
+that version, ordered oldest → newest. The v3.0.0 retro used the same harness and framework as
+v3.0.1. Absolute values are machine-specific; the direction and proportion of changes matter more
+than any single value.
 
-| metric | 2.5.1 | 2.5.2 | Δ |
+| metric | 2.5.1 | 3.0.0 | 3.0.1 |
 |---|---:|---:|---:|
-| write throughput | 73.6 mem/s | **320.5 mem/s** (320–352 across runs) | **+335%** |
-| `retrieve` (20k memories) | 363 ms | **90 ms** | −75% |
-| `get_context` (20k memories) | 357 ms | **86 ms** | −76% |
-| `recall` p95 | 3 ms | **1 ms** | −67% |
-| retrieval quality (scope / supersession / MRR) | 100% / 100% / 0.955 | unchanged | — |
+| insert throughput (mem/s) | 352.6 / 331.9 / 320.5 | 331.7 / 277.4 / 361.5 | 348.0 / 337.4 / 352.9 |
+| `retrieve` @20k (ms) | 103.9 / 106.2 / 90.3 | 75.8 / 87.2 / 82.2 | 76.7 / 74.4 / 73.5 |
+| `get_context` @20k (ms) | 102.5 / 116.5 / 86.2 | 70.3 / 70.7 / 80.5 | 70.5 / 68.5 / 69.5 |
+| `recall` p95 (ms) | 1.00 / 2.00 / 1.00 | 1.00 / 2.00 / 1.00 | 2.00 / 2.00 / 1.00 |
+| DB size (MB) | 101.1 / 101.1 / 101.1 | 101.1 / 101.3 / 100.7 | 100.7 / 100.7 / 100.7 |
 
-Two root causes were removed rather than tuned: FTS5 index writes did a full-table scan per record
-(so writes were O(n) in database size), and every retrieval re-read and re-decoded all embedding
-BLOBs. The retrieval cache is an **exact** contiguous scan — no ANN, no approximation — bounded by
-`MEMORY_VECTOR_CACHE_MB` (default 64 MB, `0` disables it).
+In profile normal, v3.0.0/v3.0.1 `retrieve` / `get_context` took ~68–87 ms, faster than the
+~86–116 ms measured for 2.5.1. Peak RSS is higher for v3.0.x: quick ~262–306 MB vs ~110–199 MB
+for 2.5.1, and normal ~432 MB vs ~113–203 MB. This coincides with the auth/encryption modules
+and native `better-sqlite3-multiple-ciphers`; these runs do not isolate which component consumed
+the extra memory. The latest v3.0.0 and v3.0.1 quality results are unchanged: storage 100%, scope
+selection 100%, cross-scope contamination 0%, supersession 100%, R@5 90.6%, MRR 1.000,
+semantic-hard MRR 0.955, non-crash 100%, and graph hop1 100%.
+
+The 2.5.2 root-cause fixes remain in place: FTS5 index writes no longer scan the whole table per
+record, and retrieval no longer re-reads and re-decodes every embedding BLOB. The retrieval cache
+is an **exact** contiguous scan — no ANN, no approximation — bounded by
+`MEMORY_VECTOR_CACHE_MB` (default 64 MB, `0` disables it). Full method, all three profile tables,
+quality gates and reproduction commands: **[PERFORMANCE.md](PERFORMANCE.md)**.
 
 ## Highlights
 
@@ -136,7 +147,7 @@ Roles gate **tools, not data**: scope-ownership binding (caller `userId` vs the 
 | `npm run build` | compile TypeScript → `dist/` |
 | `npm start` | run the MCP server (stdio) from `dist/index.js` |
 | `npm run distill` | interactions → profile sections + prune old data (`RETENTION_DAYS`, default 30) |
-| `npm test` | build + full suite (61 files, 310 tests: 309 pass, 1 skip; the `smoke.mjs` tool-latency budget can flake on a loaded machine — use `SMOKE_MAX_TOOL_MS=200` or `--test-concurrency=1`) |
+| `npm test` | build + full suite via `scripts/run-tests.mjs` (529 tests: 528 pass, 0 fail, 1 skip; `MEMORY_DB_PATH` is removed from the environment before the run so tests do not touch the user's real DB) |
 | `node test/<name>.test.mjs` | run one suite: `capture`, `distill`, `lifecycle`, `temporal`, `conflict`, `retrieval`, `graph`, `context`, `consolidation`, `benchmark`, `security`, `thai_fts` |
 | `node test/smoke.mjs` | end-to-end smoke test over JSON-RPC (16 tools) |
 
@@ -190,7 +201,7 @@ Usage: `th-memory [--db <path>] [--json] [--plain] <command> [options]` — per-
 | `recent` | `recent [--limit <n>] [--kind <k>]` — recent interactions (`k`: `prompt\|tool_call\|error`) |
 | `highlight` | `highlight [text...] -q <topic> [--limit <n>]` — highlight topic matches (empty text = stdin pipe) |
 | `auth` | `auth <add-user\|issue-token\|list\|revoke\|backfill-interactions> [opts]` — opt-in identity/token admin (see below) |
-| `grant` | `grant <add\|remove\|list> --user <id> --kind USER|PROJECT|SESSION|GLOBAL --ref <target> --permission read\|write` — scope grants admin (see below) |
+| `grant` | `grant <add\|remove\|list> --user <id> --kind` `USER`, `PROJECT`, `SESSION`, `GLOBAL` `--ref <target> --permission read\|write` — scope grants admin (see below) |
 | `db` | `db <rekey\|verify-backup\|restore\|drill> [opts]` — encryption admin: rotate the key, verify a backup, restore it, rehearse a restore (see Encryption at Rest) |
 
 ```bash
@@ -227,7 +238,7 @@ data/
 With `MEMORY_AUTH=on`, every tool's scope is derived **from the verified identity**, never from raw arguments:
 
 - **Ownership**: writes (preferences, lessons, memories) go to the caller's own USER scope by default. Writing another user's scope requires an explicit grant.
-- **Grants**: `th-memory grant add --user <id> --kind USER|PROJECT|SESSION|GLOBAL --ref <target> --permission read|write` allows cross-scope access. Grants are non-escalatable: read never implies write.
+- **Grants**: `th-memory grant add --user <id> --kind` `USER`, `PROJECT`, `SESSION`, `GLOBAL` `--ref <target> --permission read|write` allows cross-scope access. Grants are non-escalatable: read never implies write.
 - **Read filtering**: `recall`, `get_profile`, `search_history`, `get_recent_interactions`, `memory_stats`, `export_memory` only return rows the identity may see (own USER + GLOBAL, plus granted scopes; anonymous interactions visible to owner/admin only).
 - **Capture attribution**: optional `MEMORY_CAPTURE_USER=<external_id>` (read by the plugin/capture core) tags new interaction rows; unknown id → NULL (never mints a user). NULL interactions are owner/admin-only in enforcement.
 - **Audit**: every enforced decision (allow + deny) is recorded in `audit_log` with bounded, content-free fields (`tool`, `kind`, `decision`, `reason`, `scope_kind`, `scope_ref`). Legacy mode writes no audit rows.
